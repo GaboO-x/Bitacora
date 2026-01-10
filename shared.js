@@ -41,7 +41,7 @@ export async function getMyProfile(supabase, userId) {
 }
 
 export async function callInviteEdge(supabase, adminEmail, adminPassword, payload) {
-  const { data, error } = await supabase.functions.invoke("call-admin-users", {
+  const { data, error } = await supabase.functions.invoke("bright-task", {
     body: { admin_email: adminEmail, admin_password: adminPassword, payload }
   });
   return { data, error };

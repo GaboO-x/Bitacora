@@ -1,10 +1,347 @@
 <!doctype html>
-<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Bitácora — Configurar contraseña</title>
-<link rel="stylesheet" href="./styles.css"></head>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bitácora — Acceso</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 <body>
-<div class="container"><div class="card">
-<h2>Reemplaza este archivo</h2>
-<p class="muted">Aquí debe ir tu Bitacora_index.html real (la página de configurar contraseña) si quieres tenerla en el mismo sitio.</p>
-</div></div>
-</body></html>
+  <div class="container">
+    <div class="card">
+      <h2 id="pageTitle">Bitácora</h2>
+      <p class="muted" id="pageSubtitle">Acceso</p>
+
+      <div id="msg" class="msg" style="display:none"></div>
+
+      <!-- 1) Configuración de Supabase (solo si no existe en localStorage) -->
+      <section id="cfgSection" style="display:none">
+        <h3>Configuración de Supabase</h3>
+        <p class="muted">Se guarda localmente en este navegador (localStorage).</p>
+
+        <label for="cfgUrl">Project URL</label>
+        <input id="cfgUrl" type="text" placeholder="https://TU-PROYECTO.supabase.co" autocomplete="off" />
+
+        <label for="cfgAnon">Publishable / anon key</label>
+        <input id="cfgAnon" type="password" placeholder="eyJhbGciOi..." autocomplete="off" />
+
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="btnSaveCfg" type="button">Guardar configuración</button>
+          <button id="btnResetCfg" type="button">Limpiar</button>
+        </div>
+
+        <p class="muted" style="margin-top:10px">
+          Nota: nunca pegues tu <b>service_role</b> key aquí.
+        </p>
+      </section>
+
+      <!-- 2) Definir nueva contraseña (invite/recovery) -->
+      <section id="setPwSection" style="display:none">
+        <h3>Definir nueva contraseña</h3>
+        <p class="muted">Crea tu contraseña para ingresar a la Bitácora.</p>
+
+        <label for="newPw">Nueva contraseña</label>
+        <input id="newPw" type="password" minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password" />
+
+        <label for="newPw2">Confirmar contraseña</label>
+        <input id="newPw2" type="password" minlength="8" placeholder="Repite la contraseña" autocomplete="new-password" />
+
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="btnSetPw" type="button">Guardar contraseña</button>
+          <button id="btnGoLogin" type="button">Ir a Login</button>
+        </div>
+      </section>
+
+      <!-- 3) Login normal -->
+      <section id="loginSection" style="display:none">
+        <h3>Iniciar sesión</h3>
+
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="correo@dominio.com" autocomplete="email" />
+
+        <label for="password">Contraseña</label>
+        <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
+
+        <div style="display:flex; gap:8px; margin-top:10px">
+          <button id="btnLogin" type="button">Entrar</button>
+          <button id="btnShowCfg" type="button">Configurar Supabase</button>
+        </div>
+      </section>
+
+      <p class="muted" style="margin-top:14px">
+        Si llegaste aquí desde un correo de invitación o recuperación, define tu contraseña y luego inicia sesión.
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { getCfg, saveCfg, setMsg, ensureSupabase } from "./shared.js";
+
+    // --- Elementos UI ---
+    const msgElId = "msg";
+    const pageTitle = document.getElementById("pageTitle");
+    const pageSubtitle = document.getElementById("pageSubtitle");
+
+    const cfgSection = document.getElementById("cfgSection");
+    const setPwSection = document.getElementById("setPwSection");
+    const loginSection = document.getElementById("loginSection");
+
+    const cfgUrl = document.getElementById("cfgUrl");
+    const cfgAnon = document.getElementById("cfgAnon");
+
+    const newPw = document.getElementById("newPw");
+    const newPw2 = document.getElementById("newPw2");
+    const email = document.getElementById("email");
+    const password = document.getElementById("password");
+
+    const btnSaveCfg = document.getElementById("btnSaveCfg");
+    const btnResetCfg = document.getElementById("btnResetCfg");
+    const btnSetPw = document.getElementById("btnSetPw");
+    const btnGoLogin = document.getElementById("btnGoLogin");
+    const btnLogin = document.getElementById("btnLogin");
+    const btnShowCfg = document.getElementById("btnShowCfg");
+
+    function showMsg(text, isErr = false) {
+      const el = document.getElementById(msgElId);
+      if (!el) return;
+      el.style.display = text ? "block" : "none";
+      setMsg(msgElId, text, isErr);
+    }
+
+    function hideAll() {
+      cfgSection.style.display = "none";
+      setPwSection.style.display = "none";
+      loginSection.style.display = "none";
+      showMsg("");
+    }
+
+    function showCfg() {
+      hideAll();
+      pageSubtitle.textContent = "Configurar Supabase";
+      cfgSection.style.display = "block";
+      const cfg = getCfg();
+      cfgUrl.value = cfg?.url || "";
+      cfgAnon.value = cfg?.anon || "";
+    }
+
+    function showLogin() {
+      hideAll();
+      pageSubtitle.textContent = "Login";
+      loginSection.style.display = "block";
+    }
+
+    function showSetPassword() {
+      hideAll();
+      pageSubtitle.textContent = "Configurar contraseña";
+      setPwSection.style.display = "block";
+    }
+
+    function getAuthParams() {
+      // Soportar tanto "code" (PKCE) como hash con tokens.
+      const url = new URL(window.location.href);
+      const params = url.searchParams;
+
+      const hash = (window.location.hash || "").replace(/^#/, "");
+      const hashParams = new URLSearchParams(hash);
+
+      return {
+        code: params.get("code"),
+        type: params.get("type") || hashParams.get("type"),
+        access_token: hashParams.get("access_token"),
+        refresh_token: hashParams.get("refresh_token")
+      };
+    }
+
+    function clearAuthFromUrl() {
+      // Limpia tokens/query para evitar re-ejecuciones
+      const url = new URL(window.location.href);
+      url.searchParams.delete("code");
+      url.searchParams.delete("type");
+      history.replaceState({}, document.title, url.pathname + url.search);
+      if (window.location.hash) {
+        history.replaceState({}, document.title, url.pathname + url.search);
+      }
+    }
+
+    async function initSessionFromUrl(supabase) {
+      const { code, access_token, refresh_token } = getAuthParams();
+
+      // PKCE
+      if (code) {
+        try {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) return { session: null, error };
+          return { session: data.session || null, error: null };
+        } catch (e) {
+          return { session: null, error: e };
+        }
+      }
+
+      // Implicit tokens
+      if (access_token && refresh_token) {
+        try {
+          const { data, error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) return { session: null, error };
+          return { session: data.session || null, error: null };
+        } catch (e) {
+          return { session: null, error: e };
+        }
+      }
+
+      // Normal
+      const { data } = await supabase.auth.getSession();
+      return { session: data.session || null, error: null };
+    }
+
+    async function boot() {
+      pageTitle.textContent = "Bitácora";
+
+      const cfg = getCfg();
+      if (!cfg?.url || !cfg?.anon) {
+        showCfg();
+        return;
+      }
+
+      const supabase = await ensureSupabase();
+      if (!supabase) {
+        showCfg();
+        return;
+      }
+
+      const authParams = getAuthParams();
+      const type = (authParams.type || "").toLowerCase();
+      const isSetPwFlow = type === "recovery" || type === "invite";
+
+      // 1) Intentar establecer sesión desde URL (si venimos del email)
+      const { session, error } = await initSessionFromUrl(supabase);
+      if (error) {
+        showLogin();
+        showMsg("No se pudo validar el enlace. Intenta nuevamente o solicita otro correo.", true);
+        return;
+      }
+
+      // 2) Si es flujo set password, mostramos esa UI (aunque haya sesión)
+      if (isSetPwFlow) {
+        showSetPassword();
+        if (!session) {
+          showMsg("Enlace inválido o expirado. Solicita uno nuevo.", true);
+        }
+        return;
+      }
+
+      // 3) Si no es set password, mostramos login
+      showLogin();
+
+      // Si ya hay sesión (por ejemplo, venía con sesión vigente), redirige a app
+      if (session?.user) {
+        window.location.href = "./app.html";
+      }
+    }
+
+    // --- Eventos ---
+    btnSaveCfg.addEventListener("click", () => {
+      const url = (cfgUrl.value || "").trim();
+      const anon = (cfgAnon.value || "").trim();
+      if (!url || !anon) {
+        showMsg("Debes completar Project URL y Publishable/anon key.", true);
+        return;
+      }
+      saveCfg(url, anon);
+      showMsg("Configuración guardada.", false);
+      setTimeout(() => window.location.reload(), 400);
+    });
+
+    btnResetCfg.addEventListener("click", () => {
+      localStorage.removeItem("bitacora_cfg_v1");
+      showMsg("Configuración limpiada.", false);
+      setTimeout(() => window.location.reload(), 300);
+    });
+
+    btnShowCfg.addEventListener("click", () => {
+      showCfg();
+    });
+
+    btnGoLogin.addEventListener("click", async () => {
+      // Limpia URL y regresa a login
+      clearAuthFromUrl();
+      showLogin();
+    });
+
+    btnSetPw.addEventListener("click", async () => {
+      const p1 = (newPw.value || "").trim();
+      const p2 = (newPw2.value || "").trim();
+
+      if (!p1 || !p2) {
+        showMsg("Completa ambos campos de contraseña.", true);
+        return;
+      }
+      if (p1.length < 8) {
+        showMsg("La contraseña debe tener al menos 8 caracteres.", true);
+        return;
+      }
+      if (p1 !== p2) {
+        showMsg("Las contraseñas no coinciden.", true);
+        return;
+      }
+
+      const supabase = await ensureSupabase();
+      if (!supabase) {
+        showCfg();
+        showMsg("Primero configura Supabase.", true);
+        return;
+      }
+
+      showMsg("Guardando contraseña…", false);
+
+      const { error } = await supabase.auth.updateUser({ password: p1 });
+      if (error) {
+        showMsg("No se pudo actualizar la contraseña: " + (error.message || "Error"), true);
+        return;
+      }
+
+      showMsg("Contraseña actualizada. Redirigiendo a Login…", false);
+
+      // Limpia tokens de la URL y cierra sesión para forzar login con la nueva contraseña.
+      clearAuthFromUrl();
+      await supabase.auth.signOut();
+
+      setTimeout(() => {
+        showLogin();
+      }, 600);
+    });
+
+    btnLogin.addEventListener("click", async () => {
+      const em = (email.value || "").trim();
+      const pw = (password.value || "").trim();
+
+      if (!em || !pw) {
+        showMsg("Completa email y contraseña.", true);
+        return;
+      }
+
+      const supabase = await ensureSupabase();
+      if (!supabase) {
+        showCfg();
+        showMsg("Primero configura Supabase.", true);
+        return;
+      }
+
+      showMsg("Ingresando…", false);
+
+      const { data, error } = await supabase.auth.signInWithPassword({ email: em, password: pw });
+      if (error || !data?.session) {
+        showMsg("Credenciales inválidas o usuario no activo.", true);
+        return;
+      }
+
+      showMsg("Login exitoso. Redirigiendo…", false);
+      setTimeout(() => {
+        window.location.href = "./app.html";
+      }, 400);
+    });
+
+    // Iniciar
+    boot();
+  </script>
+</body>
+</html>

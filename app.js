@@ -2,7 +2,7 @@ import { requireSession, setMsg, getMyProfile } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
-  if (!supabase || !session) return (window.location.href = "./Bitacora_index.html");
+  if (!supabase || !session) return window.location.href = "./Bitacora_index.html";
 
   document.getElementById("btnLogout").addEventListener("click", async () => {
     await supabase.auth.signOut();

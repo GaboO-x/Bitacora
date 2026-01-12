@@ -25,35 +25,67 @@
       <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
       <label>Nombre completo</label>
       <input id="inviteName" type="text" placeholder="Nombre Apellido" />
-      <label>Rol</label>
-      <select id="inviteRole">
-        <option value="user">user</option>
-        <option value="leader">leader</option>
-        <option value="admin">admin</option>
-      </select>
-      <label>Division</label>
-      <select id="inviteDivision">
-        <option value="">(vacío)</option>
-        <option value="makers">makers</option>
-        <option value="takers">takers</option>
-      </select>
-      <label>Squad</label>
-      <select id="inviteSquad">
-        <option value="">(vacío)</option>
-        <optgroup label="Makers">
-          <option value="URM">URM</option><option value="UVM">UVM</option><option value="UAM">UAM</option><option value="UNM">UNM</option><option value="UAZM">UAZM</option>
-        </optgroup>
-        <optgroup label="Takers">
-          <option value="URT">URT</option><option value="UVT">UVT</option><option value="UAT">UAT</option><option value="UNT">UNT</option><option value="UAZT">UAZT</option>
-        </optgroup>
-      </select>
+      <label>Rol (selección única)</label>
+      <div class="muted small">Elige 1</div>
+      <div style="display:grid;gap:8px;margin-top:6px;">
+        <label style="display:flex;gap:8px;align-items:center;margin:0;">
+          <input type="radio" name="inviteRole" value="user" checked />
+          <span>user</span>
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;margin:0;">
+          <input type="radio" name="inviteRole" value="leader" />
+          <span>leader</span>
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;margin:0;">
+          <input type="radio" name="inviteRole" value="admin" />
+          <span>admin</span>
+        </label>
+      </div>
+
+      <label style="margin-top:14px;">Division (selección múltiple)</label>
+      <div class="muted small">Puedes elegir varias</div>
+      <div style="display:grid;gap:8px;margin-top:6px;">
+        <label style="display:flex;gap:8px;align-items:center;margin:0;">
+          <input type="checkbox" name="inviteDivision" value="makers" />
+          <span>makers</span>
+        </label>
+        <label style="display:flex;gap:8px;align-items:center;margin:0;">
+          <input type="checkbox" name="inviteDivision" value="takers" />
+          <span>takers</span>
+        </label>
+      </div>
+
+      <label style="margin-top:14px;">Squad (selección múltiple)</label>
+      <div class="muted small">Puedes elegir varios</div>
+      <div style="display:grid;gap:10px;margin-top:6px;">
+        <div>
+          <div class="muted small" style="font-weight:600;">Makers</div>
+          <div style="display:grid;gap:8px;margin-top:6px;">
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URM" /><span>URM</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVM" /><span>UVM</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAM" /><span>UAM</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNM" /><span>UNM</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZM" /><span>UAZM</span></label>
+          </div>
+        </div>
+        <div>
+          <div class="muted small" style="font-weight:600;">Takers</div>
+          <div style="display:grid;gap:8px;margin-top:6px;">
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URT" /><span>URT</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVT" /><span>UVT</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAT" /><span>UAT</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNT" /><span>UNT</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZT" /><span>UAZT</span></label>
+          </div>
+        </div>
+      </div>
 
       <button id="btnInvite">Enviar invitación</button>
 
       <p id="msg" class="msg"></p>
       <details class="details">
         <summary>Nota</summary>
-        <p class="muted small">Te pedirá el password del admin por prompt solo para enviar la invitación.</p>
+        <p class="muted small">No pide password adicional; usa la sesión del admin ya autenticada.</p>
       </details>
     </div>
   </div>

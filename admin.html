@@ -18,49 +18,47 @@
   <div class="container">
     <div class="card">
       <h2>Panel Admin (mínimo)</h2>
-      <p class="muted">Invitar usuarios por Edge Function.</p>
 
-      <h3>Invitar usuario</h3>
+      <h3>-----> Invitar usuario</h3>
       <label>Email</label>
       <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
       <label>Nombre completo</label>
       <input id="inviteName" type="text" placeholder="Nombre Apellido" />
-      <label>Rol (selección única)</label>
-      <div class="muted small">Elige 1</div>
-      <div style="display:grid;gap:8px;margin-top:6px;">
+      <label>Rol</label>
+
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
         <label style="display:flex;gap:8px;align-items:center;margin:0;">
           <input type="radio" name="inviteRole" value="user" checked />
-          <span>user</span>
+          <span>Lider_de_Célula</span>
         </label>
         <label style="display:flex;gap:8px;align-items:center;margin:0;">
           <input type="radio" name="inviteRole" value="leader" />
-          <span>leader</span>
+          <span>Lider_de_Escuadron</span>
         </label>
         <label style="display:flex;gap:8px;align-items:center;margin:0;">
           <input type="radio" name="inviteRole" value="admin" />
-          <span>admin</span>
+          <span>Admin_del_App</span>
         </label>
       </div>
 
-      <label style="margin-top:14px;">Division (selección múltiple)</label>
-      <div class="muted small">Puedes elegir varias</div>
-      <div style="display:grid;gap:8px;margin-top:6px;">
+      <label style="margin-top:14px;">---------------> División</label>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
         <label style="display:flex;gap:8px;align-items:center;margin:0;">
           <input type="checkbox" name="inviteDivision" value="makers" />
-          <span>makers</span>
+          <span>Makers</span>
         </label>
         <label style="display:flex;gap:8px;align-items:center;margin:0;">
           <input type="checkbox" name="inviteDivision" value="takers" />
-          <span>takers</span>
+          <span>Takers</span>
         </label>
       </div>
 
-      <label style="margin-top:14px;">Squad (selección múltiple)</label>
-      <div class="muted small">Puedes elegir varios</div>
-      <div style="display:grid;gap:10px;margin-top:6px;">
+      <label style="margin-top:14px;">---------------> Escuadron</label>
+      <div class="muted small"></div>
+      <div style="display:grid;gap:16px;margin-top:6px;">
         <div>
           <div class="muted small" style="font-weight:600;">Makers</div>
-          <div style="display:grid;gap:8px;margin-top:6px;">
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URM" /><span>URM</span></label>
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVM" /><span>UVM</span></label>
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAM" /><span>UAM</span></label>
@@ -70,7 +68,7 @@
         </div>
         <div>
           <div class="muted small" style="font-weight:600;">Takers</div>
-          <div style="display:grid;gap:8px;margin-top:6px;">
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URT" /><span>URT</span></label>
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVT" /><span>UVT</span></label>
             <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAT" /><span>UAT</span></label>
@@ -83,10 +81,6 @@
       <button id="btnInvite">Enviar invitación</button>
 
       <p id="msg" class="msg"></p>
-      <details class="details">
-        <summary>Nota</summary>
-        <p class="muted small">No pide password adicional; usa la sesión del admin ya autenticada.</p>
-      </details>
     </div>
   </div>
 

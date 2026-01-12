@@ -3,29 +3,147 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bitácora</title>
+  <title>Bitácora — Login</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:32px;line-height:1.4}
-    .wrap{max-width:720px;margin:0 auto}
-    h1{margin:0 0 12px;font-size:28px}
-    p{margin:0 0 18px;color:#333}
-    .links{display:grid;gap:12px;margin-top:18px}
-    a{display:block;padding:14px 16px;border:1px solid #ddd;border-radius:10px;text-decoration:none;color:#111}
-    a:hover{border-color:#bbb}
-    .small{font-size:13px;color:#555;margin-top:14px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;padding:32px;line-height:1.4;background:#fafafa}
+    .wrap{max-width:760px;margin:0 auto}
+    .card{background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:18px 18px 14px;box-shadow:0 1px 6px rgba(0,0,0,.05)}
+    h1{margin:0 0 10px;font-size:26px}
+    h2{margin:18px 0 10px;font-size:16px}
+    label{display:block;font-size:13px;color:#555;margin:10px 0 6px}
+    input{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #ddd;border-radius:10px;font-size:14px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    button,a.btn{border:1px solid #ddd;background:#111;color:#fff;border-radius:10px;padding:10px 12px;font-size:14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}
+    button.secondary{background:#fff;color:#111}
+    .msg{margin-top:12px;padding:10px 12px;border-radius:10px;font-size:14px;display:none}
+    .msg.ok{display:block;background:#eefaf0;border:1px solid #bfe8c6;color:#0a3d12}
+    .msg.err{display:block;background:#fff1f1;border:1px solid #f0b9b9;color:#5a0b0b}
+    .muted{color:#666;font-size:13px;margin:10px 0 0}
+    .hr{height:1px;background:#eee;margin:16px 0}
     code{background:#f6f6f6;padding:2px 6px;border-radius:6px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Bitácora</h1>
-    <p>Ingresar a la aplicación:</p>
+    <div class="card">
+      <h1>Bitácora</h1>
+      <p class="muted">Login normal. (El acceso Admin se realiza solo por su URL directa.)</p>
 
-    <div class="links">
-      <a href="./app.html"><strong>App</strong><br><span class="small">Ingresar y usar la bitácora.</span></a>
+      <div class="hr"></div>
+
+      <h2>1) Configuración de Supabase</h2>
+      <div class="row">
+        <div>
+          <label for="sbUrl">Project URL</label>
+          <input id="sbUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" />
+        </div>
+        <div>
+          <label for="sbAnon">Publishable (anon) key</label>
+          <input id="sbAnon" placeholder="sb_publishable_..." autocomplete="off" />
+        </div>
+      </div>
+      <div class="btns">
+        <button id="btnSave" class="secondary" type="button">Guardar configuración</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <h2>2) Iniciar sesión</h2>
+      <div class="row">
+        <div>
+          <label for="email">Email</label>
+          <input id="email" type="email" autocomplete="username" />
+        </div>
+        <div>
+          <label for="pw">Contraseña</label>
+          <input id="pw" type="password" autocomplete="current-password" />
+        </div>
+      </div>
+
+      <div class="btns">
+        <button id="btnLogin" type="button">Entrar</button>
+        <a class="btn secondary" href="./app.html">Ir a App</a>
+      </div>
+
+      <div id="msg" class="msg"></div>
+      <p class="muted" style="margin-top:12px;">
+        Si vienes desde <code>admin.html</code>, después de iniciar sesión volverás automáticamente.
+      </p>
     </div>
-
-    <p class="small">Nota: el acceso de administración se realiza únicamente desde su URL directa. La configuración de contraseña se gestiona desde el enlace de invitación/recovery.</p>
   </div>
+
+  <script type="module">
+    import { getCfg, saveCfg, ensureSupabase, setMsg } from "./shared.js";
+
+    const elUrl = document.getElementById("sbUrl");
+    const elAnon = document.getElementById("sbAnon");
+    const elEmail = document.getElementById("email");
+    const elPw = document.getElementById("pw");
+
+    function showOk(t){ setMsg("msg", t, false); }
+    function showErr(t){ setMsg("msg", t, true); }
+
+    function getNext(){
+      const u = new URL(window.location.href);
+      const next = (u.searchParams.get("next") || "").trim();
+      return next || null;
+    }
+
+    function redirectAfterLogin(){
+      const next = getNext();
+      if (next) window.location.href = next;
+      else window.location.href = "./app.html";
+    }
+
+    const cfg = getCfg();
+    if (cfg?.url) elUrl.value = cfg.url;
+    if (cfg?.anon) elAnon.value = cfg.anon;
+
+    document.getElementById("btnSave").addEventListener("click", () => {
+      const url = (elUrl.value || "").trim();
+      const anon = (elAnon.value || "").trim();
+      if (!url || !anon){
+        showErr("Completa Project URL y Publishable key.");
+        return;
+      }
+      saveCfg(url, anon);
+      showOk("Configuración guardada.");
+    });
+
+    document.getElementById("btnLogin").addEventListener("click", async () => {
+      const email = (elEmail.value || "").trim();
+      const password = (elPw.value || "").trim();
+      if (!email || !password){
+        showErr("Completa email y contraseña.");
+        return;
+      }
+
+      const supabase = await ensureSupabase();
+      if (!supabase){
+        showErr("Falta configuración de Supabase. Guarda Project URL y Publishable key primero.");
+        return;
+      }
+
+      showOk("Iniciando sesión…");
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error){
+        showErr(error.message || "No se pudo iniciar sesión.");
+        return;
+      }
+
+      showOk("Sesión iniciada. Redirigiendo…");
+      setTimeout(redirectAfterLogin, 400);
+    });
+
+    (async () => {
+      const supabase = await ensureSupabase();
+      if (!supabase) return;
+      const { data } = await supabase.auth.getSession();
+      if (data?.session) {
+        redirectAfterLogin();
+      }
+    })();
+  </script>
 </body>
 </html>

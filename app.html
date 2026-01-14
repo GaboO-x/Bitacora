@@ -1,44 +1,605 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bitácora Virtual</title>
-  <link rel="stylesheet" href="./styles.css" />
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Bitácora - App</title>
+<link href="app.css" rel="stylesheet"/>
+<style>
+/* Ajustes mínimos solicitados (solo estilos; sin afectar lógica) */
+
+/* 1) 'Llamado' y 'Oración final': igualar tamaño de título al resto */
+[data-dc-item="llamado"] .dc-item__title,
+[data-dc-item="oracion-final"] .dc-item__title{
+  font-size: 0.9rem !important;
+  line-height: 1.2 !important;
+}
+
+/* 3) Asistencia: alinear a la izquierda y evitar que quede 'esparcido' */
+.dc-summary{
+  display: flex !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  gap: 16px !important;
+  flex-wrap: wrap !important;
+}
+.dc-summary__item{
+  margin: 0 !important;
+}
+</style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">Bitácora Virtual</div>
-    <div class="topbar-right">
-      <span id="who" class="pill"></span>
-      <button id="btnLogout" class="secondary">Salir</button>
+<div class="app-shell is-sidebar-collapsed" id="appShell">
+<header class="topbar">
+<button aria-label="Abrir/cerrar menú" class="icon-btn" id="btnToggleSidebar" title="Menú">☰</button>
+<div class="topbar__title">
+<span class="brand">Bitácora</span>
+<span class="crumb" id="crumb">Inicio</span>
+</div>
+<div class="topbar__actions">
+<button class="pill" id="btnProfile" type="button">Perfil</button>
+<button class="pill danger" id="btnLogout" type="button">Salir</button>
+</div>
+</header>
+<aside aria-label="Navegación" class="sidebar" id="sidebar">
+<div class="sidebar__group">
+<div class="sidebar__label">Menú</div>
+
+<button class="nav-btn" data-view="notas" type="button">
+<span class="nav-btn__icon">📝</span>
+<span class="nav-btn__text">Notas</span>
+</button>
+<button class="nav-btn" data-view="calendario" type="button">
+<span class="nav-btn__icon">📅</span>
+<span class="nav-btn__text">Calendario</span>
+</button>
+<button class="nav-btn" data-view="anuncios" type="button">
+<span class="nav-btn__icon">📣</span>
+<span class="nav-btn__text">Anuncios</span>
+</button>
+<button class="nav-btn" data-view="material" type="button">
+<span class="nav-btn__icon">📚</span>
+<span class="nav-btn__text">Material de apoyo</span>
+</button>
+<button class="nav-btn" data-view="misdoce" type="button">
+<span class="nav-btn__icon">👥</span>
+<span class="nav-btn__text">Mis Doce</span>
+</button>
+</div>
+<div class="sidebar__footer">
+<div class="tiny">UI/estructura lista para integrar Supabase.</div>
+</div>
+</aside>
+<main class="main" id="main">
+<!-- Vistas -->
+<section class="view is-visible" data-view-section="home" id="view-home">
+<h1>Inicio</h1>
+<p class="muted">Accesos directos:</p>
+<div class="cards"><button class="card card--action" data-view="notas" type="button"><div class="card__title">📝 Notas</div><div class="card__body">Semanas (1–52) → selecciona semana → elige categoría.</div></button><button class="card card--action" data-view="calendario" type="button"><div class="card__title">📅 Calendario</div><div class="card__body">Eventos y recordatorios (estructura lista).</div></button><button class="card card--action" data-view="anuncios" type="button"><div class="card__title">📣 Anuncios</div><div class="card__body">Publicaciones y avisos (estructura lista).</div></button><button class="card card--action" data-view="material" type="button"><div class="card__title">📚 Material de apoyo</div><div class="card__body">Imágenes y recursos estáticos.</div></button><button class="card card--action" data-view="misdoce" type="button"><div class="card__title">👥 Mis Doce</div><div class="card__body">Tu equipo/lista (estructura lista).</div></button></div>
+</section>
+<section class="view" data-view-section="notas" id="view-notas">
+<div class="view__header">
+<h1>Notas</h1>
+<div class="view__hint muted" id="notesHint">Selecciona la semana.</div></div>
+<!-- Subvista 1: Selector de semanas -->
+<div class="panel" id="notesWeekPicker">
+<div class="panel__title">Semanas (1–52)</div>
+<div aria-label="Selector de semanas" class="weeks weeks--wide" id="weeksGrid"></div>
+</div>
+<!-- Subvista 2: Semana seleccionada -->
+<div aria-live="polite" class="panel is-hidden" id="notesWeekScreen">
+<div class="panel__title-row">
+<div class="panel__title" id="weekTitle">Semana</div>
+<button class="pill" id="btnBackToWeeks" type="button">Volver</button>
+</div>
+<div class="week-tools">
+<label class="check">
+<input id="chkWeekDone" type="checkbox"/>
+<span>Semana completada</span>
+</label>
+</div>
+<div class="week-actions">
+<button class="big-btn" id="btnNoteDinamica" type="button">Dinámica celular</button>
+<button class="big-btn" id="btnNoteTakers" type="button">Takers</button>
+<button class="big-btn" id="btnNoteCultos" type="button">Cultos</button>
+<button class="big-btn" id="btnNoteLideres" type="button">Reunión de Líderes/Ministerios</button>
+</div>
+<div class="muted tiny" id="notesMeta"></div>
+<div class="placeholder" id="notesPlaceholder">
+<div class="placeholder__title">Siguiente fase</div>
+<div class="placeholder__body">Definimos el diseño de cada “hoja” (editor/lista) y luego lo conectamos con Supabase conservando el orden por semana.</div>
+</div>
+</div>
+<!-- Subvista 3: Hoja (Dinámica Celular) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetScreen">
+  <div class="sheet-header">
+    <div class="sheet-title" id="dcSheetTitle">Dinámica Celular</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnDcBack" type="button">Volver</button>
+      <button class="pill" data-go="home" type="button">Inicio</button>
+      <button class="pill" id="btnDcSave" type="button">Guardar</button>
+      <button class="pill" id="btnDcShare" type="button">Compartir</button>
     </div>
   </div>
 
-  <div class="container">
-    <div class="card">
-      <h2>Inicio</h2>
-      <p class="muted">Pantalla mínima post-login. Aquí luego conectamos cuadernos/secciones/notas.</p>
+  <div class="dc-top">
+    <div class="dc-top__label">&gt;&gt;&gt; <span class="dc-top__name">REUNIÓN CELULAR</span></div>
+    <div class="dc-top__date">
+      <input class="input" id="dcDate" type="date"/>
+    </div>
+  </div>
 
-      <div class="grid">
-        <div class="panel">
-          <h3>Mi perfil</h3>
-          <pre id="profile" class="pre"></pre>
-        </div>
-        <div class="panel">
-          <h3>Accesos rápidos</h3>
-          <ul>
-            <li><a href="./app.html">Inicio</a></li>
-            <li><a id="adminLink" href="./admin.html" style="display:none;">Panel Admin</a></li>
-            <li><a href="./Bitacora_index.html">Configurar contraseña (si vienes de email)</a></li>
-          </ul>
+  <!-- 1) Dinámica Celular (Tiempo | Responsable) -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Dinámica Celular <span class="muted tiny">(Tiempo | Responsable)</span></div>
+
+    <div class="dc-grid" id="dcBlocks">
+      <div class="dc-item" data-dc-item="bienvenida">
+        <div class="dc-item__title">Bienvenida</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
         </div>
       </div>
 
-      <p id="msg" class="msg"></p>
+      <div class="dc-item" data-dc-item="oracion-inicial">
+        <div class="dc-item__title">Oración inicial</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="tema">
+        <div class="dc-item__title">Tema</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">25</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="ofrenda">
+        <div class="dc-item__title">Ofrenda</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="anuncios">
+        <div class="dc-item__title">Anuncios</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="testimonios">
+        <div class="dc-item__title">Testimonios</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">10</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="llamado">
+        <div class="dc-item__title">Llamado</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="oracion-final">
+        <div class="dc-item__title">Oración final</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">5</span>
+          <span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
+          <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
     </div>
   </div>
 
-  <script type="module" src="./app.js"></script>
+  <!-- 2) Asistencia -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Asistencia</div>
+
+    <!-- 2.1 Resumen -->
+    <div class="dc-summary">
+      <div class="dc-summary__item">
+        <label class="muted tiny" for="dcAssistTotal">Asistencia total</label>
+        <input class="input input--mini2" id="dcAssistTotal" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
+      </div>
+      <div class="dc-summary__item">
+        <label class="muted tiny" for="dcAbsent">Ausentes</label>
+        <input class="input input--mini2" id="dcAbsent" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
+      </div>
+      <div class="dc-summary__item">
+        <label class="muted tiny" for="dcNew">Nuevos</label>
+        <input class="input input--mini2" id="dcNew" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
+      </div>
+      <div class="dc-summary__item">
+        <label class="muted tiny" for="dcOffering">Ofrenda</label>
+        <input class="input input--mini5" id="dcOffering" inputmode="numeric" maxlength="5" placeholder="_____" type="text"/>
+      </div>
+    </div>
+
+    <!-- 2.2 Seguimiento -->
+    <div class="dc-followup">
+      <div class="dc-followup__head">
+        <div class="panel__subtitle panel__subtitle--tight">Seguimiento Post-Célula</div>
+        <div class="dc-followup__buttons">
+          <button class="pill" id="btnDcRowAdd" type="button">+</button>
+          <button class="pill" id="btnDcRowRemove" type="button">−</button>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table class="table dc-table" id="dcFollowTable">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Llamada (Encargado)</th>
+              <th class="dc-table__just">Just</th>
+              <th class="dc-table__date">Fecha</th>
+            </tr>
+          </thead>
+          <tbody id="dcFollowBody">
+            <tr>
+              <td><input class="input" type="text" placeholder="Nombre"/></td>
+              <td><input class="input" type="text" placeholder="Encargado"/></td>
+              <td class="dc-table__just">
+                <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
+                <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
+              </td>
+              <td class="dc-table__date"><input class="input" type="date"/></td>
+            </tr>
+            <tr>
+              <td><input class="input" type="text" placeholder="Nombre"/></td>
+              <td><input class="input" type="text" placeholder="Encargado"/></td>
+              <td class="dc-table__just">
+                <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
+                <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
+              </td>
+              <td class="dc-table__date"><input class="input" type="date"/></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3) Block de notas: Anuncios -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Anuncios</div>
+    <textarea class="textarea" id="dcNotes" placeholder="Escribe aquí..."></textarea>
+  </div>
+
+  <div class="muted tiny" id="dcStatus"></div>
+</div>
+
+<!-- Subvista 4: Hoja (Takers) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetTakers">
+  <div class="sheet-header">
+    <div class="sheet-title" id="takersSheetTitle">Takers</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnTakersBack" type="button">Volver</button>
+      <button class="pill" data-go="home" type="button">Inicio</button>
+      <button class="pill" id="btnTakersSave" type="button">Guardar</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="takersMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="takersTema">Tema</label>
+        <input class="input input--tema" id="takersTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="takersDate">Fecha</label>
+        <input class="input" id="takersDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+    </div>
+
+    <div class="rte__editor" id="takersNotes" contenteditable="true" spellcheck="true"></div>
+  </div>
+    <div class="muted tiny" id="takersStatus"></div>
+  </div>
+</div>
+
+<!-- Subvista 5: Hoja (Cultos) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetCultos">
+  <div class="sheet-header">
+    <div class="sheet-title" id="cultosSheetTitle">Cultos</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnCultosBack" type="button">Volver</button>
+      <button class="pill" data-go="home" type="button">Inicio</button>
+      <button class="pill" id="btnCultosSave" type="button">Guardar</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="cultosMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="cultosTema">Tema</label>
+        <input class="input input--tema" id="cultosTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="cultosDate">Fecha</label>
+        <input class="input" id="cultosDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+    </div>
+
+    <div class="rte__editor" id="cultosNotes" contenteditable="true" spellcheck="true"></div>
+  </div>
+    <div class="muted tiny" id="cultosStatus"></div>
+  </div>
+</div>
+
+<!-- Subvista 6: Hoja (Reunión de Líderes/Ministerios) -->
+<div aria-live="polite" class="panel is-hidden" id="notesSheetLideres">
+  <div class="sheet-header">
+    <div class="sheet-title" id="lideresSheetTitle">Reunión de Líderes/Ministerios</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnLideresBack" type="button">Volver</button>
+      <button class="pill" data-go="home" type="button">Inicio</button>
+      <button class="pill" id="btnLideresSave" type="button">Guardar</button>
+    </div>
+  </div>
+  <div class="sheet-body">
+    <div class="muted tiny" id="lideresMeta"></div>
+    <div class="note-head">
+      <div class="note-head__field">
+        <label class="field__label" for="lideresTema">Tema</label>
+        <input class="input input--tema" id="lideresTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field">
+        <label class="field__label" for="lideresDate">Fecha</label>
+        <input class="input" id="lideresDate" type="date"/>
+      </div>
+    </div>
+    <div class="rte">
+    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+      <span class="tool-sep" aria-hidden="true"></span>
+      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+    </div>
+
+    <div class="rte__editor" id="lideresNotes" contenteditable="true" spellcheck="true"></div>
+  </div>
+    <div class="muted tiny" id="lideresStatus"></div>
+  </div>
+</div>
+
+</section>
+<section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Calendario</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<p class="muted">Vista pendiente. (Solo estructura.)</p>
+<div class="placeholder">
+<div class="placeholder__title">Calendario</div>
+<div class="placeholder__body" id="calendarContainer">Contenedor listo (#calendarContainer).</div>
+</div>
+</section>
+<section class="view" data-view-section="anuncios" id="view-anuncios"><div class="view__header"><h1>Anuncios</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<p class="muted">Vista pendiente. (Solo estructura.)</p>
+<div class="placeholder">
+<div class="placeholder__title">Anuncios</div>
+<div class="placeholder__body">
+<div id="announcementsList">Contenedor listo (#announcementsList).</div>
+<div class="actions">
+<button class="pill" id="btnNewAnnouncement" type="button">Nuevo anuncio</button>
+</div>
+</div>
+</div>
+</section>
+<section class="view" data-view-section="material" id="view-material"><div class="view__header"><h1>Material de apoyo</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<p class="muted">Esta vista puede ser 100% estática (imágenes locales).</p>
+<div class="placeholder">
+<div class="placeholder__title">Material</div>
+<div class="placeholder__body">
+<div class="grid" id="supportGrid">
+<div class="tile">Imagen 1</div>
+<div class="tile">Imagen 2</div>
+<div class="tile">Imagen 3</div>
+<div class="tile">Imagen 4</div>
+</div>
+</div>
+</div>
+</section>
+<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>
+
+<p class="muted">Administra tu lista y marca el plan de avance.</p>
+
+<div class="panel" id="misDoceContainer">
+  <div class="sheet-header">
+    <div class="sheet-title">Mis Doce</div>
+    <div class="sheet-actions">
+      <button class="pill" id="btnMdAddRow" type="button">+</button>
+      <button class="pill" id="btnMdRemoveRow" type="button">−</button>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table class="table md-table" id="misDoceTable">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Cumpleaños</th>
+          <th>Teléfono</th>
+          <th>Plan 5 Estrellas</th>
+          <th>DRC**</th>
+        </tr>
+      </thead>
+      <tbody id="misDoceBody">
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
+          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
+          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-plan">
+              <label><input type="checkbox" data-plan="LE"/> LE</label>
+              <label><input type="checkbox" data-plan="CN"/> CN</label>
+              <label><input type="checkbox" data-plan="AC"/> AC</label>
+              <label><input type="checkbox" data-plan="LI"/> Lí</label>
+              <label><input type="checkbox" data-plan="CC"/> CC</label>
+            </div>
+          </td>
+          <td>
+            <select class="md-drc">
+              <option value="N/A">N/A</option>
+              <option value="Lunes">Lunes</option>
+              <option value="Martes">Martes</option>
+              <option value="Miércoles">Miércoles</option>
+              <option value="Jueves">Jueves</option>
+              <option value="Viernes">Viernes</option>
+              <option value="Sábado">Sábado</option>
+              <option value="Domingo">Domingo</option>
+            </select>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="md-note muted tiny">
+    LE= Leche Espiritual / CN= Cumbre de Nuevos / AC= Acelera / Lí= Líder / CC= Cumbre Clan / DRC= Día de reunión Célula
+  </div>
+</div>
+</section>
+</main>
+</div>
+<script type="module" src="./app.js"></script>
 </body>
 </html>

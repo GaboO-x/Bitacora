@@ -20,21 +20,11 @@ import { requireSession, getMyProfile } from "./shared.js";
     window.location.href = "./index.html";
   });
 
-  // Perfil (mínimo): muestra email + role (si existe)
-  const btnProfile = document.querySelector('#btnProfile');
-  btnProfile?.addEventListener('click', async () => {
-    try {
-      if (!cachedProfile) {
-        const { profile } = await getMyProfile(supabase, user.id);
-        cachedProfile = profile || null;
-      }
-      const role = cachedProfile?.role ? `Rol: ${cachedProfile.role}` : "Rol: (sin dato)";
-      const fullName = cachedProfile?.full_name ? `Nombre: ${cachedProfile.full_name}` : "";
-      alert([`Usuario: ${user.email || user.id}`, fullName, role].filter(Boolean).join("\n"));
-    } catch {
-      alert(`Usuario: ${user.email || user.id}`);
-    }
-  });
+  // Boton Atras
+const btnBack = document.querySelector('#btnBack');
+btnBack?.addEventListener('click', () => {
+  goBack();
+});
 
   // --- UI original (sin cambios de comportamiento visual / navegación)
   (() => {

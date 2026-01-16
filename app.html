@@ -112,15 +112,16 @@
 <div class="placeholder__body">Definimos el diseño de cada “hoja” (editor/lista) y luego lo conectamos con Supabase conservando el orden por semana.</div>
 </div>
 </div>
+
+
+
+
 <!-- Subvista 3: Hoja (Dinámica Celular) -->
 <div aria-live="polite" class="panel is-hidden" id="notesSheetScreen">
   <div class="sheet-header">
     <div class="sheet-title" id="dcSheetTitle">Dinámica Celular</div>
     <div class="sheet-actions">
       <button class="pill" id="btnDcBack" type="button">Volver</button>
-      <button class="pill" data-go="home" type="button">Inicio</button>
-      <button class="pill" id="btnDcSave" type="button">Guardar</button>
-      <button class="pill" id="btnDcShare" type="button">Compartir</button>
     </div>
   </div>
 
@@ -131,7 +132,7 @@
     </div>
   </div>
 
-  <!-- 1) Dinámica Celular (Tiempo | Responsable) -->
+  <!-- Dinámica Celular (Tiempo | Responsable) -->
   <div class="panel__sub">
     <div class="panel__subtitle">Dinámica Celular <span class="muted tiny">(Tiempo | Responsable)</span></div>
 
@@ -139,8 +140,7 @@
       <div class="dc-item" data-dc-item="bienvenida">
         <div class="dc-item__title">Bienvenida</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -150,8 +150,7 @@
       <div class="dc-item" data-dc-item="oracion-inicial">
         <div class="dc-item__title">Oración inicial</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -161,8 +160,7 @@
       <div class="dc-item" data-dc-item="tema">
         <div class="dc-item__title">Tema</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">25</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">25</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -172,8 +170,7 @@
       <div class="dc-item" data-dc-item="ofrenda">
         <div class="dc-item__title">Ofrenda</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -183,8 +180,7 @@
       <div class="dc-item" data-dc-item="anuncios">
         <div class="dc-item__title">Anuncios</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -194,8 +190,17 @@
       <div class="dc-item" data-dc-item="testimonios">
         <div class="dc-item__title">Testimonios</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">10</span>
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
+          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="adoracion">
+        <div class="dc-item__title">Adoración</div>
+        <div class="dc-item__row">
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -205,8 +210,7 @@
       <div class="dc-item" data-dc-item="llamado">
         <div class="dc-item__title">Llamado</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -216,8 +220,7 @@
       <div class="dc-item" data-dc-item="oracion-final">
         <div class="dc-item__title">Oración final</div>
         <div class="dc-item__row">
-          <span class="dc-item__ref">5</span>
-          <span class="dc-item__slash">/</span>
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
           <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
           <span class="dc-item__slash">/</span>
           <input class="input" placeholder="Responsable" type="text"/>
@@ -226,76 +229,58 @@
     </div>
   </div>
 
-  <!-- 2) Asistencia -->
+  <!-- Asistencia -->
   <div class="panel__sub">
     <div class="panel__subtitle">Asistencia</div>
-
-    <!-- 2.1 Resumen -->
     <div class="dc-summary">
-      <div class="dc-summary__item">
-        <label class="muted tiny" for="dcAssistTotal">Asistencia total</label>
-        <input class="input input--mini2" id="dcAssistTotal" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
-      </div>
-      <div class="dc-summary__item">
-        <label class="muted tiny" for="dcAbsent">Ausentes</label>
-        <input class="input input--mini2" id="dcAbsent" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
-      </div>
-      <div class="dc-summary__item">
-        <label class="muted tiny" for="dcNew">Nuevos</label>
-        <input class="input input--mini2" id="dcNew" inputmode="numeric" maxlength="2" placeholder="__" type="text"/>
-      </div>
-      <div class="dc-summary__item">
-        <label class="muted tiny" for="dcOffering">Ofrenda</label>
-        <input class="input input--mini5" id="dcOffering" inputmode="numeric" maxlength="5" placeholder="_____" type="text"/>
-      </div>
-    </div>
-
-    <!-- 2.2 Seguimiento -->
-    <div class="dc-followup">
-      <div class="dc-followup__head">
-        <div class="panel__subtitle panel__subtitle--tight">Seguimiento Post-Célula</div>
-        <div class="dc-followup__buttons">
-          <button class="pill" id="btnDcRowAdd" type="button">+</button>
-          <button class="pill" id="btnDcRowRemove" type="button">−</button>
-        </div>
-      </div>
-
-      <div class="table-wrap">
-        <table class="table dc-table" id="dcFollowTable">
-          <thead>
-            <tr>
-              <th>Nombre</th>
-              <th>Llamada (Encargado)</th>
-              <th class="dc-table__just">Just</th>
-              <th class="dc-table__date">Fecha</th>
-            </tr>
-          </thead>
-          <tbody id="dcFollowBody">
-            <tr>
-              <td><input class="input" type="text" placeholder="Nombre"/></td>
-              <td><input class="input" type="text" placeholder="Encargado"/></td>
-              <td class="dc-table__just">
-                <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
-                <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
-              </td>
-              <td class="dc-table__date"><input class="input" type="date"/></td>
-            </tr>
-            <tr>
-              <td><input class="input" type="text" placeholder="Nombre"/></td>
-              <td><input class="input" type="text" placeholder="Encargado"/></td>
-              <td class="dc-table__just">
-                <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
-                <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
-              </td>
-              <td class="dc-table__date"><input class="input" type="date"/></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <div class="dc-summary__item"><label class="field__label">Asistieron</label><input class="input input--mini" id="dcAsistieron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+      <div class="dc-summary__item"><label class="field__label">Faltaron</label><input class="input input--mini" id="dcFaltaron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+      <div class="dc-summary__item"><label class="field__label">Nuevos</label><input class="input input--mini" id="dcNuevos" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
     </div>
   </div>
 
-  <!-- 3) Block de notas: Anuncios -->
+  <!-- Seguimiento -->
+  <div class="panel__sub">
+    <div class="panel__subtitle">Seguimiento</div>
+    <div class="actions">
+      <button class="pill" id="btnDcRowAdd" type="button">+ Fila</button>
+      <button class="pill" id="btnDcRowRemove" type="button">− Fila</button>
+    </div>
+    <div class="table-wrap">
+      <table class="table dc-table" id="dcFollowTable">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Encargado</th>
+            <th>Justificó</th>
+            <th>Fecha</th>
+          </tr>
+        </thead>
+        <tbody id="dcFollowBody">
+          <tr>
+            <td><input class="input" type="text" placeholder="Nombre"/></td>
+            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td class="dc-table__just">
+              <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
+              <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
+            </td>
+            <td class="dc-table__date"><input class="input" type="date"/></td>
+          </tr>
+          <tr>
+            <td><input class="input" type="text" placeholder="Nombre"/></td>
+            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td class="dc-table__just">
+              <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
+              <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
+            </td>
+            <td class="dc-table__date"><input class="input" type="date"/></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Anuncios / Notas -->
   <div class="panel__sub">
     <div class="panel__subtitle">Anuncios</div>
     <textarea class="textarea" id="dcNotes" placeholder="Escribe aquí..."></textarea>
@@ -310,8 +295,7 @@
     <div class="sheet-title" id="takersSheetTitle">Takers</div>
     <div class="sheet-actions">
       <button class="pill" id="btnTakersBack" type="button">Volver</button>
-      <button class="pill" data-go="home" type="button">Inicio</button>
-      <button class="pill" id="btnTakersSave" type="button">Guardar</button>
+      <button class="pill" id="btnTakersShare" type="button">Compartir</button>
     </div>
   </div>
   <div class="sheet-body">
@@ -327,19 +311,18 @@
       </div>
     </div>
     <div class="rte">
-    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
-      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
-      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
-      <span class="tool-sep" aria-hidden="true"></span>
-      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
-      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
-      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
-      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
-      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="takersNotes" contenteditable="true" spellcheck="true"></div>
     </div>
-
-    <div class="rte__editor" id="takersNotes" contenteditable="true" spellcheck="true"></div>
-  </div>
     <div class="muted tiny" id="takersStatus"></div>
   </div>
 </div>
@@ -350,8 +333,7 @@
     <div class="sheet-title" id="cultosSheetTitle">Cultos</div>
     <div class="sheet-actions">
       <button class="pill" id="btnCultosBack" type="button">Volver</button>
-      <button class="pill" data-go="home" type="button">Inicio</button>
-      <button class="pill" id="btnCultosSave" type="button">Guardar</button>
+      <button class="pill" id="btnCultosShare" type="button">Compartir</button>
     </div>
   </div>
   <div class="sheet-body">
@@ -367,19 +349,18 @@
       </div>
     </div>
     <div class="rte">
-    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
-      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
-      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
-      <span class="tool-sep" aria-hidden="true"></span>
-      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
-      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
-      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
-      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
-      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="cultosNotes" contenteditable="true" spellcheck="true"></div>
     </div>
-
-    <div class="rte__editor" id="cultosNotes" contenteditable="true" spellcheck="true"></div>
-  </div>
     <div class="muted tiny" id="cultosStatus"></div>
   </div>
 </div>
@@ -390,8 +371,7 @@
     <div class="sheet-title" id="lideresSheetTitle">Reunión de Líderes/Ministerios</div>
     <div class="sheet-actions">
       <button class="pill" id="btnLideresBack" type="button">Volver</button>
-      <button class="pill" data-go="home" type="button">Inicio</button>
-      <button class="pill" id="btnLideresSave" type="button">Guardar</button>
+      <button class="pill" id="btnLideresShare" type="button">Compartir</button>
     </div>
   </div>
   <div class="sheet-body">
@@ -407,22 +387,22 @@
       </div>
     </div>
     <div class="rte">
-    <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
-      <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
-      <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
-      <span class="tool-sep" aria-hidden="true"></span>
-      <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
-      <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
-      <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
-      <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
-      <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      <div class="rte__toolbar" role="toolbar" aria-label="Formato de texto">
+        <button class="tool" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="tool" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="tool-sep" aria-hidden="true"></span>
+        <button class="tool" type="button" data-color="red" title="Color rojo">Rojo</button>
+        <button class="tool" type="button" data-color="green" title="Color verde">Verde</button>
+        <button class="tool" type="button" data-color="yellow" title="Color amarillo">Amarillo</button>
+        <button class="tool" type="button" data-highlight="yellow" title="Resaltar">Resaltar</button>
+        <button class="tool" type="button" data-clear="true" title="Quitar formato">Limpiar</button>
+      </div>
+      <div class="rte__editor" id="lideresNotes" contenteditable="true" spellcheck="true"></div>
     </div>
-
-    <div class="rte__editor" id="lideresNotes" contenteditable="true" spellcheck="true"></div>
-  </div>
     <div class="muted tiny" id="lideresStatus"></div>
   </div>
 </div>
+
 
 </section>
 <section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Calendario</h1><div class="view__nav"><button class="pill" data-go="back" type="button">Volver</button><button class="pill" data-go="home" type="button">Inicio</button></div></div>

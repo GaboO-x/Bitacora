@@ -37,10 +37,6 @@
 <span class="brand">Bitácora</span>
 <span class="crumb" id="crumb">Inicio</span>
 </div>
-<div class="topbar__actions">
-<button class="pill" id="btnProfile" type="button">Atrás</button>
-<button class="pill danger" id="btnLogout" type="button">Salir</button>
-</div>
 </header>
 <aside aria-label="Navegación" class="sidebar" id="sidebar">
 <div class="sidebar__group">
@@ -66,6 +62,11 @@
 <span class="nav-btn__icon">👥</span>
 <span class="nav-btn__text">Mis Doce</span>
 </button>
+
+<button class="nav-btn" id="btnLogoutSide" type="button">
+<span class="nav-btn__icon">🚪</span>
+<span class="nav-btn__text">Salir</span>
+</button>
 </div>
 <div class="sidebar__footer">
 <div class="tiny">UI/estructura lista para integrar Supabase.</div>
@@ -81,7 +82,7 @@
 <section class="view" data-view-section="notas" id="view-notas">
 <div class="view__header">
 <h1>Notas</h1>
-<div class="view__hint muted" id="notesHint">Selecciona la semana.</div></div>
+<button class="pill" data-fixed="true" data-go="home" id="notesHint" type="button">Inicio</button></div>
 <!-- Subvista 1: Selector de semanas -->
 <div class="panel" id="notesWeekPicker">
 <div class="panel__title">Semanas (1–52)</div>

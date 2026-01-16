@@ -16,10 +16,27 @@
   </div>
 
   <div class="container">
-    <div class="card">
-      <h2>Panel Admin (mínimo)</h2>
 
-      <h3>-----> Invitar usuario</h3>
+    <!-- INICIO / MENÚ -->
+    <div id="secHome" class="card" style="display:none;">
+      <h2>Inicio</h2>
+      <p class="muted">Selecciona una sección:</p>
+
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">
+        <button id="navInvite">Invitar usuario</button>
+        <button id="navCalendar">Calendario / Actividades</button>
+        <button id="navAnnouncements" class="secondary" disabled>Anuncios (próximamente)</button>
+        <button id="navMaterials" class="secondary" disabled>Material de Apoyo (próximamente)</button>
+      </div>
+    </div>
+
+    <!-- INVITAR USUARIO -->
+    <div id="secInvite" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Invitar usuario</h2>
+        <button class="secondary" data-go="home">Volver al inicio</button>
+      </div>
+
       <label>Email</label>
       <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
       <label>Nombre completo</label>
@@ -79,12 +96,15 @@
       </div>
 
       <button id="btnInvite">Enviar invitación</button>
-
       <p id="msg" class="msg"></p>
     </div>
 
-    <div class="card">
-      <h2>Calendario / Actividades</h2>
+    <!-- CALENDARIO / ACTIVIDADES -->
+    <div id="secCalendar" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Calendario / Actividades</h2>
+        <button class="secondary" data-go="home">Volver al inicio</button>
+      </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
         <div style="grid-column:1 / -1;">
@@ -137,6 +157,24 @@
       </div>
 
       <p id="calMsg" class="msg"></p>
+    </div>
+
+    <!-- ANUNCIOS (placeholder) -->
+    <div id="secAnnouncements" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Anuncios</h2>
+        <button class="secondary" data-go="home">Volver al inicio</button>
+      </div>
+      <p class="muted">Próximamente.</p>
+    </div>
+
+    <!-- MATERIAL DE APOYO (placeholder) -->
+    <div id="secMaterials" class="card" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <h2 style="margin:0;">Material de Apoyo</h2>
+        <button class="secondary" data-go="home">Volver al inicio</button>
+      </div>
+      <p class="muted">Próximamente.</p>
     </div>
   </div>
 

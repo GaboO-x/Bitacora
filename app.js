@@ -11,14 +11,21 @@ import { requireSession, getMyProfile } from "./shared.js";
 
   const user = session.user;
 
-  // Logout real
-  const btnLogoutTop = document.querySelector('#btnLogout');
-  btnLogoutTop?.addEventListener('click', async () => {
+  // Logout real (con confirmación)
+  const doLogout = async () => {
+    const ok = confirm('Seguro que deseas salir?');
+    if (!ok) return;
     try {
       await supabase.auth.signOut();
     } catch {}
     window.location.href = "./index.html";
-  });
+  };
+
+  const btnLogoutTop = document.querySelector('#btnLogout');
+  btnLogoutTop?.addEventListener('click', doLogout);
+
+  const btnLogoutSide = document.querySelector('#btnLogoutSide');
+  btnLogoutSide?.addEventListener('click', doLogout);
 
   // Boton Atras
 const btnBack = document.querySelector('#btnBack');
@@ -222,7 +229,10 @@ btnBack?.addEventListener('click', () => {
       notesWeekScreen.classList.toggle('is-hidden', !visible);
       if (notesSheetScreen) notesSheetScreen.classList.add('is-hidden');
       state.dcOpen = false;
-      notesHint.textContent = visible ? 'Semana seleccionada: elige una actividad.' : 'Selecciona la semana.';
+	      // Si el elemento fue fijado (p.ej. convertido a botón "Inicio"), no sobrescribimos su texto.
+	      if (notesHint && !notesHint.dataset.fixed) {
+	        notesHint.textContent = visible ? 'Semana seleccionada: elige una actividad.' : 'Selecciona la semana.';
+	      }
     };
 
     const hideAllNoteSheets = () => {

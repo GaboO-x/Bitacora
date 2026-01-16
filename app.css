@@ -157,7 +157,7 @@ h1{margin:0 0 10px}
 .card--action{cursor:pointer; text-align:left; width:100%}
 .card--action:hover{border-color: rgba(99,102,241,.55)}
 .card--action:focus{outline:2px solid rgba(99,102,241,.55); outline-offset:2px}
-.card__title{font-weight:700; margin-bottom:6px}
+.card__title{font-weight:700; margin-bottom:6px; color:#ffffff}
 .card__body{color:var(--muted); font-size:14px}
 
 .split{display:grid; grid-template-columns: 320px 1fr; gap:14px; align-items:start}

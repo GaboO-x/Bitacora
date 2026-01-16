@@ -656,8 +656,7 @@ btnBack?.addEventListener('click', () => {
       const tema = temaEl?.value ? `Tema: ${temaEl.value}` : '';
       const fecha = dateEl?.value ? `Fecha: ${dateEl.value}` : '';
       const body = editorEl ? (editorEl.innerText || '').trim() : '';
-      return [title, week, tema, fecha, '', body].filter(Boolean).join('
-');
+      return [title, week, tema, fecha, "", body].filter(Boolean).join("\n");
     };
 
     btnTakersShare?.addEventListener('click', () => {

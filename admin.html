@@ -5,108 +5,165 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Bitácora Virtual — Admin</title>
   <link rel="stylesheet" href="./styles.css" />
+  <style>
+    /* Estilos SOLO para el menú del panel Admin (no toca styles.css) */
+    .admin-menu-grid{display:grid;grid-template-columns:repeat(4,minmax(180px,1fr));gap:14px;margin-top:14px}
+    @media (max-width: 1020px){.admin-menu-grid{grid-template-columns:repeat(2,minmax(180px,1fr));}}
+    @media (max-width: 560px){.admin-menu-grid{grid-template-columns:1fr;}}
+
+    .admin-menu-card{width:100%;text-align:left;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.04);border-radius:14px;padding:14px 14px 12px 14px;cursor:pointer;transition:transform .08s ease, background .12s ease, border-color .12s ease;box-shadow:0 8px 26px rgba(0,0,0,.22)}
+    .admin-menu-card:hover{transform:translateY(-1px);background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18)}
+    .admin-menu-card:active{transform:translateY(0)}
+    .admin-menu-card[disabled]{opacity:.55;cursor:not-allowed;transform:none}
+    .admin-menu-top{display:flex;align-items:center;gap:10px}
+    .admin-menu-ico{width:28px;height:28px;display:grid;place-items:center;border-radius:10px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.10)}
+    .admin-menu-title{font-weight:700;margin:0}
+    .admin-menu-desc{margin:6px 0 0 0;color:rgba(255,255,255,.78);font-size:.95rem;line-height:1.25}
+
+    .admin-section{display:none}
+    .admin-section.active{display:block}
+
+    .admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .admin-backlink{display:inline-flex;gap:8px;align-items:center}
+  </style>
 </head>
 <body>
   <div class="topbar">
     <div class="brand">Bitácora Virtual</div>
     <div class="topbar-right">
-      <a href="./app.html" class="secondary btnlink">Volver</a>
       <button id="btnLogout" class="secondary">Salir</button>
     </div>
   </div>
 
   <div class="container">
 
-    <!-- INICIO / MENÚ -->
-    <div id="secHome" class="card" style="display:none;">
-      <h2>Inicio</h2>
-      <p class="muted">Selecciona una sección:</p>
+    <!-- INICIO / MENU -->
+    <div id="sectionHome" class="card admin-section active">
+      <h2 style="margin-bottom:6px;">Inicio</h2>
+      <div class="muted">Accesos directos:</div>
 
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;">
-        <button id="navInvite">Invitar usuario</button>
-        <button id="navCalendar">Calendario / Actividades</button>
-        <button id="navAnnouncements" class="secondary" disabled>Anuncios (próximamente)</button>
-        <button id="navMaterials" class="secondary" disabled>Material de Apoyo (próximamente)</button>
+      <div class="admin-menu-grid">
+        <button id="navInvite" class="admin-menu-card" type="button">
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico">👤</div>
+            <div>
+              <div class="admin-menu-title">Invitar usuario</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Crear usuarios e invitar por correo.</p>
+        </button>
+
+        <button id="navCalendar" class="admin-menu-card" type="button">
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico">🗓️</div>
+            <div>
+              <div class="admin-menu-title">Calendario / Actividades</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Eventos y recordatorios (estructura lista).</p>
+        </button>
+
+        <button id="navAnnouncements" class="admin-menu-card" type="button" disabled>
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico">📣</div>
+            <div>
+              <div class="admin-menu-title">Anuncios</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Publicaciones y avisos (próximamente).</p>
+        </button>
+
+        <button id="navMaterials" class="admin-menu-card" type="button" disabled>
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico">📚</div>
+            <div>
+              <div class="admin-menu-title">Material de Apoyo</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Imágenes y recursos estáticos (próximamente).</p>
+        </button>
       </div>
     </div>
 
     <!-- INVITAR USUARIO -->
-    <div id="secInvite" class="card" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div id="sectionInvite" class="card admin-section">
+      <div class="admin-section-head">
         <h2 style="margin:0;">Invitar usuario</h2>
-        <button class="secondary" data-go="home">Volver al inicio</button>
+        <button id="backFromInvite" class="secondary" type="button">Volver al inicio</button>
       </div>
 
-      <label>Email</label>
-      <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
-      <label>Nombre completo</label>
-      <input id="inviteName" type="text" placeholder="Nombre Apellido" />
-      <label>Rol</label>
+      <div style="margin-top:14px;">
+        <label>Email</label>
+        <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
 
-      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-        <label style="display:flex;gap:8px;align-items:center;margin:0;">
-          <input type="radio" name="inviteRole" value="user" checked />
-          <span>Lider_de_Célula</span>
-        </label>
-        <label style="display:flex;gap:8px;align-items:center;margin:0;">
-          <input type="radio" name="inviteRole" value="leader" />
-          <span>Lider_de_Escuadron</span>
-        </label>
-        <label style="display:flex;gap:8px;align-items:center;margin:0;">
-          <input type="radio" name="inviteRole" value="admin" />
-          <span>Admin_del_App</span>
-        </label>
-      </div>
+        <label>Nombre completo</label>
+        <input id="inviteName" type="text" placeholder="Nombre Apellido" />
 
-      <label style="margin-top:14px;">---------------> División</label>
-      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-        <label style="display:flex;gap:8px;align-items:center;margin:0;">
-          <input type="checkbox" name="inviteDivision" value="makers" />
-          <span>Makers</span>
-        </label>
-        <label style="display:flex;gap:8px;align-items:center;margin:0;">
-          <input type="checkbox" name="inviteDivision" value="takers" />
-          <span>Takers</span>
-        </label>
-      </div>
+        <label>Rol</label>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="radio" name="inviteRole" value="user" checked />
+            <span>Lider_de_Célula</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="radio" name="inviteRole" value="leader" />
+            <span>Lider_de_Escuadron</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="radio" name="inviteRole" value="admin" />
+            <span>Admin_del_App</span>
+          </label>
+        </div>
 
-      <label style="margin-top:14px;">---------------> Escuadron</label>
-      <div class="muted small"></div>
-      <div style="display:grid;gap:16px;margin-top:6px;">
-        <div>
-          <div class="muted small" style="font-weight:600;">Makers</div>
-          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URM" /><span>URM</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVM" /><span>UVM</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAM" /><span>UAM</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNM" /><span>UNM</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZM" /><span>UAZM</span></label>
+        <label style="margin-top:14px;">División</label>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="checkbox" name="inviteDivision" value="makers" />
+            <span>Makers</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="checkbox" name="inviteDivision" value="takers" />
+            <span>Takers</span>
+          </label>
+        </div>
+
+        <label style="margin-top:14px;">Escuadrón</label>
+        <div style="display:grid;gap:16px;margin-top:6px;">
+          <div>
+            <div class="muted small" style="font-weight:600;">Makers</div>
+            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URM" /><span>URM</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVM" /><span>UVM</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAM" /><span>UAM</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNM" /><span>UNM</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZM" /><span>UAZM</span></label>
+            </div>
+          </div>
+          <div>
+            <div class="muted small" style="font-weight:600;">Takers</div>
+            <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URT" /><span>URT</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVT" /><span>UVT</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAT" /><span>UAT</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNT" /><span>UNT</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZT" /><span>UAZT</span></label>
+            </div>
           </div>
         </div>
-        <div>
-          <div class="muted small" style="font-weight:600;">Takers</div>
-          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="URT" /><span>URT</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UVT" /><span>UVT</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAT" /><span>UAT</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UNT" /><span>UNT</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="checkbox" name="inviteSquad" value="UAZT" /><span>UAZT</span></label>
-          </div>
-        </div>
-      </div>
 
-      <button id="btnInvite">Enviar invitación</button>
-      <p id="msg" class="msg"></p>
+        <button id="btnInvite" style="margin-top:14px;">Enviar invitación</button>
+        <p id="msg" class="msg"></p>
+      </div>
     </div>
 
     <!-- CALENDARIO / ACTIVIDADES -->
-    <div id="secCalendar" class="card" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div id="sectionCalendar" class="card admin-section">
+      <div class="admin-section-head">
         <h2 style="margin:0;">Calendario / Actividades</h2>
-        <button class="secondary" data-go="home">Volver al inicio</button>
+        <button id="backFromCalendar" class="secondary" type="button">Volver al inicio</button>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
         <div style="grid-column:1 / -1;">
           <label>Actividad</label>
           <input id="calActivity" type="text" placeholder="Ej: Reunión, Visita, Evento..." />
@@ -159,23 +216,23 @@
       <p id="calMsg" class="msg"></p>
     </div>
 
-    <!-- ANUNCIOS (placeholder) -->
-    <div id="secAnnouncements" class="card" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <!-- BLOQUES FUTUROS (por ahora en blanco) -->
+    <div id="sectionAnnouncements" class="card admin-section">
+      <div class="admin-section-head">
         <h2 style="margin:0;">Anuncios</h2>
-        <button class="secondary" data-go="home">Volver al inicio</button>
+        <button id="backFromAnnouncements" class="secondary" type="button">Volver al inicio</button>
       </div>
-      <p class="muted">Próximamente.</p>
+      <p class="muted" style="margin-top:14px;">Próximamente.</p>
     </div>
 
-    <!-- MATERIAL DE APOYO (placeholder) -->
-    <div id="secMaterials" class="card" style="display:none;">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+    <div id="sectionMaterials" class="card admin-section">
+      <div class="admin-section-head">
         <h2 style="margin:0;">Material de Apoyo</h2>
-        <button class="secondary" data-go="home">Volver al inicio</button>
+        <button id="backFromMaterials" class="secondary" type="button">Volver al inicio</button>
       </div>
-      <p class="muted">Próximamente.</p>
+      <p class="muted" style="margin-top:14px;">Próximamente.</p>
     </div>
+
   </div>
 
   <script type="module" src="./admin.js"></script>

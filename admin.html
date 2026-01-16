@@ -82,6 +82,62 @@
 
       <p id="msg" class="msg"></p>
     </div>
+
+    <div class="card">
+      <h2>Calendario / Actividades</h2>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+        <div style="grid-column:1 / -1;">
+          <label>Actividad</label>
+          <input id="calActivity" type="text" placeholder="Ej: Reunión, Visita, Evento..." />
+        </div>
+
+        <div>
+          <label>Fecha</label>
+          <input id="calEventDate" type="date" />
+        </div>
+
+        <div>
+          <label>Encargado</label>
+          <input id="calOwnerName" type="text" placeholder="Nombre del encargado" />
+        </div>
+
+        <div>
+          <label>Contacto</label>
+          <input id="calContactPhone" type="text" placeholder="Teléfono" />
+        </div>
+
+        <div>
+          <label>Inversión</label>
+          <input id="calInvestment" type="number" step="0.01" placeholder="0" />
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;">
+          <button id="calBtnSave">Crear actividad</button>
+          <button id="calBtnCancel" class="secondary" style="display:none;">Cancelar</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto;margin-top:14px;">
+        <table style="width:100%;border-collapse:collapse;min-width:720px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Actividad</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Fecha</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Encargado</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Contacto</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Inversión</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="calTbody">
+            <tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p id="calMsg" class="msg"></p>
+    </div>
   </div>
 
   <script type="module" src="./admin.js"></script>

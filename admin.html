@@ -63,14 +63,14 @@
           <p class="admin-menu-desc">Eventos y recordatorios (estructura lista).</p>
         </button>
 
-        <button id="navAnnouncements" class="admin-menu-card" type="button" disabled>
+        <button id="navAnnouncements" class="admin-menu-card" type="button">
           <div class="admin-menu-top">
             <div class="admin-menu-ico">📣</div>
             <div>
               <div class="admin-menu-title">Anuncios</div>
             </div>
           </div>
-          <p class="admin-menu-desc">Publicaciones y avisos (próximamente).</p>
+          <p class="admin-menu-desc">Publicaciones y avisos.</p>
         </button>
 
         <button id="navMaterials" class="admin-menu-card" type="button" disabled>
@@ -222,7 +222,30 @@
         <h2 style="margin:0;">Anuncios</h2>
         <button id="backFromAnnouncements" class="secondary" type="button">Volver al inicio</button>
       </div>
-      <p class="muted" style="margin-top:14px;">Próximamente.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
+        <div style="grid-column:1 / -1;">
+          <label>Título (opcional)</label>
+          <input id="annTitle" type="text" placeholder="Ej: Aviso importante" />
+        </div>
+
+        <div style="grid-column:1 / -1;">
+          <label>Imagen</label>
+          <input id="annFile" type="file" accept="image/*" />
+          <div class="muted small" style="margin-top:6px;">Se sube a Storage (bucket <b>announcements</b>) y se guarda el <b>image_url</b> en la tabla.</div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;grid-column:1 / -1;">
+          <button id="annBtnPublish" type="button">Publicar anuncio</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="muted" style="margin-bottom:8px;">Últimos anuncios</div>
+        <div id="annList" style="display:grid;gap:10px;"></div>
+      </div>
+
+      <p id="annMsg" class="msg"></p>
     </div>
 
     <div id="sectionMaterials" class="card admin-section">

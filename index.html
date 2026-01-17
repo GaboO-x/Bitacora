@@ -138,10 +138,10 @@
 
       const supabase = await ensureSupabase();
       if (!supabase) return;
-      const { data } = await supabase.auth.getSession();
-      if (data?.session) {
-        redirectAfterLogin();
-      }
+      // Evita bucles: getSession puede devolver una sesión vieja en cache.
+      // getUser valida con el servidor.
+      const { data: userData, error } = await supabase.auth.getUser();
+      if (!error && userData?.user) redirectAfterLogin();
     })();
   </script>
 </body>

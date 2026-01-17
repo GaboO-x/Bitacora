@@ -44,6 +44,12 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     await loadCalActivities();
   });
 
+  document.getElementById("navAnnouncements")?.addEventListener("click", async () => {
+    showSection("announcements");
+    await loadAnnouncements();
+  });
+
+
   // Back to home buttons
   document.getElementById("backFromInvite")?.addEventListener("click", () => showSection("home"));
   document.getElementById("backFromCalendar")?.addEventListener("click", () => showSection("home"));
@@ -402,4 +408,235 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
 
   // Carga inicial del menu
   showSection("home");
+
+
+  // -----------------------------
+  // Anuncios (subir imagen a Storage + registrar en tabla)
+  // -----------------------------
+  const annEls = {
+    title: document.getElementById("annTitle"),
+    file: document.getElementById("annFile"),
+    btnPublish: document.getElementById("annBtnPublish"),
+    list: document.getElementById("annList"),
+  };
+
+  let annBusy = false;
+  let annRows = [];
+
+  function setAnnMsg(text, isError) {
+    setMsg("annMsg", text, !!isError);
+  }
+
+  function escapeHtml(s) {
+    const str = (s == null) ? "" : String(s);
+    return str
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function parseFileNameFromUrl(url) {
+    try {
+      const u = new URL(url);
+      const parts = u.pathname.split("/").filter(Boolean);
+      return parts[parts.length - 1] || "archivo";
+    } catch {
+      const parts = String(url || "").split("/");
+      return parts[parts.length - 1] || "archivo";
+    }
+  }
+
+  function renderAnnList() {
+    if (!annEls.list) return;
+
+    if (!Array.isArray(annRows) || annRows.length === 0) {
+      annEls.list.innerHTML = '<div class="muted">No hay anuncios.</div>';
+      return;
+    }
+
+    annEls.list.innerHTML = annRows.map(r => {
+      const title = escapeHtml(r.title || "(Sin título)");
+      const created = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+      const url = r.image_url || "";
+      const fileName = url ? escapeHtml(parseFileNameFromUrl(url)) : "";
+      const id = r.id;
+
+      const preview = url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="secondary" style="text-decoration:none;">Ver</a>`
+        : '<span class="muted">(sin imagen)</span>';
+
+      const download = url
+        ? `<a href="${escapeHtml(url)}" download class="secondary" style="text-decoration:none;">Descargar</a>`
+        : '';
+
+      return `
+        <div style="border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;">
+          <div style="min-width:0;">
+            <div style="font-weight:700;">${title}</div>
+            <div class="muted small" style="margin-top:4px;">${escapeHtml(created)}${fileName ? ` • ${fileName}` : ''}</div>
+            <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">${preview}${download}</div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button data-ann-action="delete" data-id="${escapeHtml(id)}" class="secondary" type="button">Eliminar</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function loadAnnouncements() {
+    if (annBusy) return;
+    annBusy = true;
+    try {
+      if (annEls.list) annEls.list.innerHTML = '<div class="muted">Cargando…</div>';
+
+      const { data, error } = await supabase
+        .from("announcements")
+        .select("id, title, image_url, created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        setAnnMsg(error.message, true);
+        annRows = [];
+        renderAnnList();
+        return;
+      }
+
+      annRows = Array.isArray(data) ? data : [];
+      renderAnnList();
+      setAnnMsg("", false);
+    } finally {
+      annBusy = false;
+    }
+  }
+
+  function setAnnPublishLoading(isLoading) {
+    if (!annEls.btnPublish) return;
+    if (!annEls.btnPublish.dataset.originalText) {
+      annEls.btnPublish.dataset.originalText = annEls.btnPublish.textContent || "Publicar anuncio";
+    }
+
+    if (!isLoading) {
+      annEls.btnPublish.disabled = false;
+      annEls.btnPublish.textContent = annEls.btnPublish.dataset.originalText;
+      return;
+    }
+
+    annEls.btnPublish.disabled = true;
+    annEls.btnPublish.textContent = "Procesando…";
+  }
+
+  async function getPublicOrSignedUrl(bucket, path) {
+    try {
+      const pub = supabase.storage.from(bucket).getPublicUrl(path);
+      if (pub?.data?.publicUrl) return pub.data.publicUrl;
+    } catch {}
+
+    try {
+      const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60 * 24 * 7);
+      if (!error && data?.signedUrl) return data.signedUrl;
+    } catch {}
+
+    return null;
+  }
+
+  annEls.btnPublish?.addEventListener("click", async () => {
+    if (annBusy) return;
+
+    const title = (annEls.title?.value || "").trim();
+    const file = annEls.file?.files?.[0] || null;
+
+    if (!file) {
+      setAnnMsg("Selecciona una imagen.", true);
+      return;
+    }
+
+    annBusy = true;
+    setAnnPublishLoading(true);
+    setAnnMsg("Subiendo anuncio…", false);
+
+    try {
+      // Upload a Storage: bucket announcements
+      const ext = (file.name || "").split(".").pop() || "png";
+      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "png";
+      const filePath = `ann_${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
+
+      const { error: upErr } = await supabase
+        .storage
+        .from("announcements")
+        .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
+
+      if (upErr) {
+        setAnnMsg(upErr.message, true);
+        return;
+      }
+
+      const url = await getPublicOrSignedUrl("announcements", filePath);
+      if (!url) {
+        setAnnMsg("No se pudo obtener URL del archivo en Storage.", true);
+        return;
+      }
+
+      // Insert a tabla announcements
+      const { error: insErr } = await supabase
+        .from("announcements")
+        .insert({
+          title: title || null,
+          image_url: url,
+        });
+
+      if (insErr) {
+        setAnnMsg(insErr.message, true);
+        return;
+      }
+
+      if (annEls.title) annEls.title.value = "";
+      if (annEls.file) annEls.file.value = "";
+
+      setAnnMsg("Anuncio publicado.", false);
+      await loadAnnouncements();
+    } finally {
+      setAnnPublishLoading(false);
+      annBusy = false;
+    }
+  });
+
+  annEls.list?.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("button");
+    if (!btn) return;
+    const action = btn.getAttribute("data-ann-action");
+    const id = btn.getAttribute("data-id");
+    if (action !== "delete" || !id) return;
+
+    if (annBusy) return;
+    const ok = window.confirm("¿Eliminar este anuncio? Esta acción no se puede deshacer.");
+    if (!ok) return;
+
+    annBusy = true;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Procesando…";
+
+    try {
+      const { error } = await supabase
+        .from("announcements")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        setAnnMsg(error.message, true);
+        return;
+      }
+
+      setAnnMsg("Anuncio eliminado.", false);
+      await loadAnnouncements();
+    } finally {
+      btn.disabled = false;
+      btn.textContent = originalText || "Eliminar";
+      annBusy = false;
+    }
+  });
+
 })();

@@ -3,7 +3,8 @@ import { requireSession, getMyProfile } from "./shared.js";
 (async () => {
   const { supabase, session } = await requireSession();
   if (!supabase || !session) {
-    window.location.href = "./index.html";
+    // Usa replace para evitar bucles con el botón Atrás.
+    window.location.replace("./index.html?next=" + encodeURIComponent("./app.html"));
     return;
   }
 
@@ -18,7 +19,8 @@ import { requireSession, getMyProfile } from "./shared.js";
     try {
       await supabase.auth.signOut();
     } catch {}
-    window.location.href = "./index.html";
+    // Marca explícita para que index NO auto-redirija por sesión (y evita volver a app con Atrás).
+    window.location.replace("./index.html?loggedout=1");
   };
 
   const btnLogoutTop = document.querySelector('#btnLogout');

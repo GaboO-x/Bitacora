@@ -104,6 +104,10 @@ btnBack?.addEventListener('click', () => {
         // Carga/refresh del calendario al entrar en la vista
         loadCalendar();
       }
+
+      if (view === 'anuncios') {
+        loadAnnouncements();
+      }
     };
 
     const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
@@ -351,6 +355,78 @@ btnBack?.addEventListener('click', () => {
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
         .replaceAll("'", '&#39;');
+    };
+
+
+    // ---- Anuncios (tabla announcements + Storage bucket announcements)
+    const announcementsList = qs('#announcementsList');
+
+    const parseFileNameFromUrl = (url) => {
+      try {
+        const u = new URL(url);
+        const parts = u.pathname.split('/').filter(Boolean);
+        return parts[parts.length - 1] || 'archivo';
+      } catch {
+        const parts = String(url || '').split('/');
+        return parts[parts.length - 1] || 'archivo';
+      }
+    };
+
+    const renderAnnouncements = (rows) => {
+      if (!announcementsList) return;
+      const data = Array.isArray(rows) ? rows : [];
+      if (!data.length) {
+        announcementsList.innerHTML = '<div class="muted">No hay anuncios.</div>';
+        return;
+      }
+
+      announcementsList.innerHTML = data.map(r => {
+        const title = escapeHtml(r.title || 'Anuncio');
+        const created = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+        const url = r.image_url || '';
+        const fileName = url ? escapeHtml(parseFileNameFromUrl(url)) : '';
+
+        const img = url
+          ? '<img src="' + escapeHtml(url) + '" alt="' + title + '" style="max-width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);"/>'
+          : '<div class="muted">(sin imagen)</div>';
+
+        const actions = url
+          ? '<div style="display:flex;gap:10px;align-items:center;">'
+              + '<a class="pill" href="' + escapeHtml(url) + '" download style="text-decoration:none;">Descargar</a>'
+              + '<a class="pill" href="' + escapeHtml(url) + '" target="_blank" rel="noopener" style="text-decoration:none;">Abrir</a>'
+            + '</div>'
+          : '';
+
+        return (
+          '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
+            + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;">'
+              + '<div style="min-width:0;">'
+                + '<div style="font-weight:800;">' + title + '</div>'
+                + '<div class="muted small" style="margin-top:4px;">' + escapeHtml(created) + (fileName ? (' • ' + fileName) : '') + '</div>'
+              + '</div>'
+              + actions
+            + '</div>'
+            + img
+          + '</div>'
+        );
+      }).join('');
+    };
+
+    const loadAnnouncements = async () => {
+      if (!announcementsList) return;
+      announcementsList.textContent = 'Cargando…';
+
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('id, title, image_url, created_at')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        announcementsList.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+        return;
+      }
+
+      renderAnnouncements(data);
     };
 
     const fmtInvestment = (v) => {

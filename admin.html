@@ -73,14 +73,14 @@
           <p class="admin-menu-desc">Publicaciones y avisos.</p>
         </button>
 
-        <button id="navMaterials" class="admin-menu-card" type="button" disabled>
+        <button id="navMaterials" class="admin-menu-card" type="button">
           <div class="admin-menu-top">
             <div class="admin-menu-ico">📚</div>
             <div>
               <div class="admin-menu-title">Material de Apoyo</div>
             </div>
           </div>
-          <p class="admin-menu-desc">Imágenes y recursos estáticos (próximamente).</p>
+          <p class="admin-menu-desc">Imágenes y recursos para ver/descargar.</p>
         </button>
       </div>
     </div>
@@ -253,7 +253,30 @@
         <h2 style="margin:0;">Material de Apoyo</h2>
         <button id="backFromMaterials" class="secondary" type="button">Volver al inicio</button>
       </div>
-      <p class="muted" style="margin-top:14px;">Próximamente.</p>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;margin-top:14px;">
+        <div style="grid-column:1 / -1;">
+          <label>Título (opcional)</label>
+          <input id="matTitle" type="text" placeholder="Ej: Manual, Guía, Imagen de apoyo" />
+        </div>
+
+        <div style="grid-column:1 / -1;">
+          <label>Imagen</label>
+          <input id="matFile" type="file" accept="image/*" />
+          <div class="muted small" style="margin-top:6px;">Se sube a Storage (bucket <b>materials</b>) y se guarda el <b>image_url</b> en la tabla.</div>
+        </div>
+
+        <div style="display:flex;gap:10px;justify-content:flex-end;grid-column:1 / -1;">
+          <button id="matBtnPublish" type="button">Publicar material</button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <div class="muted" style="margin-bottom:8px;">Últimos materiales</div>
+        <div id="matList" style="display:grid;gap:10px;"></div>
+      </div>
+
+      <p id="matMsg" class="msg"></p>
     </div>
 
   </div>

@@ -52,8 +52,21 @@ export async function ensureSupabase() {
 export async function requireSession() {
   const supabase = await ensureSupabase();
   if (!supabase) return { supabase: null, session: null };
-  const { data } = await supabase.auth.getSession();
-  return { supabase, session: data.session };
+
+  // 1) Read cached session (fast)
+  const { data: sessData } = await supabase.auth.getSession();
+  const session = sessData?.session || null;
+  if (!session) return { supabase, session: null };
+
+  // 2) Validate against the server (avoids redirect loops caused by stale local sessions)
+  try {
+    const { data: userData, error } = await supabase.auth.getUser();
+    if (error || !userData?.user) return { supabase, session: null };
+  } catch {
+    return { supabase, session: null };
+  }
+
+  return { supabase, session };
 }
 
 export async function getMyProfile(supabase, userId) {

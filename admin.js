@@ -1,4 +1,4 @@
-import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.js";
+import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEdge } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
@@ -30,6 +30,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     calendar: document.getElementById("sectionCalendar"),
     announcements: document.getElementById("sectionAnnouncements"),
     materials: document.getElementById("sectionMaterials"),
+    users: document.getElementById("sectionUsers"),
   };
 
   function showSection(key) {
@@ -54,12 +55,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
     await loadMaterials();
   });
 
+  document.getElementById("navUsers")?.addEventListener("click", async () => {
+    showSection("users");
+    await loadAllUsers();
+  });
 
   // Back to home buttons
   document.getElementById("backFromInvite")?.addEventListener("click", () => showSection("home"));
   document.getElementById("backFromCalendar")?.addEventListener("click", () => showSection("home"));
   document.getElementById("backFromAnnouncements")?.addEventListener("click", () => showSection("home"));
   document.getElementById("backFromMaterials")?.addEventListener("click", () => showSection("home"));
+  document.getElementById("backFromUsers")?.addEventListener("click", () => showSection("home"));
 
   // -----------------------------
   // Invitar usuario
@@ -835,6 +841,203 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge } from "./shared.j
       btn.textContent = originalText || "Eliminar";
       matBusy = false;
     }
+  });
+
+  // -----------------------------
+  // Administrar Usuarios
+  // -----------------------------
+  const ROLE_LABELS = {
+    user: "Lider_de_Célula",
+    leader: "Lider_de_Escuadron",
+    admin: "Admin_del_App",
+  };
+
+  let usersCache = [];
+  let usersActiveRole = "admin";
+  let usersBusy = false;
+
+  async function loadAllUsers() {
+    const tbody = document.getElementById("usersTbody");
+    setMsg("usersMsg", "", false);
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+
+    const { data, error } = await callManageUsersEdge(supabase, { action: "list" });
+
+    if (error || !data?.ok) {
+      setMsg("usersMsg", (data && data.error) || "No se pudo cargar la lista de usuarios.", true);
+      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Error al cargar.</td></tr>';
+      return;
+    }
+
+    usersCache = data.users || [];
+    renderUsersTable(usersActiveRole);
+  }
+
+  function renderUsersTable(role) {
+    usersActiveRole = role;
+    const tbody = document.getElementById("usersTbody");
+    if (!tbody) return;
+
+    const rows = usersCache.filter((u) => u.role === role);
+    if (rows.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Sin usuarios en este grupo.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = "";
+    rows.forEach((u) => {
+      const isSelf = u.id === user.id;
+      const tr = document.createElement("tr");
+
+      const tdName = document.createElement("td");
+      tdName.style.padding = "8px";
+      tdName.textContent = u.full_name || "(sin nombre)";
+      tr.appendChild(tdName);
+
+      const tdEmail = document.createElement("td");
+      tdEmail.style.padding = "8px";
+      tdEmail.textContent = u.email || "—";
+      tr.appendChild(tdEmail);
+
+      const tdSquads = document.createElement("td");
+      tdSquads.style.padding = "8px";
+      tdSquads.textContent = (u.squads && u.squads.length) ? u.squads.join(", ") : "—";
+      tr.appendChild(tdSquads);
+
+      const tdStatus = document.createElement("td");
+      tdStatus.style.padding = "8px";
+      const statusSpan = document.createElement("span");
+      statusSpan.className = u.active ? "badge-active" : "badge-suspended";
+      statusSpan.textContent = u.active ? "Activo" : "Suspendido";
+      tdStatus.appendChild(statusSpan);
+      tr.appendChild(tdStatus);
+
+      const tdRole = document.createElement("td");
+      tdRole.style.padding = "8px";
+      if (isSelf) {
+        tdRole.textContent = ROLE_LABELS[u.role] + " (vos)";
+      } else {
+        const select = document.createElement("select");
+        Object.keys(ROLE_LABELS).forEach((r) => {
+          const opt = document.createElement("option");
+          opt.value = r;
+          opt.textContent = ROLE_LABELS[r];
+          if (r === u.role) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.addEventListener("change", async () => {
+          if (usersBusy) { select.value = u.role; return; }
+          const newRole = select.value;
+          const ok = window.confirm(`¿Cambiar el rol de ${u.full_name || u.email} a "${ROLE_LABELS[newRole]}"?`);
+          if (!ok) { select.value = u.role; return; }
+
+          usersBusy = true;
+          select.disabled = true;
+          const { data, error } = await callManageUsersEdge(supabase, {
+            action: "update",
+            user_id: u.id,
+            role: newRole,
+          });
+          usersBusy = false;
+          select.disabled = false;
+
+          if (error || !data?.ok) {
+            setMsg("usersMsg", (data && data.error) || "No se pudo cambiar el rol.", true);
+            select.value = u.role;
+            return;
+          }
+          setMsg("usersMsg", "Rol actualizado.", false);
+          await loadAllUsers();
+        });
+        tdRole.appendChild(select);
+      }
+      tr.appendChild(tdRole);
+
+      const tdActions = document.createElement("td");
+      tdActions.style.padding = "8px";
+      tdActions.style.display = "flex";
+      tdActions.style.gap = "8px";
+      tdActions.style.flexWrap = "wrap";
+
+      if (!isSelf) {
+        const btnToggle = document.createElement("button");
+        btnToggle.type = "button";
+        btnToggle.className = "secondary";
+        btnToggle.textContent = u.active ? "Suspender" : "Activar";
+        btnToggle.addEventListener("click", async () => {
+          if (usersBusy) return;
+          const newActive = !u.active;
+          const verb = newActive ? "activar" : "suspender";
+          const ok = window.confirm(`¿Seguro que querés ${verb} a ${u.full_name || u.email}?`);
+          if (!ok) return;
+
+          usersBusy = true;
+          btnToggle.disabled = true;
+          const { data, error } = await callManageUsersEdge(supabase, {
+            action: "update",
+            user_id: u.id,
+            active: newActive,
+          });
+          usersBusy = false;
+          btnToggle.disabled = false;
+
+          if (error || !data?.ok) {
+            setMsg("usersMsg", (data && data.error) || "No se pudo actualizar el estado.", true);
+            return;
+          }
+          setMsg("usersMsg", newActive ? "Usuario activado." : "Usuario suspendido.", false);
+          await loadAllUsers();
+        });
+        tdActions.appendChild(btnToggle);
+      }
+
+      const btnReset = document.createElement("button");
+      btnReset.type = "button";
+      btnReset.className = "secondary";
+      btnReset.textContent = "Reset password";
+      btnReset.addEventListener("click", async () => {
+        if (!u.email) {
+          setMsg("usersMsg", "Este usuario no tiene email registrado.", true);
+          return;
+        }
+        const ok = window.confirm(`¿Enviar email de recuperación de contraseña a ${u.email}?`);
+        if (!ok) return;
+
+        btnReset.disabled = true;
+        const redirectTo = new URL("./reset-password.html", window.location.href).toString();
+        const { error } = await supabase.auth.resetPasswordForEmail(u.email, { redirectTo });
+        btnReset.disabled = false;
+
+        if (error) {
+          setMsg("usersMsg", error.message || "No se pudo enviar el email de recuperación.", true);
+          return;
+        }
+        setMsg("usersMsg", `Email de recuperación enviado a ${u.email}.`, false);
+      });
+      tdActions.appendChild(btnReset);
+
+      tr.appendChild(tdActions);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function setUsersTabActive(id) {
+    ["usersTabAdmin", "usersTabLeader", "usersTabUser"].forEach((tid) => {
+      document.getElementById(tid)?.classList.toggle("active", tid === id);
+    });
+  }
+
+  document.getElementById("usersTabAdmin")?.addEventListener("click", () => {
+    setUsersTabActive("usersTabAdmin");
+    renderUsersTable("admin");
+  });
+  document.getElementById("usersTabLeader")?.addEventListener("click", () => {
+    setUsersTabActive("usersTabLeader");
+    renderUsersTable("leader");
+  });
+  document.getElementById("usersTabUser")?.addEventListener("click", () => {
+    setUsersTabActive("usersTabUser");
+    renderUsersTable("user");
   });
 
 })();

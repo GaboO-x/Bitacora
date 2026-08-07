@@ -305,6 +305,27 @@
         <button id="usersTabUser" class="secondary users-tab" type="button" data-role="user">Unidades</button>
       </div>
 
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;margin-top:14px;">
+        <div>
+          <label>Buscar</label>
+          <input id="usersSearch" type="text" placeholder="Nombre o email…" />
+        </div>
+        <div>
+          <label>División</label>
+          <select id="usersFilterDivision">
+            <option value="all">Todas</option>
+            <option value="makers">Makers</option>
+            <option value="takers">Takers</option>
+          </select>
+        </div>
+        <div>
+          <label>Escuadrón</label>
+          <select id="usersFilterSquad">
+            <option value="all">Todos</option>
+          </select>
+        </div>
+      </div>
+
       <div style="overflow:auto;margin-top:14px;">
         <table style="width:100%;border-collapse:collapse;min-width:860px;">
           <thead>

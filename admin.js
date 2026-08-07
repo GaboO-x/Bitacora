@@ -852,9 +852,52 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     admin: "Admin_del_App",
   };
 
+  // Mismo agrupamiento que ALLOWED_SQUADS en la Edge Function bright-task.ts
+  const SQUADS_BY_DIVISION = {
+    makers: ["URM", "UVM", "UAM", "UNM", "UAZM"],
+    takers: ["URT", "UVT", "UAT", "UNT", "UAZT"],
+  };
+
   let usersCache = [];
   let usersActiveRole = "admin";
   let usersBusy = false;
+  let usersSearchTerm = "";
+  let usersDivisionFilter = "all";
+  let usersSquadFilter = "all";
+
+  function populateSquadFilterOptions(division) {
+    const squadSelect = document.getElementById("usersFilterSquad");
+    if (!squadSelect) return;
+
+    const codes = division === "all"
+      ? [...SQUADS_BY_DIVISION.makers, ...SQUADS_BY_DIVISION.takers]
+      : (SQUADS_BY_DIVISION[division] || []);
+
+    squadSelect.innerHTML = '<option value="all">Todos</option>';
+    codes.forEach((code) => {
+      const opt = document.createElement("option");
+      opt.value = code;
+      opt.textContent = code;
+      squadSelect.appendChild(opt);
+    });
+    usersSquadFilter = "all";
+  }
+
+  function userPassesFilters(u) {
+    if (usersSearchTerm) {
+      const haystack = `${u.full_name || ""} ${u.email || ""}`.toLowerCase();
+      if (!haystack.includes(usersSearchTerm)) return false;
+    }
+    if (usersDivisionFilter !== "all") {
+      const divSquads = SQUADS_BY_DIVISION[usersDivisionFilter] || [];
+      const belongs = (u.squads || []).some((s) => divSquads.includes(s));
+      if (!belongs) return false;
+    }
+    if (usersSquadFilter !== "all") {
+      if (!(u.squads || []).includes(usersSquadFilter)) return false;
+    }
+    return true;
+  }
 
   async function loadAllUsers() {
     const tbody = document.getElementById("usersTbody");
@@ -870,6 +913,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
 
     usersCache = data.users || [];
+    populateSquadFilterOptions(usersDivisionFilter);
     renderUsersTable(usersActiveRole);
   }
 
@@ -878,9 +922,9 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     const tbody = document.getElementById("usersTbody");
     if (!tbody) return;
 
-    const rows = usersCache.filter((u) => u.role === role);
+    const rows = usersCache.filter((u) => u.role === role && userPassesFilters(u));
     if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Sin usuarios en este grupo.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Sin usuarios que coincidan con el filtro.</td></tr>';
       return;
     }
 
@@ -1038,6 +1082,22 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   document.getElementById("usersTabUser")?.addEventListener("click", () => {
     setUsersTabActive("usersTabUser");
     renderUsersTable("user");
+  });
+
+  document.getElementById("usersSearch")?.addEventListener("input", (ev) => {
+    usersSearchTerm = (ev.target.value || "").trim().toLowerCase();
+    renderUsersTable(usersActiveRole);
+  });
+
+  document.getElementById("usersFilterDivision")?.addEventListener("change", (ev) => {
+    usersDivisionFilter = ev.target.value;
+    populateSquadFilterOptions(usersDivisionFilter);
+    renderUsersTable(usersActiveRole);
+  });
+
+  document.getElementById("usersFilterSquad")?.addEventListener("change", (ev) => {
+    usersSquadFilter = ev.target.value;
+    renderUsersTable(usersActiveRole);
   });
 
 })();

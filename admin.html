@@ -25,6 +25,10 @@
 
     .admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
     .admin-backlink{display:inline-flex;gap:8px;align-items:center}
+
+    .users-tab.active{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.32)}
+    .badge-active{color:#7CFFB2;font-weight:600}
+    .badge-suspended{color:#FF8A8A;font-weight:600}
   </style>
 </head>
 <body>
@@ -80,6 +84,16 @@
             </div>
           </div>
           <p class="admin-menu-desc">Recursos evangelisticos.</p>
+        </button>
+
+        <button id="navUsers" class="admin-menu-card" type="button">
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico">🛠️</div>
+            <div>
+              <div class="admin-menu-title">Administrar Usuarios</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Roles, estado y acceso.</p>
         </button>
       </div>
     </div>
@@ -276,6 +290,40 @@
       </div>
 
       <p id="matMsg" class="msg"></p>
+    </div>
+
+    <!-- ADMINISTRAR USUARIOS -->
+    <div id="sectionUsers" class="card admin-section">
+      <div class="admin-section-head">
+        <h2 style="margin:0;">Administrar Usuarios</h2>
+        <button id="backFromUsers" class="secondary" type="button">Volver al inicio</button>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+        <button id="usersTabAdmin" class="secondary users-tab active" type="button" data-role="admin">Líderes principales</button>
+        <button id="usersTabLeader" class="secondary users-tab" type="button" data-role="leader">Líderes</button>
+        <button id="usersTabUser" class="secondary users-tab" type="button" data-role="user">Unidades</button>
+      </div>
+
+      <div style="overflow:auto;margin-top:14px;">
+        <table style="width:100%;border-collapse:collapse;min-width:860px;">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Nombre</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Email</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Escuadrón(es)</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Estado</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Rol</th>
+              <th style="text-align:left;padding:8px;border-bottom:1px solid rgba(255,255,255,0.12);">Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="usersTbody">
+            <tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p id="usersMsg" class="msg"></p>
     </div>
 
   </div>

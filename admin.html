@@ -29,6 +29,9 @@
     .users-tab.active{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.32)}
     .badge-active{color:#7CFFB2;font-weight:600}
     .badge-suspended{color:#FF8A8A;font-weight:600}
+
+    .users-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+    .users-toolbar button{width:auto;margin-top:0;padding:8px 14px;white-space:nowrap}
   </style>
 </head>
 <body>
@@ -294,14 +297,12 @@
 
     <!-- ADMINISTRAR USUARIOS -->
     <div id="sectionUsers" class="card admin-section">
-      <div class="admin-section-head">
-        <h2 style="margin:0;">Administrar Usuarios</h2>
-        <button id="backFromUsers" class="secondary" type="button">Volver al inicio</button>
-      </div>
+      <h2 style="margin:0;">Administrar Usuarios</h2>
 
-      <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">
+      <div class="users-toolbar">
+        <button id="backFromUsers" class="secondary" type="button">Volver al inicio</button>
         <button id="usersTabAdmin" class="secondary users-tab active" type="button" data-role="admin">Admins</button>
-        <button id="usersTabLeader" class="secondary users-tab" type="button" data-role="leader">Líderes Principales</button>
+        <button id="usersTabLeader" class="secondary users-tab" type="button" data-role="leader">Principales</button>
         <button id="usersTabUser" class="secondary users-tab" type="button" data-role="user">Líderes</button>
       </div>
 

@@ -95,3 +95,8 @@ export async function callInviteEdge(supabase, adminEmail, adminPassword, payloa
   });
   return { data, error };
 }
+
+export async function callManageUsersEdge(supabase, body) {
+  const { data, error } = await supabase.functions.invoke("manage-users", { body });
+  return { data, error };
+}

@@ -1006,7 +1006,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       if (!isSelf) {
         const btnToggle = document.createElement("button");
         btnToggle.type = "button";
-        btnToggle.className = "secondary";
+        btnToggle.className = "secondary users-action-btn";
         btnToggle.textContent = u.active ? "Suspender" : "Activar";
         btnToggle.addEventListener("click", async () => {
           if (usersBusy) return;
@@ -1037,7 +1037,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const btnReset = document.createElement("button");
       btnReset.type = "button";
-      btnReset.className = "secondary";
+      btnReset.className = "secondary users-action-btn";
       btnReset.textContent = "Reset password";
       btnReset.addEventListener("click", async () => {
         if (!u.email) {

@@ -406,12 +406,20 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   .main{padding:16px; grid-column: 1 !important}
   .split{grid-template-columns: 1fr}
   .weeks{grid-template-columns: repeat(6,1fr)}
+  .app-shell.is-sidebar-open .sidebar__label,
+  .app-shell.is-sidebar-open .sidebar__footer,
+  .app-shell.is-sidebar-open .nav-btn__text{
+    display: block !important;
+  }
+  .app-shell.is-sidebar-open .nav-btn{
+    justify-content: flex-start !important;
+    padding: 10px 12px !important;
+  }
+  .app-shell.is-sidebar-open .nav-btn__icon{
+    margin-right: 10px !important;
+    font-size: 15px !important;
+  }
 }
-
-
-/* -----------------------------
-   Dinámica Celular (Hoja)
-   ----------------------------- */
 .panel__sub{margin-top:16px; padding-top:14px; border-top:1px solid var(--line)}
 .panel__subtitle{font-family: var(--font-serif); font-weight:600; margin:0 0 10px 0}
 .panel__subtitle--tight{margin:0}

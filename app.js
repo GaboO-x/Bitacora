@@ -1792,8 +1792,8 @@ btnBack?.addEventListener('click', () => {
         const prevSection = attSectionSelector.value;
         attSectionSelector.innerHTML = '';
         const opts = isEquipos
-          ? [['takers','Takers'],['makers','Makers']]
-          : [['rj','RJ (Menores)'],['takers','Takers (Mayores)'],['makers','Makers']];
+          ? [['takers','TAKERS'],['makers','MAKERS']]
+          : [['rj','RJ'],['takers','TAKERS'],['makers','MAKERS']];
         opts.forEach(([v,t]) => {
           const o = document.createElement('option'); o.value = v; o.text = t;
           if (v === prevSection) o.selected = true;

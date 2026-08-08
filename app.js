@@ -1351,6 +1351,126 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
+    // ---- Wheel de tiempo (0-60) para las tarjetas de Dinámica Celular ----
+    const DC_WHEEL_MIN = 0;
+    const DC_WHEEL_MAX = 60;
+    const DC_WHEEL_ITEM_H = 36; // debe coincidir con .dc-wheel__option { height:36px } en app.css
+
+    const closeAllDcWheels = (exceptPanel) => {
+      qsa('.dc-wheel__panel', notesSheetScreen || document).forEach(panel => {
+        if (panel === exceptPanel) return;
+        panel.classList.add('is-hidden');
+      });
+    };
+
+    const setDcWheelActiveOption = (wheelEl, idx) => {
+      qsa('.dc-wheel__option', wheelEl).forEach(opt => {
+        opt.classList.toggle('is-active', Number(opt.dataset.val) === idx);
+      });
+    };
+
+    // Solo escribe/dispara evento si el valor realmente cambia: así el campo
+    // permanece vacío ("__") hasta que el usuario mueve o toca la rueda.
+    const commitDcWheelValue = (wheelEl, idx) => {
+      const valueInput = qs('.dc-wheel__value', wheelEl);
+      if (!valueInput) return;
+      const v = String(idx);
+      if (valueInput.value !== v) {
+        valueInput.value = v;
+        valueInput.dispatchEvent(new Event('input', { bubbles: true }));
+        valueInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+
+    const buildDcWheelOptions = (wheelEl) => {
+      const list = qs('.dc-wheel__list', wheelEl);
+      if (!list || list.dataset.built === '1') return;
+      const frag = document.createDocumentFragment();
+      for (let i = DC_WHEEL_MIN; i <= DC_WHEEL_MAX; i++) {
+        const opt = document.createElement('div');
+        opt.className = 'dc-wheel__option';
+        opt.dataset.val = String(i);
+        opt.textContent = String(i);
+        frag.appendChild(opt);
+      }
+      list.appendChild(frag);
+      list.dataset.built = '1';
+    };
+
+    // Abre el panel posicionado en el valor actual (si el usuario ya eligió uno)
+    // o en el "ref" de la tarjeta (precargado internamente, sin mostrarse antes de tocar).
+    const openDcWheelPanel = (wheelEl) => {
+      const panel = qs('.dc-wheel__panel', wheelEl);
+      const list = qs('.dc-wheel__list', wheelEl);
+      const valueInput = qs('.dc-wheel__value', wheelEl);
+      if (!panel || !list || !valueInput) return;
+
+      closeAllDcWheels(panel);
+      panel.classList.remove('is-hidden');
+
+      const ref = parseInt(wheelEl.dataset.ref, 10) || 0;
+      const hasValue = valueInput.value !== '';
+      const parsed = parseInt(valueInput.value, 10);
+      const idx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, hasValue && !isNaN(parsed) ? parsed : ref));
+
+      list.scrollTop = idx * DC_WHEEL_ITEM_H;
+      setDcWheelActiveOption(wheelEl, idx);
+    };
+
+    const initDcWheels = () => {
+      qsa('.dc-wheel', notesSheetScreen || document).forEach(wheelEl => {
+        if (wheelEl.dataset.wheelInit === '1') return;
+        wheelEl.dataset.wheelInit = '1';
+
+        buildDcWheelOptions(wheelEl);
+
+        const valueInput = qs('.dc-wheel__value', wheelEl);
+        const list = qs('.dc-wheel__list', wheelEl);
+        const panel = qs('.dc-wheel__panel', wheelEl);
+        if (!valueInput || !list || !panel) return;
+
+        valueInput.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !panel.classList.contains('is-hidden');
+          if (isOpen) panel.classList.add('is-hidden');
+          else openDcWheelPanel(wheelEl);
+        });
+
+        // Detecta la opción centrada por scroll-snap; commitea solo cuando el scroll se asienta.
+        let scrollTimer = null;
+        list.addEventListener('scroll', () => {
+          const liveIdx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
+          setDcWheelActiveOption(wheelEl, liveIdx);
+          if (scrollTimer) clearTimeout(scrollTimer);
+          scrollTimer = setTimeout(() => {
+            const settledIdx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
+            commitDcWheelValue(wheelEl, settledIdx);
+          }, 140);
+        });
+
+        // Click directo sobre un número: lo centra y lo confirma de inmediato.
+        list.addEventListener('click', (e) => {
+          const opt = e.target.closest('.dc-wheel__option');
+          if (!opt) return;
+          const idx = Number(opt.dataset.val);
+          list.scrollTo({ top: idx * DC_WHEEL_ITEM_H, behavior: 'smooth' });
+          commitDcWheelValue(wheelEl, idx);
+        });
+      });
+    };
+
+    // Cierra cualquier panel abierto al hacer click fuera o presionar Escape.
+    document.addEventListener('click', (e) => {
+      if (!notesSheetScreen) return;
+      if (e.target.closest && e.target.closest('.dc-wheel')) return;
+      closeAllDcWheels();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAllDcWheels();
+    });
+
+    initDcWheels();
+
     const rebuildJustNames = () => {
       if (!dcFollowBody) return;
       const rows = qsa('tr', dcFollowBody);

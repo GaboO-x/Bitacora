@@ -57,12 +57,11 @@
   vertical-align:middle;
 }
 
-/* Botones únicos Atrás/Compartir de Notas: a la altura del tail, alineados a la derecha */
+/* Botones únicos Atrás/Guardar/Compartir de Notas: a la altura del tail, alineados a la derecha */
 #notesHeaderActions{ align-self:center; }
-.notes-save-spinner{ width:20px; height:20px; display:block; object-fit:contain; }
 
 /* Ocultar filas de título redundantes en Notas: la info de semana/hoja ahora vive junto al <h1>Notas</h1>,
-   y los botones Atrás/Compartir se movieron al header (ver #notesHeaderActions) */
+   y los botones Atrás/Guardar/Compartir se movieron al header (ver #notesHeaderActions) */
 #notesWeekPicker > .panel__title,
 #notesWeekScreen .panel__title-row,
 #notesSheetScreen .sheet-header,
@@ -72,11 +71,60 @@
   display:none;
 }
 
-/* Botones Volver/Compartir como icono (optimización de espacio en hojas de Notas) */
+/* Botones Volver/Guardar/Compartir como icono (optimización de espacio en hojas de Notas) */
 .pill--icon{
   width:38px; height:38px; padding:0;
   display:inline-flex; align-items:center; justify-content:center;
   font-size:16px; flex:0 0 auto;
+}
+
+/* Botón Guardar: gris (por defecto / hay cambios sin guardar) -> verde (todo guardado) */
+#notesBtnSave.is-saved{
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+
+/* Variante de botón "primario" (acento), usada en el modal de confirmación */
+.pill--primary{
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--panel);
+}
+.pill--primary:hover{ opacity:.9; color: var(--panel); }
+
+/* Modal de confirmación (salir sin guardar / guardar) */
+.modal-overlay{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display:flex; align-items:center; justify-content:center;
+  padding: 16px;
+  z-index: 100;
+}
+.modal-box{
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius2, 14px);
+  box-shadow: var(--shadow2);
+  padding: 20px;
+  max-width: 360px;
+  width: 100%;
+}
+.modal-box__title{
+  font-family: var(--font-serif);
+  font-weight:600;
+  font-size: 18px;
+  margin-bottom: 8px;
+  color: var(--text-primary);
+}
+.modal-box__body{
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 18px;
+}
+.modal-box__actions{
+  display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;
 }
 </style>
 </head>
@@ -219,10 +267,7 @@
 <h1>Notas<span class="view-header__tail" id="notesHeaderTail"><span class="crumb__full" id="notesTailFull"></span><span class="crumb__compact" id="notesTailCompact"></span></span></h1>
 <div class="view__nav is-hidden" id="notesHeaderActions">
 <button aria-label="Volver" class="pill pill--icon" id="notesBtnBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
-<button aria-label="Guardar" class="pill pill--icon is-hidden" id="notesBtnSave" title="Guardar" type="button">
-<i class="fa-solid fa-floppy-disk" id="notesSaveIcon"></i>
-<img alt="Guardando" class="notes-save-spinner is-hidden" id="notesSaveSpinner" src="floppy-disc.gif"/>
-</button>
+<button aria-label="Guardar" class="pill pill--icon is-hidden" id="notesBtnSave" title="Guardar" type="button"><i class="fa-solid fa-floppy-disk"></i></button>
 <button aria-label="Compartir" class="pill pill--icon is-hidden" id="notesBtnShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
 </div>
 </div>
@@ -716,6 +761,18 @@
     updateIcon();
   })();
 </script>
+
+<!-- Modal: confirmación al salir de una hoja de Notas con cambios sin guardar -->
+<div class="modal-overlay is-hidden" id="notesLeaveModal">
+<div aria-labelledby="notesLeaveModalTitle" aria-modal="true" class="modal-box" role="dialog">
+<div class="modal-box__title" id="notesLeaveModalTitle">Cambios sin guardar</div>
+<div class="modal-box__body">Tienes cambios en esta hoja que no se han guardado.</div>
+<div class="modal-box__actions">
+<button class="pill" id="notesLeaveDiscard" type="button">Salir sin guardar</button>
+<button class="pill pill--primary" id="notesLeaveSave" type="button">Guardar</button>
+</div>
+</div>
+</div>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

@@ -1491,13 +1491,13 @@ btnBack?.addEventListener('click', () => {
           }, 140);
         });
 
-        // Click directo sobre un número: lo centra y lo confirma de inmediato.
+        // Click directo sobre un número: lo confirma y cierra el panel de inmediato.
         list.addEventListener('click', (e) => {
           const opt = e.target.closest('.dc-wheel__option');
           if (!opt) return;
           const idx = Number(opt.dataset.val);
-          list.scrollTo({ top: idx * DC_WHEEL_ITEM_H, behavior: 'smooth' });
           commitDcWheelValue(wheelEl, idx);
+          panel.classList.add('is-hidden');
         });
       });
     };
@@ -1611,9 +1611,8 @@ btnBack?.addEventListener('click', () => {
         list.addEventListener('click', (e) => {
           const opt = e.target.closest('.dc-namewheel__option');
           if (!opt) return;
-          const idx = Number(opt.dataset.idx);
-          list.scrollTo({ top: idx * NAME_WHEEL_ITEM_H, behavior: 'smooth' });
           commitNameWheelValue(wheelEl, opt.textContent);
+          panel.classList.add('is-hidden');
         });
       });
     };
@@ -1813,6 +1812,7 @@ btnBack?.addEventListener('click', () => {
         section: attSectionSelector.value,
         currentLeaderKey: null,
         sections: attEmptySections(), // datos EN MEMORIA de la semana/líder activos
+        activeWeek: null, // semana que REALMENTE corresponde a lo que hay en el DOM ahora mismo
       };
 
       const attGetLeaderKey = () => {
@@ -1826,8 +1826,13 @@ btnBack?.addEventListener('click', () => {
 
       // Carga (con herencia) los datos de un leaderKey para la semana actual.
       // No escribe nada en storage — solo arma attState.sections en memoria.
+      // IMPORTANTE: marca activeWeek = la semana que se está cargando. Esto es lo
+      // que le dice a attSaveLeaderForWeek/attSaveOffering bajo qué semana guardar,
+      // en vez de volver a leer state.selectedWeek (que para cuando se guarda, ya
+      // pudo haber cambiado a la semana nueva si el cambio vino de Bitácora).
       const attLoadLeaderForWeek = (leaderKey) => {
         const week = attCurrentWeek();
+        attState.activeWeek = week;
         if (!week || !leaderKey) { attState.sections = attEmptySections(); return; }
 
         const store = attReadStore();
@@ -1852,10 +1857,12 @@ btnBack?.addEventListener('click', () => {
         }
       };
 
-      // Persiste attState.sections (leído del DOM) en la semana actual. La ofrenda
-      // se guarda aparte (attSaveOffering), nunca se hereda.
+      // Persiste attState.sections (leído del DOM) en attState.activeWeek — la semana
+      // a la que REALMENTE corresponde lo que hay en pantalla ahora mismo, no
+      // necesariamente state.selectedWeek. La ofrenda se guarda aparte (attSaveOffering),
+      // nunca se hereda.
       const attSaveLeaderForWeek = () => {
-        const week = attCurrentWeek();
+        const week = attState.activeWeek;
         const leaderKey = attState.currentLeaderKey;
         if (!week || !leaderKey) return;
 
@@ -1873,7 +1880,7 @@ btnBack?.addEventListener('click', () => {
       };
 
       const attSaveOffering = () => {
-        const week = attCurrentWeek();
+        const week = attState.activeWeek;
         const leaderKey = attState.currentLeaderKey;
         if (!week || !leaderKey) return;
         const store = attReadStore();
@@ -1889,7 +1896,7 @@ btnBack?.addEventListener('click', () => {
       };
 
       const attLoadOffering = () => {
-        const week = attCurrentWeek();
+        const week = attState.activeWeek;
         const leaderKey = attState.currentLeaderKey;
         const store = attReadStore();
         const off = (week && leaderKey) ? store.weeks?.[String(week)]?.leaders?.[leaderKey]?.offering : null;

@@ -85,9 +85,34 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
-    const setCrumb = (text) => {
-      const crumb = qs('#crumb');
-      if (crumb) crumb.textContent = text;
+    const setCrumb = (full, compact = full) => {
+      const crumbFull = qs('#crumbFull');
+      const crumbCompact = qs('#crumbCompact');
+      if (crumbFull) crumbFull.textContent = full;
+      if (crumbCompact) crumbCompact.textContent = compact;
+    };
+
+    // Etiquetas (completa/abreviada) de cada hoja de Notas para el breadcrumb
+    const NOTE_SHEET_CRUMB = {
+      dc:      { full: 'Célula',                             compact: 'Célula' },
+      takers:  { full: 'Takers',                              compact: 'Takers' },
+      cultos:  { full: 'Cultos',                              compact: 'Cultos' },
+      lideres: { full: 'Reunión de Líderes/Ministerios',      compact: 'Reu Lid/Min' },
+    };
+
+    // Arma "Notas | Semana X | Hoja" (full) y "Notas | Sem X | Hoja" (compact)
+    // según el estado actual (semana seleccionada / hoja abierta).
+    const updateNotesCrumb = () => {
+      if (!state.selectedWeek) { setCrumb('Notas'); return; }
+
+      const weekPart = { full: `Semana ${state.selectedWeek}`, compact: `Sem ${state.selectedWeek}` };
+      const sheet = state.notesOpenSheet ? NOTE_SHEET_CRUMB[state.notesOpenSheet] : null;
+
+      const fullParts = ['Notas', weekPart.full];
+      const compactParts = ['Notas', weekPart.compact];
+      if (sheet) { fullParts.push(sheet.full); compactParts.push(sheet.compact); }
+
+      setCrumb(fullParts.join(' | '), compactParts.join(' | '));
     };
 
     const showView = (view) => {
@@ -97,7 +122,8 @@ btnBack?.addEventListener('click', () => {
       section?.classList.add('is-visible');
 
       setActiveNav(view);
-      setCrumb(viewLabel(view));
+      if (view === 'notas') updateNotesCrumb();
+      else setCrumb(viewLabel(view));
       closeSidebarOnMobile();
 
       if (view === 'calendario') {
@@ -238,39 +264,6 @@ btnBack?.addEventListener('click', () => {
       if (editorEl && typeof draft.html === 'string' && draft.html.length) editorEl.innerHTML = draft.html;
     };
 
-    // Guarda en Supabase la hoja actual (si existe sesión) sin bloquear navegación.
-    // Importante: el auto-guardado local sigue siendo la fuente inmediata; Supabase es "best effort".
-    const upsertNoteToSupabase = (sheetKey, data, statusEl) => {
-      if (!state.selectedWeek) return;
-      if (!supabase || !user?.id) return;
-      if (!sheetKey || !data) return;
-
-      const week = Number(state.selectedWeek);
-      const weekDone = !!(chkWeekDone && chkWeekDone.checked);
-
-      // Fire-and-forget (no await) para no frenar la UI.
-      (async () => {
-        try {
-          setStatus(statusEl, `Guardando… ${nowLabel()} (Supabase)`);
-          const res = await supabase
-            .from('notes')
-            .upsert(
-              { user_id: user.id, week, sheet: sheetKey, data, week_done: weekDone },
-              { onConflict: 'user_id,week,sheet' }
-            );
-
-          if (res.error) {
-            setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (local) • Pendiente Supabase`);
-            return;
-          }
-
-          setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (Supabase)`);
-        } catch {
-          setStatus(statusEl, `Guardado automáticamente: ${nowLabel()} (local) • Pendiente Supabase`);
-        }
-      })();
-    };
-
     const autosaveNotesIfNeeded = () => {
       if (!state.selectedWeek) return;
 
@@ -279,34 +272,27 @@ btnBack?.addEventListener('click', () => {
         if (d) setWeekDraft(state.selectedWeek, { dc: d });
         state.dcDirty = false;
         setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        upsertNoteToSupabase('dc', d, dcStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'takers' && state.takersDirty) {
-        const d = collectRteDraft(takersTema, takersDate, takersNotes);
-        setWeekDraft(state.selectedWeek, { takers: d });
+        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
         state.takersDirty = false;
         setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        upsertNoteToSupabase('takers', d, takersStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
-        const d = collectRteDraft(cultosTema, cultosDate, cultosNotes);
-        setWeekDraft(state.selectedWeek, { cultos: d });
+        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
         state.cultosDirty = false;
         setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        upsertNoteToSupabase('cultos', d, cultosStatus);
         return;
       }
 
       if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
-        const d = collectRteDraft(lideresTema, lideresDate, lideresNotes);
-        setWeekDraft(state.selectedWeek, { lideres: d });
+        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
         state.lideresDirty = false;
         setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        upsertNoteToSupabase('lideres', d, lideresStatus);
         return;
       }
     };
@@ -1258,6 +1244,7 @@ btnBack?.addEventListener('click', () => {
       // Mostrar pantalla de semana
       setWeekScreenVisible(true);
       updateMeta();
+      updateNotesCrumb();
     };
 
 
@@ -1270,6 +1257,7 @@ btnBack?.addEventListener('click', () => {
       if (chkWeekDone) chkWeekDone.checked = false;
       setWeekScreenVisible(false);
       updateMeta();
+      updateNotesCrumb();
     });
 
     // Marcar semana como completada (solo UI; se mantiene en localStorage)
@@ -1380,17 +1368,19 @@ btnBack?.addEventListener('click', () => {
         initDcDefaults();
       }
       rebuildJustNames();
+      updateNotesCrumb();
     };
 
     btnDcBack?.addEventListener('click', () => {
       if (!confirmLeaveDcSheet()) return;
       setWeekScreenVisible(true);
+      updateNotesCrumb();
     });
 
     // Back/Guardar para hojas de Semana (Takers/Cultos/Líderes)
-    qs('#btnTakersBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
-    qs('#btnCultosBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
-    qs('#btnLideresBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); });
+    qs('#btnTakersBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
+    qs('#btnCultosBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
+    qs('#btnLideresBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
 
     const markSaved = (statusEl) => {
       if (!statusEl) return;
@@ -1406,6 +1396,7 @@ btnBack?.addEventListener('click', () => {
       const draft = getWeekDraft(state.selectedWeek).takers;
       if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
       showNoteSheet(notesSheetTakers);
+      updateNotesCrumb();
     };
 
     const openCultosSheet = () => {
@@ -1416,6 +1407,7 @@ btnBack?.addEventListener('click', () => {
       const draft = getWeekDraft(state.selectedWeek).cultos;
       if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
       showNoteSheet(notesSheetCultos);
+      updateNotesCrumb();
     };
 
     const openLideresSheet = () => {
@@ -1426,6 +1418,7 @@ btnBack?.addEventListener('click', () => {
       const draft = getWeekDraft(state.selectedWeek).lideres;
       if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
       showNoteSheet(notesSheetLideres);
+      updateNotesCrumb();
     };
 
     

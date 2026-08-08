@@ -117,6 +117,25 @@ btnBack?.addEventListener('click', () => {
     // según el estado actual: ocultos en el selector de semanas, solo Atrás en pantalla de semana,
     // Atrás+Guardar en Dinámica Celular (sin Compartir), Atrás+Guardar+Compartir en Takers/Cultos/Líderes.
     const NOTES_SHEETS_WITH_SHARE = ['takers', 'cultos', 'lideres'];
+
+    // ¿La hoja actualmente abierta tiene cambios sin guardar?
+    const isCurrentSheetDirty = () => {
+      switch (state.notesOpenSheet) {
+        case 'dc': return !!state.dcDirty;
+        case 'takers': return !!state.takersDirty;
+        case 'cultos': return !!state.cultosDirty;
+        case 'lideres': return !!state.lideresDirty;
+        default: return false;
+      }
+    };
+
+    // Color del botón Guardar: gris (hay cambios sin guardar) / verde (todo guardado)
+    const updateSaveButtonState = () => {
+      if (!notesBtnSave) return;
+      const allSaved = !!state.notesOpenSheet && !isCurrentSheetDirty();
+      notesBtnSave.classList.toggle('is-saved', allSaved);
+    };
+
     const updateNotesHeaderActions = () => {
       if (!notesHeaderActions) return;
       const showBack = !!state.selectedWeek;
@@ -128,6 +147,18 @@ btnBack?.addEventListener('click', () => {
       if (notesBtnSave) {
         notesBtnSave.classList.toggle('is-hidden', !state.notesOpenSheet);
       }
+      updateSaveButtonState();
+    };
+
+    // Modal "Cambios sin guardar": Promise<'save'|'discard'>
+    let notesLeaveResolve = null;
+    const openNotesLeaveModal = () => new Promise((resolve) => {
+      notesLeaveResolve = resolve;
+      notesLeaveModal?.classList.remove('is-hidden');
+    });
+    const closeNotesLeaveModal = (result) => {
+      notesLeaveModal?.classList.add('is-hidden');
+      if (notesLeaveResolve) { notesLeaveResolve(result); notesLeaveResolve = null; }
     };
 
     const showView = (view) => {
@@ -278,39 +309,6 @@ btnBack?.addEventListener('click', () => {
       if (editorEl && typeof draft.html === 'string' && draft.html.length) editorEl.innerHTML = draft.html;
     };
 
-    const autosaveNotesIfNeeded = () => {
-      if (!state.selectedWeek) return;
-
-      if (state.notesOpenSheet === 'dc' && state.dcDirty) {
-        const d = collectDcDraft();
-        if (d) setWeekDraft(state.selectedWeek, { dc: d });
-        state.dcDirty = false;
-        setStatus(dcStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        return;
-      }
-
-      if (state.notesOpenSheet === 'takers' && state.takersDirty) {
-        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
-        state.takersDirty = false;
-        setStatus(takersStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        return;
-      }
-
-      if (state.notesOpenSheet === 'cultos' && state.cultosDirty) {
-        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
-        state.cultosDirty = false;
-        setStatus(cultosStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        return;
-      }
-
-      if (state.notesOpenSheet === 'lideres' && state.lideresDirty) {
-        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
-        state.lideresDirty = false;
-        setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
-        return;
-      }
-    };
-
     // Guardado manual (botón "Guardar"): fuerza el guardado de la hoja abierta,
     // sin depender del flag "dirty". Misma persistencia local (localStorage) de siempre.
     const saveNotesNow = () => {
@@ -334,32 +332,32 @@ btnBack?.addEventListener('click', () => {
         state.lideresDirty = false;
         setStatus(lideresStatus, `Guardado: ${nowLabel()} (local)`);
       }
+      updateSaveButtonState();
     };
 
-    // Animación breve del botón Guardar (usa el gif de disquete mientras "guarda")
-    let notesSaveAnimTimer = null;
-    const playNotesSaveAnimation = () => {
-      if (!notesBtnSave) return;
-      notesBtnSave.disabled = true;
-      notesSaveIcon?.classList.add('is-hidden');
-      notesSaveSpinner?.classList.remove('is-hidden');
-      clearTimeout(notesSaveAnimTimer);
-      notesSaveAnimTimer = setTimeout(() => {
-        notesSaveSpinner?.classList.add('is-hidden');
-        notesSaveIcon?.classList.remove('is-hidden');
-        notesBtnSave.disabled = false;
-      }, 700);
+    // Antes de salir de una hoja de Notas: si hay cambios sin guardar, pregunta con el modal
+    // (Salir sin guardar / Guardar). Si no hay cambios, continúa sin interrumpir.
+    // Devuelve true si es seguro continuar con la salida, false si el usuario se quedó.
+    const confirmLeaveNotesSheet = async () => {
+      if (!isCurrentSheetDirty()) return true;
+      const choice = await openNotesLeaveModal();
+      if (choice === 'save') { saveNotesNow(); return true; }
+      if (choice === 'discard') {
+        // Descartar: no persistimos; la próxima vez que se abra la hoja se recarga
+        // el último borrador guardado en localStorage (los cambios en pantalla se pierden).
+        switch (state.notesOpenSheet) {
+          case 'dc': state.dcDirty = false; break;
+          case 'takers': state.takersDirty = false; break;
+          case 'cultos': state.cultosDirty = false; break;
+          case 'lideres': state.lideresDirty = false; break;
+        }
+        return true;
+      }
+      return false;
     };
 
-    const confirmLeaveDcSheet = () => {
-      // Ahora: auto-guardado implícito (sin confirmación)
-      autosaveNotesIfNeeded();
-      return true;
-    };
-
-
-    const navigate = (view, opts = {}) => {
-      if (!confirmLeaveDcSheet()) return;
+    const navigate = async (view, opts = {}) => {
+      if (!(await confirmLeaveNotesSheet())) return;
       const { push = true } = opts;
       if (push && state.view && state.view !== view) {
         state.history.push(state.view);
@@ -367,8 +365,8 @@ btnBack?.addEventListener('click', () => {
       showView(view);
     };
 
-    const goBack = () => {
-      if (!confirmLeaveDcSheet()) return;
+    const goBack = async () => {
+      if (!(await confirmLeaveNotesSheet())) return;
       const prev = state.history.pop();
       if (prev) showView(prev);
       else showView('home');
@@ -1177,8 +1175,13 @@ btnBack?.addEventListener('click', () => {
     const notesBtnBack = qs('#notesBtnBack');
     const notesBtnShare = qs('#notesBtnShare');
     const notesBtnSave = qs('#notesBtnSave');
-    const notesSaveIcon = qs('#notesSaveIcon');
-    const notesSaveSpinner = qs('#notesSaveSpinner');
+
+    // Modal de confirmación al salir de una hoja con cambios sin guardar
+    const notesLeaveModal = qs('#notesLeaveModal');
+    const notesLeaveDiscardBtn = qs('#notesLeaveDiscard');
+    const notesLeaveSaveBtn = qs('#notesLeaveSave');
+    notesLeaveDiscardBtn?.addEventListener('click', () => closeNotesLeaveModal('discard'));
+    notesLeaveSaveBtn?.addEventListener('click', () => closeNotesLeaveModal('save'));
 
     const chkWeekDone = qs('#chkWeekDone');
 
@@ -1290,8 +1293,8 @@ btnBack?.addEventListener('click', () => {
     };
 
     // Volver del detalle de semana al selector (usada por el botón único Atrás)
-    const backToWeekPicker = () => {
-      if (!confirmLeaveDcSheet()) return;
+    const backToWeekPicker = async () => {
+      if (!(await confirmLeaveNotesSheet())) return;
       // quitar selección visual
       qsa('.week', weeksGrid).forEach(w => w.classList.remove('is-selected'));
       state.selectedWeek = null;
@@ -1322,12 +1325,13 @@ btnBack?.addEventListener('click', () => {
       if (!state.dcOpen) return;
       state.dcDirty = dirty;
       if (dcStatus) dcStatus.textContent = dirty ? 'Cambios sin guardar.' : '';
+      updateSaveButtonState();
     };
 
     // Marcar cambios (placeholder de auto-guardado)
-    const setTakersDirty = (dirty = true) => { state.takersDirty = dirty; if (takersStatus) takersStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
-    const setCultosDirty = (dirty = true) => { state.cultosDirty = dirty; if (cultosStatus) cultosStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
-    const setLideresDirty = (dirty = true) => { state.lideresDirty = dirty; if (lideresStatus) lideresStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; };
+    const setTakersDirty = (dirty = true) => { state.takersDirty = dirty; if (takersStatus) takersStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
+    const setCultosDirty = (dirty = true) => { state.cultosDirty = dirty; if (cultosStatus) cultosStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
+    const setLideresDirty = (dirty = true) => { state.lideresDirty = dirty; if (lideresStatus) lideresStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
 
     notesSheetScreen?.addEventListener('input', () => setDcDirty(true));
     notesSheetScreen?.addEventListener('change', () => setDcDirty(true));
@@ -1415,15 +1419,15 @@ btnBack?.addEventListener('click', () => {
     };
 
     // Cierra cada hoja y vuelve a la pantalla de semana (usadas por el botón único Atrás)
-    const closeDcSheet = () => {
-      if (!confirmLeaveDcSheet()) return;
+    const closeDcSheet = async () => {
+      if (!(await confirmLeaveNotesSheet())) return;
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
     };
 
-    const closeWeekSheet = () => {
-      autosaveNotesIfNeeded();
+    const closeWeekSheet = async () => {
+      if (!(await confirmLeaveNotesSheet())) return;
       hideAllNoteSheets();
       setWeekScreenVisible(true);
       updateNotesCrumb();
@@ -1513,10 +1517,10 @@ btnBack?.addEventListener('click', () => {
       lideres: () => shareText(buildShare('Reunión de Líderes/Ministerios', lideresTema, lideresDate, lideresNotes)),
     };
 
-    notesBtnBack?.addEventListener('click', () => {
+    notesBtnBack?.addEventListener('click', async () => {
       const action = state.notesOpenSheet ? NOTES_BACK_ACTIONS[state.notesOpenSheet] : null;
-      if (action) { action(); return; }
-      if (state.selectedWeek) backToWeekPicker();
+      if (action) { await action(); return; }
+      if (state.selectedWeek) await backToWeekPicker();
     });
 
     notesBtnShare?.addEventListener('click', () => {
@@ -1525,7 +1529,6 @@ btnBack?.addEventListener('click', () => {
     });
 
     notesBtnSave?.addEventListener('click', () => {
-      playNotesSaveAnimation();
       saveNotesNow();
     });
 

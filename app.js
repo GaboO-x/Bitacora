@@ -1644,8 +1644,24 @@ btnBack?.addEventListener('click', () => {
     const makeFollowRow = (n) => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td><input class="input" type="text" placeholder="Nombre"/></td>
-        <td><input class="input" type="text" placeholder="Encargado"/></td>
+        <td>
+          <div class="dc-namewheel">
+            <input class="input dc-namewheel__value" type="text" readonly placeholder="Nombre" value=""/>
+            <div class="dc-namewheel__panel is-hidden">
+              <div class="dc-namewheel__marker"></div>
+              <div class="dc-namewheel__list"></div>
+            </div>
+          </div>
+        </td>
+        <td>
+          <div class="dc-namewheel">
+            <input class="input dc-namewheel__value" type="text" readonly placeholder="Encargado" value=""/>
+            <div class="dc-namewheel__panel is-hidden">
+              <div class="dc-namewheel__marker"></div>
+              <div class="dc-namewheel__list"></div>
+            </div>
+          </div>
+        </td>
         <td class="dc-table__just">
           <label class="dc-just"><input name="dcJust${n}" type="radio" value="si"/> Sí</label>
           <label class="dc-just"><input name="dcJust${n}" type="radio" value="no"/> No</label>
@@ -1663,6 +1679,7 @@ btnBack?.addEventListener('click', () => {
       const n = (qsa('tr', dcFollowBody).length || 0) + 1;
       dcFollowBody.appendChild(makeFollowRow(n));
       rebuildJustNames();
+      initNameWheels(); // conecta los .dc-namewheel de la fila recién creada (idempotente)
       setDcDirty(true);
     });
 

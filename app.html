@@ -473,13 +473,97 @@
     </div>
   </div>
 
-  <!-- Asistencia -->
+  <!-- Asistencia (app externa integrada: control de asistencia y ofrendas) -->
   <div class="panel__sub">
     <div class="panel__subtitle">Asistencia</div>
-    <div class="dc-summary">
-      <div class="dc-summary__item"><label class="field__label">Asistieron</label><input class="input input--mini" id="dcAsistieron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
-      <div class="dc-summary__item"><label class="field__label">Faltaron</label><input class="input input--mini" id="dcFaltaron" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
-      <div class="dc-summary__item"><label class="field__label">Nuevos</label><input class="input input--mini" id="dcNuevos" inputmode="numeric" maxlength="3" placeholder="__" type="text"/></div>
+
+    <div class="dc-att-app" id="dcAttApp">
+
+      <div class="dc-att__header">
+        <div class="dc-att__select-wrap">
+          <select id="attColorSelector" class="dc-att__select dc-att__select--accent">
+            <option value="purple">🟣 Equipos</option>
+            <option value="red">🔴 Unidad Roja</option>
+            <option value="blue">🔵 Unidad Azul</option>
+            <option value="yellow">🟡 Unidad Amarilla</option>
+            <option value="orange">🟠 Unidad Naranja</option>
+            <option value="green">🟢 Unidad Verde</option>
+          </select>
+        </div>
+        <div class="dc-att__select-wrap">
+          <select id="attSectionSelector" class="dc-att__select dc-att__select--accent">
+            <option value="rj">RJ (Menores)</option>
+            <option value="takers">Takers (Mayores)</option>
+            <option value="makers">Makers</option>
+          </select>
+        </div>
+        <select class="dc-att__leader" id="attLeaderName"></select>
+      </div>
+
+      <div class="dc-att__offering">
+        <div class="dc-att__offering-grid">
+          <div class="dc-att__offering-item">
+            <label>Sinpe ₡</label>
+            <input class="input" type="number" id="attOffSinpe" placeholder="0"/>
+          </div>
+          <div class="dc-att__offering-item">
+            <label>Efectivo ₡</label>
+            <input class="input" type="number" id="attOffEfectivo" placeholder="0"/>
+          </div>
+        </div>
+        <div class="dc-att__offering-total">Total Ofrenda: ₡ <span id="attTotalOffering">0</span></div>
+      </div>
+
+      <div class="dc-att__section-title">
+        <span id="attActiveSectionLabel">RJ</span>
+        <button class="dc-att__btn-add" type="button" id="attAddMain">+</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table dc-att__table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Nombre del discípulo</th>
+              <th class="check-col" id="attThCelMain">Célula</th>
+              <th class="check-col" id="attThRedMain">Red</th>
+            </tr>
+          </thead>
+          <tbody id="attMainBody"></tbody>
+        </table>
+      </div>
+
+      <div class="dc-att__section-title">
+        <span id="attActiveVisitLabel">VISITAS RJ</span>
+        <button class="dc-att__btn-add" type="button" id="attAddVisit">+</button>
+      </div>
+      <div class="table-wrap">
+        <table class="table dc-att__table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Nombre del discípulo</th>
+              <th class="check-col" id="attThCelVisit">Célula</th>
+              <th class="check-col" id="attThRedVisit">Red</th>
+              <th class="check-col">🌟Nuevo</th>
+            </tr>
+          </thead>
+          <tbody id="attVisitBody"></tbody>
+        </table>
+      </div>
+
+      <div class="dc-att__summary">
+        <div class="dc-att__summary-title" id="attSummaryTitle">RESUMEN TOTAL ASISTENCIA — RJ</div>
+        <div class="dc-att__summary-row"><span id="attLblCel">Total Célula:</span><span id="attSumCel">0</span></div>
+        <div class="dc-att__summary-row"><span id="attLblRed">Total Red:</span><span id="attSumRed">0</span></div>
+        <div class="dc-att__summary-nuevos" id="attSumNuevosRow" style="display:none;">🌟 Nuevos: <span id="attSumNuevos">0</span></div>
+      </div>
+
+      <div class="dc-att__actions">
+        <button class="pill" type="button" id="attCopyTodo">📋 Copiar TODO</button>
+        <button class="pill" type="button" id="attCopyOfrendas">💰 Copiar SOLO Ofrendas</button>
+        <button class="pill dc-att__btn-danger" type="button" id="attBorrar">🗑️ Borrar</button>
+      </div>
+
     </div>
   </div>
 

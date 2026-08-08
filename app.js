@@ -1448,6 +1448,7 @@ btnBack?.addEventListener('click', () => {
       if (!panel || !list || !valueInput) return;
 
       closeAllDcWheels(panel);
+      closeAllNameWheels();
       panel.classList.remove('is-hidden');
 
       const ref = parseInt(wheelEl.dataset.ref, 10) || 0;
@@ -1501,17 +1502,135 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
+    // ---- Wheel de nombres (Responsable) — lista dinámica de discípulos + visitas ----
+    const NAME_WHEEL_ITEM_H = 36; // debe coincidir con .dc-namewheel__option { height:36px }
+
+    const closeAllNameWheels = (exceptPanel) => {
+      qsa('.dc-namewheel__panel', notesSheetScreen || document).forEach(panel => {
+        if (panel === exceptPanel) return;
+        panel.classList.add('is-hidden');
+      });
+    };
+
+    // "El Líder" siempre primero (única persona fuera de la lista de discípulos),
+    // luego los nombres en el mismo orden en que aparecen en las tablas.
+    const getDiscipuloNames = () => {
+      const mainNames  = qsa('.in-n', qs('#attMainBody')  || document).map(el => el.value.trim()).filter(Boolean);
+      const visitNames = qsa('.in-n', qs('#attVisitBody') || document).map(el => el.value.trim()).filter(Boolean);
+      return ['El Líder', ...mainNames, ...visitNames];
+    };
+
+    const setNameWheelActiveOption = (wheelEl, idx) => {
+      qsa('.dc-namewheel__option', wheelEl).forEach(opt => {
+        opt.classList.toggle('is-active', Number(opt.dataset.idx) === idx);
+      });
+    };
+
+    const commitNameWheelValue = (wheelEl, name) => {
+      const valueInput = qs('.dc-namewheel__value', wheelEl);
+      if (!valueInput || name == null) return;
+      if (valueInput.value !== name) {
+        valueInput.value = name;
+        valueInput.dispatchEvent(new Event('input', { bubbles: true }));
+        valueInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    };
+
+    const buildNameWheelOptions = (wheelEl, names) => {
+      const list = qs('.dc-namewheel__list', wheelEl);
+      if (!list) return;
+      list.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      names.forEach((name, i) => {
+        const opt = document.createElement('div');
+        opt.className = 'dc-namewheel__option';
+        opt.dataset.idx = String(i);
+        opt.textContent = name;
+        frag.appendChild(opt);
+      });
+      list.appendChild(frag);
+    };
+
+    // Reconstruye la lista EN CADA APERTURA (a diferencia del wheel de tiempo,
+    // que se construye una sola vez): los discípulos pueden cambiar mientras
+    // la hoja está abierta, ya que Asistencia vive en la misma pantalla.
+    const openNameWheelPanel = (wheelEl) => {
+      const panel = qs('.dc-namewheel__panel', wheelEl);
+      const list = qs('.dc-namewheel__list', wheelEl);
+      const valueInput = qs('.dc-namewheel__value', wheelEl);
+      if (!panel || !list || !valueInput) return;
+
+      const names = getDiscipuloNames();
+      buildNameWheelOptions(wheelEl, names);
+
+      closeAllDcWheels();
+      closeAllNameWheels(panel);
+      panel.classList.remove('is-hidden');
+
+      // Si el valor actual sigue en la lista, posiciona ahí; si no, "El Líder" (idx 0).
+      let idx = names.indexOf(valueInput.value);
+      if (idx < 0) idx = 0;
+
+      list.scrollTop = idx * NAME_WHEEL_ITEM_H;
+      setNameWheelActiveOption(wheelEl, idx);
+    };
+
+    const initNameWheels = () => {
+      qsa('.dc-namewheel', notesSheetScreen || document).forEach(wheelEl => {
+        if (wheelEl.dataset.wheelInit === '1') return;
+        wheelEl.dataset.wheelInit = '1';
+
+        const valueInput = qs('.dc-namewheel__value', wheelEl);
+        const list = qs('.dc-namewheel__list', wheelEl);
+        const panel = qs('.dc-namewheel__panel', wheelEl);
+        if (!valueInput || !list || !panel) return;
+
+        valueInput.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !panel.classList.contains('is-hidden');
+          if (isOpen) panel.classList.add('is-hidden');
+          else openNameWheelPanel(wheelEl);
+        });
+
+        let scrollTimer = null;
+        const clampIdx = (raw) => {
+          const max = Math.max(0, qsa('.dc-namewheel__option', wheelEl).length - 1);
+          return Math.min(max, Math.max(0, raw));
+        };
+        list.addEventListener('scroll', () => {
+          const liveIdx = clampIdx(Math.round(list.scrollTop / NAME_WHEEL_ITEM_H));
+          setNameWheelActiveOption(wheelEl, liveIdx);
+          if (scrollTimer) clearTimeout(scrollTimer);
+          scrollTimer = setTimeout(() => {
+            const settledIdx = clampIdx(Math.round(list.scrollTop / NAME_WHEEL_ITEM_H));
+            const chosen = qsa('.dc-namewheel__option', wheelEl)[settledIdx];
+            if (chosen) commitNameWheelValue(wheelEl, chosen.textContent);
+          }, 140);
+        });
+
+        list.addEventListener('click', (e) => {
+          const opt = e.target.closest('.dc-namewheel__option');
+          if (!opt) return;
+          const idx = Number(opt.dataset.idx);
+          list.scrollTo({ top: idx * NAME_WHEEL_ITEM_H, behavior: 'smooth' });
+          commitNameWheelValue(wheelEl, opt.textContent);
+        });
+      });
+    };
+
     // Cierra cualquier panel abierto al hacer click fuera o presionar Escape.
     document.addEventListener('click', (e) => {
       if (!notesSheetScreen) return;
-      if (e.target.closest && e.target.closest('.dc-wheel')) return;
+      if (e.target.closest && (e.target.closest('.dc-wheel') || e.target.closest('.dc-namewheel'))) return;
       closeAllDcWheels();
+      closeAllNameWheels();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeAllDcWheels();
+      if (e.key === 'Escape') { closeAllDcWheels(); closeAllNameWheels(); }
     });
 
     initDcWheels();
+    initNameWheels();
 
     const rebuildJustNames = () => {
       if (!dcFollowBody) return;

@@ -85,11 +85,6 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
-    const setCrumb = (text) => {
-      const crumb = qs('#crumb');
-      if (crumb) crumb.textContent = text;
-    };
-
     // Etiquetas (completa/abreviada) de cada hoja de Notas para el subtítulo junto al <h1>
     const NOTE_SHEET_CRUMB = {
       dc:      { full: 'Célula',                             compact: 'Célula' },
@@ -118,6 +113,20 @@ btnBack?.addEventListener('click', () => {
       tailCompact.textContent = ' | ' + compactParts.join(' | ');
     };
 
+    // Muestra/oculta el par único de botones Atrás/Compartir (junto al tail del <h1>Notas</h1>)
+    // según el estado actual: ocultos en el selector de semanas, solo Atrás en pantalla de semana
+    // y en Dinámica Celular (sin Compartir), Atrás+Compartir en Takers/Cultos/Líderes.
+    const NOTES_SHEETS_WITH_SHARE = ['takers', 'cultos', 'lideres'];
+    const updateNotesHeaderActions = () => {
+      if (!notesHeaderActions) return;
+      const showBack = !!state.selectedWeek;
+      notesHeaderActions.classList.toggle('is-hidden', !showBack);
+      if (notesBtnShare) {
+        const showShare = NOTES_SHEETS_WITH_SHARE.includes(state.notesOpenSheet);
+        notesBtnShare.classList.toggle('is-hidden', !showShare);
+      }
+    };
+
     const showView = (view) => {
       state.view = view;
       qsa('.view').forEach(v => v.classList.remove('is-visible'));
@@ -125,8 +134,7 @@ btnBack?.addEventListener('click', () => {
       section?.classList.add('is-visible');
 
       setActiveNav(view);
-      setCrumb(viewLabel(view));
-      if (view === 'notas') updateNotesCrumb();
+      if (view === 'notas') { updateNotesCrumb(); updateNotesHeaderActions(); }
       closeSidebarOnMobile();
 
       if (view === 'calendario') {
@@ -323,19 +331,6 @@ btnBack?.addEventListener('click', () => {
       else showView('home');
     };
 
-
-    const viewLabel = (view) => {
-      switch(view){
-        case 'home': return 'Inicio';
-        case 'notas': return 'Notas';
-        case 'revision': return 'Revisión de Notas';
-        case 'calendario': return 'Calendario';
-        case 'anuncios': return 'Anuncios';
-        case 'material': return 'Material de apoyo';
-        case 'misdoce': return 'Mis Doce';
-        default: return view;
-      }
-    };
 
     qsa('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => navigate(btn.dataset.view));
@@ -1126,21 +1121,18 @@ btnBack?.addEventListener('click', () => {
     const takersStatus = qs('#takersStatus');
     const cultosStatus = qs('#cultosStatus');
     const lideresStatus = qs('#lideresStatus');
-    const btnTakersBack = qs('#btnTakersBack');
-    const btnCultosBack = qs('#btnCultosBack');
-    const btnLideresBack = qs('#btnLideresBack');
-    const btnTakersShare = qs('#btnTakersShare');
-    const btnCultosShare = qs('#btnCultosShare');
-    const btnLideresShare = qs('#btnLideresShare');
     const dcSheetTitle = qs('#dcSheetTitle');
     const dcDate = qs('#dcDate');
-    const btnDcBack = qs('#btnDcBack');
     const btnDcRowAdd = qs('#btnDcRowAdd');
     const btnDcRowRemove = qs('#btnDcRowRemove');
     const dcFollowBody = qs('#dcFollowBody');
     const dcNotes = qs('#dcNotes');
     const dcStatus = qs('#dcStatus');
-    const btnBackToWeeks = qs('#btnBackToWeeks');
+
+    // Botones únicos Atrás/Compartir, ubicados junto al tail del <h1>Notas</h1>
+    const notesHeaderActions = qs('#notesHeaderActions');
+    const notesBtnBack = qs('#notesBtnBack');
+    const notesBtnShare = qs('#notesBtnShare');
 
     const chkWeekDone = qs('#chkWeekDone');
 
@@ -1248,11 +1240,11 @@ btnBack?.addEventListener('click', () => {
       setWeekScreenVisible(true);
       updateMeta();
       updateNotesCrumb();
+      updateNotesHeaderActions();
     };
 
-
-    // Volver del detalle de semana al selector
-    btnBackToWeeks?.addEventListener('click', () => {
+    // Volver del detalle de semana al selector (usada por el botón único Atrás)
+    const backToWeekPicker = () => {
       if (!confirmLeaveDcSheet()) return;
       // quitar selección visual
       qsa('.week', weeksGrid).forEach(w => w.classList.remove('is-selected'));
@@ -1261,7 +1253,8 @@ btnBack?.addEventListener('click', () => {
       setWeekScreenVisible(false);
       updateMeta();
       updateNotesCrumb();
-    });
+      updateNotesHeaderActions();
+    };
 
     // Marcar semana como completada (solo UI; se mantiene en localStorage)
     chkWeekDone?.addEventListener('change', () => {
@@ -1372,18 +1365,24 @@ btnBack?.addEventListener('click', () => {
       }
       rebuildJustNames();
       updateNotesCrumb();
+      updateNotesHeaderActions();
     };
 
-    btnDcBack?.addEventListener('click', () => {
+    // Cierra cada hoja y vuelve a la pantalla de semana (usadas por el botón único Atrás)
+    const closeDcSheet = () => {
       if (!confirmLeaveDcSheet()) return;
       setWeekScreenVisible(true);
       updateNotesCrumb();
-    });
+      updateNotesHeaderActions();
+    };
 
-    // Back/Guardar para hojas de Semana (Takers/Cultos/Líderes)
-    qs('#btnTakersBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
-    qs('#btnCultosBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
-    qs('#btnLideresBack')?.addEventListener('click', () => { autosaveNotesIfNeeded(); hideAllNoteSheets(); setWeekScreenVisible(true); updateNotesCrumb(); });
+    const closeWeekSheet = () => {
+      autosaveNotesIfNeeded();
+      hideAllNoteSheets();
+      setWeekScreenVisible(true);
+      updateNotesCrumb();
+      updateNotesHeaderActions();
+    };
 
     const markSaved = (statusEl) => {
       if (!statusEl) return;
@@ -1400,6 +1399,7 @@ btnBack?.addEventListener('click', () => {
       if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
       showNoteSheet(notesSheetTakers);
       updateNotesCrumb();
+      updateNotesHeaderActions();
     };
 
     const openCultosSheet = () => {
@@ -1411,6 +1411,7 @@ btnBack?.addEventListener('click', () => {
       if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
       showNoteSheet(notesSheetCultos);
       updateNotesCrumb();
+      updateNotesHeaderActions();
     };
 
     const openLideresSheet = () => {
@@ -1422,6 +1423,7 @@ btnBack?.addEventListener('click', () => {
       if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
       showNoteSheet(notesSheetLideres);
       updateNotesCrumb();
+      updateNotesHeaderActions();
     };
 
     
@@ -1450,19 +1452,30 @@ btnBack?.addEventListener('click', () => {
       return [title, week, tema, fecha, "", body].filter(Boolean).join("\n");
     };
 
-    btnTakersShare?.addEventListener('click', () => {
-      const text = buildShare('Takers', takersTema, takersDate, takersNotes);
-      shareText(text);
+    // Acciones del botón único "Atrás" según la hoja abierta (o vuelta al selector de semanas)
+    const NOTES_BACK_ACTIONS = {
+      dc: closeDcSheet,
+      takers: closeWeekSheet,
+      cultos: closeWeekSheet,
+      lideres: closeWeekSheet,
+    };
+
+    // Acciones del botón único "Compartir" según la hoja abierta (Dinámica Celular no comparte)
+    const NOTES_SHARE_ACTIONS = {
+      takers: () => shareText(buildShare('Takers', takersTema, takersDate, takersNotes)),
+      cultos: () => shareText(buildShare('Cultos', cultosTema, cultosDate, cultosNotes)),
+      lideres: () => shareText(buildShare('Reunión de Líderes/Ministerios', lideresTema, lideresDate, lideresNotes)),
+    };
+
+    notesBtnBack?.addEventListener('click', () => {
+      const action = state.notesOpenSheet ? NOTES_BACK_ACTIONS[state.notesOpenSheet] : null;
+      if (action) { action(); return; }
+      if (state.selectedWeek) backToWeekPicker();
     });
 
-    btnCultosShare?.addEventListener('click', () => {
-      const text = buildShare('Cultos', cultosTema, cultosDate, cultosNotes);
-      shareText(text);
-    });
-
-    btnLideresShare?.addEventListener('click', () => {
-      const text = buildShare('Reunión de Líderes/Ministerios', lideresTema, lideresDate, lideresNotes);
-      shareText(text);
+    notesBtnShare?.addEventListener('click', () => {
+      const action = NOTES_SHARE_ACTIONS[state.notesOpenSheet];
+      if (action) action();
     });
 
 btnNoteDinamica?.addEventListener('click', openDinamicaCelular);

@@ -486,6 +486,7 @@ btnBack?.addEventListener('click', () => {
         b.type = 'button';
         b.className = 'week';
         b.textContent = `Sem ${i}`;
+        b.title = `Semana ${i}: ${weekRangeLabel(i)}`;
         b.dataset.week = String(i);
         b.addEventListener('click', () => selectReviewWeek(i));
         reviewWeeksGrid.appendChild(b);
@@ -1159,6 +1160,9 @@ btnBack?.addEventListener('click', () => {
     const takersDate = qs('#takersDate');
     const cultosDate = qs('#cultosDate');
     const lideresDate = qs('#lideresDate');
+    const takersMeta = qs('#takersMeta');
+    const cultosMeta = qs('#cultosMeta');
+    const lideresMeta = qs('#lideresMeta');
     const takersStatus = qs('#takersStatus');
     const cultosStatus = qs('#cultosStatus');
     const lideresStatus = qs('#lideresStatus');
@@ -1269,6 +1273,7 @@ btnBack?.addEventListener('click', () => {
         b.type = 'button';
         b.className = 'week';
         b.textContent = `Sem ${i}`;
+        b.title = `Semana ${i}: ${weekRangeLabel(i)}`;
         b.dataset.week = String(i);
         b.addEventListener('click', () => selectWeek(i));
         weeksGrid.appendChild(b);
@@ -1280,7 +1285,7 @@ btnBack?.addEventListener('click', () => {
       state.selectedWeek = weekNum;
 
       qsa('.week', weeksGrid).forEach(w => w.classList.toggle('is-selected', Number(w.dataset.week) === weekNum));
-      weekTitle.textContent = `Semana ${weekNum}`;
+      weekTitle.textContent = `Semana ${weekNum} · ${weekRangeLabel(weekNum)}`;
 
       // Checkbox refleja estado de la semana
       if (chkWeekDone) chkWeekDone.checked = !!completed[String(weekNum)];
@@ -1315,6 +1320,56 @@ btnBack?.addEventListener('click', () => {
     });
 
   const todayISO = () => new Date().toISOString().slice(0, 10);
+
+    // ---- Fechas reales por semana (lunes-domingo), año dinámico (siempre el actual) ----
+    // Mismo algoritmo que "Control_Asistencia_Lider", pero sin año hardcodeado:
+    // usa new Date().getFullYear(), así que funciona indefinidamente sin mantenimiento.
+    const getWeekMonday = (weekNum, year) => {
+      const firstMonday = new Date(year, 0, 1);
+      const fdow = firstMonday.getDay(); // 0=dom, 1=lun ... 6=sab
+      const diffFM = (fdow === 0) ? -6 : 1 - fdow;
+      firstMonday.setDate(firstMonday.getDate() + diffFM);
+      const monday = new Date(firstMonday);
+      monday.setDate(firstMonday.getDate() + (weekNum - 1) * 7);
+      return monday;
+    };
+
+    const getWeekRange = (weekNum, year = new Date().getFullYear()) => {
+      const monday = getWeekMonday(weekNum, year);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return { monday, sunday };
+    };
+
+    const fmtWeekDay = (d) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+
+    // "16 mar – 22 mar" — solo para mostrar, no se guarda en Supabase.
+    const weekRangeLabel = (weekNum) => {
+      const { monday, sunday } = getWeekRange(weekNum);
+      return `${fmtWeekDay(monday)} – ${fmtWeekDay(sunday)}`;
+    };
+
+    // ISO (YYYY-MM-DD) del lunes de esa semana, para precargar dcDate.
+    const weekMondayISO = (weekNum) => {
+      const { monday } = getWeekRange(weekNum);
+      return monday.toISOString().slice(0, 10);
+    };
+
+    // Día fijo dentro de la semana: offset 0=lunes, 5=sábado, 6=domingo.
+    // Usado para Takers (sábado), Cultos (domingo) y Reuniones (lunes) — a diferencia
+    // de Célula, cuyo día varía y por eso no tiene fecha fija asociada.
+    const getWeekWeekday = (weekNum, dayOffset, year = new Date().getFullYear()) => {
+      const { monday } = getWeekRange(weekNum, year);
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + dayOffset);
+      return d;
+    };
+
+    // "Sábado 08 ago" — nota informativa, no es un campo editable.
+    const fmtWeekdayNote = (d) => {
+      const s = d.toLocaleDateString('es-ES', { weekday: 'long', day: '2-digit', month: 'short' });
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    };
 
     const setDateIfEmpty = (dateEl) => {
       if (!dateEl) return;
@@ -1520,7 +1575,7 @@ btnBack?.addEventListener('click', () => {
         alert('Primero selecciona una semana.');
         return;
       }
-      if (dcSheetTitle) dcSheetTitle.textContent = `Dinámica Celular • Semana ${state.selectedWeek}`;
+      if (dcSheetTitle) dcSheetTitle.textContent = `Dinámica Celular • Semana ${state.selectedWeek} (${weekRangeLabel(state.selectedWeek)})`;
       if (dcStatus) dcStatus.textContent = '';
 
       // Cargar borrador local (si existe)
@@ -1529,8 +1584,9 @@ btnBack?.addEventListener('click', () => {
       if (draft) {
         applyDcDraft(draft);
       } else {
-        // Defaults solo si NO hay borrador
-        if (dcDate && !dcDate.value) dcDate.value = todayISO();
+        // Defaults solo si NO hay borrador: precarga el lunes real de la semana seleccionada
+        // (antes usaba la fecha de hoy, sin relación con la semana elegida).
+        if (dcDate && !dcDate.value) dcDate.value = weekMondayISO(state.selectedWeek);
         initDcDefaults();
       }
       rebuildJustNames();
@@ -1563,6 +1619,7 @@ btnBack?.addEventListener('click', () => {
     const openTakersSheet = () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
+      takersMeta && (takersMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 5)));
       takersStatus && (takersStatus.textContent = '');
       setDateIfEmpty(takersDate);
       const draft = getWeekDraft(state.selectedWeek).takers;
@@ -1575,6 +1632,7 @@ btnBack?.addEventListener('click', () => {
     const openCultosSheet = () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
+      cultosMeta && (cultosMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 6)));
       cultosStatus && (cultosStatus.textContent = '');
       setDateIfEmpty(cultosDate);
       const draft = getWeekDraft(state.selectedWeek).cultos;
@@ -1587,6 +1645,7 @@ btnBack?.addEventListener('click', () => {
     const openLideresSheet = () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
+      lideresMeta && (lideresMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 0)));
       lideresStatus && (lideresStatus.textContent = '');
       setDateIfEmpty(lideresDate);
       const draft = getWeekDraft(state.selectedWeek).lideres;

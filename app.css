@@ -600,34 +600,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
    Editor de texto (RTE)
    ----------------------------- */
 .rte{margin-top:12px}
-.rte__toolbar{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  padding:10px;
-  border:1px solid var(--line);
-  border-radius:12px;
-  background: var(--surface-alt);
-}
-.tool{
-  padding:6px 10px;
-  border-radius:8px;
-  border:1px solid var(--line);
-  background: var(--panel2);
-  color: var(--text);
-  cursor:pointer;
-  font-size:13px;
-  transition: all .15s ease;
-}
-.tool:hover{border-color: var(--accent-border); color: var(--accent); background: var(--accent-bg)}
-.tool-sep{
-  width:1px;
-  align-self:stretch;
-  background: var(--line);
-  margin:0 4px;
-}
 .rte__editor{
-  margin-top:10px;
   min-height:280px;
   padding:14px;
   border:1px solid var(--line);

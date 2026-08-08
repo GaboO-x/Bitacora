@@ -5,9 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Bitácora — Configurar contraseña</title>
   <link rel="stylesheet" href="./styles.css" />
+  <script>
+    (function(){
+      try{
+        var t = localStorage.getItem('bitacora_theme');
+        if(t === 'dark' || t === 'light'){ document.documentElement.setAttribute('data-theme', t); }
+      }catch(e){}
+    })();
+  </script>
 </head>
 <body>
   <div class="container">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <button id="btnThemeToggle" class="theme-toggle" type="button" title="Cambiar tema">☾</button>
+    </div>
     <div class="card">
       <h2>Configurar contraseña</h2>
       <p class="muted" id="subtitle">Abre tu enlace de invitación desde el correo y define tu contraseña.</p>
@@ -129,6 +140,21 @@
     }
 
     main();
+  </script>
+  <script>
+    (function(){
+      var btn = document.getElementById('btnThemeToggle');
+      if(!btn) return;
+      function current(){ return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'; }
+      function updateIcon(){ btn.textContent = current() === 'dark' ? '☀' : '☾'; }
+      btn.addEventListener('click', function(){
+        var next = current() === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        try{ localStorage.setItem('bitacora_theme', next); }catch(e){}
+        updateIcon();
+      });
+      updateIcon();
+    })();
   </script>
 </body>
 </html>

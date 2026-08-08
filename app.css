@@ -114,12 +114,12 @@ body{
 }
 
 .app-shell.is-sidebar-collapsed .sidebar__label,
-.app-shell.is-sidebar-collapsed .sidebar__footer,
 .app-shell.is-sidebar-collapsed .nav-btn__text{
   display:none;
 }
 
-.app-shell.is-sidebar-collapsed .nav-btn{
+.app-shell.is-sidebar-collapsed .nav-btn,
+.app-shell.is-sidebar-collapsed .sidebar-theme-btn{
   justify-content:center;
   padding:10px 0;
 }
@@ -127,6 +127,11 @@ body{
 .app-shell.is-sidebar-collapsed .nav-btn__icon{
   margin-right:0;
   font-size:18px;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar__footer{
+  padding: 10px 0 0;
+  margin-top: 12px;
 }
 
 
@@ -229,6 +234,25 @@ body{
 .nav-btn.is-active{background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent)}
 .nav-btn__icon{width:22px; display:inline-flex; justify-content:center}
 .nav-btn__icon i{font-size:15px}
+
+.sidebar-theme-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background: transparent;
+  color:var(--text-secondary);
+  cursor:pointer;
+  text-align:left;
+  font-family: var(--font-sans);
+  font-weight:500;
+  font-size: 14px;
+  transition: all .15s ease;
+}
+.sidebar-theme-btn:hover{background: var(--accent-bg); color: var(--accent)}
 
 .main{
   grid-row:2;
@@ -411,7 +435,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   .app-shell.is-sidebar-open .nav-btn__text{
     display: block !important;
   }
-  .app-shell.is-sidebar-open .nav-btn{
+  .app-shell.is-sidebar-open .nav-btn,
+  .app-shell.is-sidebar-open .sidebar-theme-btn{
     justify-content: flex-start !important;
     padding: 10px 12px !important;
   }

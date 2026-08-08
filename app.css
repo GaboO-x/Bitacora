@@ -448,6 +448,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .panel__sub{margin-top:16px; padding-top:14px; border-top:1px solid var(--line)}
 .panel__subtitle{font-family: var(--font-serif); font-weight:600; margin:0 0 10px 0}
 .panel__subtitle--tight{margin:0}
+.panel__subtitle-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+.pill--icon{display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; font-size:14px}
 
 .sheet-header{
   display:flex;
@@ -515,28 +517,12 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-top__name{font-style:italic; color: var(--text-secondary)}
 .dc-top__date{display:flex; flex-direction:column; gap:4px; min-width:180px}
 
-.dc-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(160px, 1fr));
-  gap:10px;
-}
-.dc-item{
-  border:1px solid var(--line);
-  border-radius: 12px;
-  padding:10px;
-  background: var(--surface-alt);
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-.dc-item--wide{grid-column: span 2}
-.dc-item__title{font-weight:600; text-align:center; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color: var(--text-secondary)}
-.dc-item__note{margin-top:-6px; text-align:center; font-size:11px; font-style:italic; color: var(--muted)}
-.dc-item__row{display:flex; align-items:center; gap:8px}
-.dc-item__time{justify-content:center}
-.dc-item__resp{margin-top:2px}
-.dc-item__resp .input{width:100%}
-.dc-item__ref{font-weight:700; min-width:26px; text-align:right; color: var(--accent)}
+.dc-table .dc-item__title{font-weight:600; font-size:13px; color: var(--text)}
+.dc-table .dc-item__note{margin-top:2px; font-size:11px; font-style:italic; color: var(--muted)}
+.dc-table .dc-item__time{white-space:nowrap; display:flex; align-items:center; gap:8px}
+.dc-table .dc-item__resp .dc-namewheel{display:block}
+.dc-table .dc-item__resp .input{width:100%}
+.dc-item__ref{font-weight:700; min-width:20px; text-align:right; color: var(--accent)}
 .dc-item__slash{color:var(--muted)}
 
 /* Wheel de tiempo (selector 0-60 tipo temporizador móvil) */
@@ -773,9 +759,40 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 
 @media (max-width: 920px){
-  .dc-grid{grid-template-columns: repeat(2, minmax(160px, 1fr))}
-  .dc-item--wide{grid-column: span 2}
   .dc-summary{grid-template-columns: repeat(2, minmax(160px, 1fr))}
+}
+
+/* Dinámica Celular en móvil: mismo tratamiento que Seguimiento — la tabla se
+   convierte en una tarjeta por fila, apiladas en una sola columna (nunca lado
+   a lado). Es el MISMO <table> y los MISMOS <tr>/<td>, solo cambia el modo de
+   layout con CSS Grid, así que collectDcDraft/applyDcDraft siguen intactos. */
+@media (max-width: 920px){
+  #dcBlocks{ min-width:0; width:100%; display:block; }
+  #dcBlocks thead{ display:none; }
+  #dcBlocks tbody{ display:block; }
+  #dcBlocks tr{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "title title"
+      "time resp";
+    gap:8px 10px;
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding:10px;
+    margin-bottom:10px;
+    background: var(--surface-alt);
+  }
+  #dcBlocks tr:last-child{ margin-bottom:0; }
+  #dcBlocks td{
+    display:block;
+    border-bottom:none;
+    padding:0;
+    width:auto;
+  }
+  #dcBlocks td.dc-item__title-cell{ grid-area:title; }
+  #dcBlocks td.dc-item__time{ grid-area:time; align-self:center; }
+  #dcBlocks td.dc-item__resp{ grid-area:resp; }
 }
 
 

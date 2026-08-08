@@ -59,6 +59,7 @@
 
 /* Botones únicos Atrás/Compartir de Notas: a la altura del tail, alineados a la derecha */
 #notesHeaderActions{ align-self:center; }
+.notes-save-spinner{ width:20px; height:20px; display:block; object-fit:contain; }
 
 /* Ocultar filas de título redundantes en Notas: la info de semana/hoja ahora vive junto al <h1>Notas</h1>,
    y los botones Atrás/Compartir se movieron al header (ver #notesHeaderActions) */
@@ -218,6 +219,10 @@
 <h1>Notas<span class="view-header__tail" id="notesHeaderTail"><span class="crumb__full" id="notesTailFull"></span><span class="crumb__compact" id="notesTailCompact"></span></span></h1>
 <div class="view__nav is-hidden" id="notesHeaderActions">
 <button aria-label="Volver" class="pill pill--icon" id="notesBtnBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
+<button aria-label="Guardar" class="pill pill--icon is-hidden" id="notesBtnSave" title="Guardar" type="button">
+<i class="fa-solid fa-floppy-disk" id="notesSaveIcon"></i>
+<img alt="Guardando" class="notes-save-spinner is-hidden" id="notesSaveSpinner" src="floppy-disc.gif"/>
+</button>
 <button aria-label="Compartir" class="pill pill--icon is-hidden" id="notesBtnShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
 </div>
 </div>

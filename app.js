@@ -1543,52 +1543,114 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     showView('home');
 
     // ---- Editor RTE (Takers / Cultos / Reunión de Líderes)
-    // Permite: Negrita, Subrayado, Color (Rojo/Verde/Amarillo), Resaltar, Limpiar formato.
+    // Menú flotante de formato: aparece al seleccionar texto dentro de cualquier .rte__editor,
+    // en vez de una barra fija (optimiza espacio). Permite Negrita, Subrayado, 5 colores de
+    // resaltado predefinidos, y "−" para quitar el resaltado de la selección.
+    const RTE_HIGHLIGHT_COLORS = [
+      { hex: '#FFE066', label: 'Amarillo' },
+      { hex: '#8FE3A0', label: 'Verde' },
+      { hex: '#7FD8EF', label: 'Celeste' },
+      { hex: '#FFC48C', label: 'Durazno' },
+      { hex: '#F3A6D2', label: 'Rosa' },
+    ];
+    // Color de texto fijo y oscuro para que siempre se lea sobre los pasteles del resaltado,
+    // sin importar el tema (claro/oscuro) de la app.
+    const RTE_HIGHLIGHT_TEXT_COLOR = '#2B2B2B';
+
     const initRTE = () => {
-      document.addEventListener('click', (e) => {
-        const tool = e.target.closest('.rte .tool');
-        if (!tool) return;
+      const bar = document.createElement('div');
+      bar.className = 'rte-float-toolbar is-hidden';
+      bar.setAttribute('role', 'toolbar');
+      bar.setAttribute('aria-label', 'Formato de texto');
+      bar.innerHTML = `
+        <button class="rte-float-toolbar__btn" type="button" data-cmd="bold" title="Negrita"><strong>N</strong></button>
+        <button class="rte-float-toolbar__btn" type="button" data-cmd="underline" title="Subrayado"><u>S</u></button>
+        <span class="rte-float-toolbar__sep" aria-hidden="true"></span>
+        <button class="rte-float-toolbar__btn" type="button" data-clear-highlight="true" title="Quitar resaltado"><i class="fa-solid fa-minus"></i></button>
+        ${RTE_HIGHLIGHT_COLORS.map(c => `<button class="rte-float-toolbar__dot" type="button" data-highlight="${c.hex}" style="--dot-color:${c.hex}" title="Resaltar ${c.label}" aria-label="Resaltar ${c.label}"></button>`).join('')}
+      `;
+      document.body.appendChild(bar);
 
-        const rte = tool.closest('.rte');
-        const editor = rte ? qs('.rte__editor', rte) : null;
-        if (!editor) return;
+      let activeEditor = null;
 
-        // Evita que un click desactive la selección
-        e.preventDefault();
+      const hideBar = () => {
+        bar.classList.add('is-hidden');
+        activeEditor = null;
+      };
+
+      const positionBar = (rect) => {
+        const barRect = bar.getBoundingClientRect();
+        const margin = 8;
+        let top = rect.top - barRect.height - margin;
+        let left = rect.left + (rect.width / 2) - (barRect.width / 2);
+        if (top < 8) top = rect.bottom + margin; // si no cabe arriba, se muestra debajo
+        left = Math.max(8, Math.min(left, window.innerWidth - barRect.width - 8));
+        bar.style.top = `${top}px`;
+        bar.style.left = `${left}px`;
+      };
+
+      const updateBar = () => {
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || sel.isCollapsed) { hideBar(); return; }
+
+        const range = sel.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const node = container.nodeType === 1 ? container : container.parentElement;
+        const editor = node ? node.closest('.rte__editor') : null;
+        if (!editor) { hideBar(); return; }
+
+        const rect = range.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) { hideBar(); return; }
+
+        activeEditor = editor;
+        bar.classList.remove('is-hidden');
+        positionBar(rect);
+      };
+
+      document.addEventListener('mouseup', (e) => {
+        if (e.target.closest('.rte-float-toolbar')) return;
+        setTimeout(updateBar, 0);
+      });
+      document.addEventListener('keyup', (e) => {
+        if (!e.target.closest('.rte__editor')) return;
+        updateBar();
+      });
+      document.addEventListener('selectionchange', () => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed) hideBar();
+      });
+      window.addEventListener('scroll', () => hideBar(), true);
+      window.addEventListener('resize', hideBar);
+
+      // Evita que el mousedown sobre el menú le quite el foco/selección al editor
+      bar.addEventListener('mousedown', (e) => e.preventDefault());
+
+      bar.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn || !activeEditor) return;
+
+        const editor = activeEditor;
         editor.focus();
+        try { document.execCommand('styleWithCSS', false, true); } catch {}
 
-        try {
-          document.execCommand('styleWithCSS', false, true);
-        } catch {}
-
-        const cmd = tool.dataset.cmd;
-        const color = tool.dataset.color;
-        const highlight = tool.dataset.highlight;
-        const clear = tool.dataset.clear;
+        const cmd = btn.dataset.cmd;
+        const highlight = btn.dataset.highlight;
+        const clearHighlight = btn.dataset.clearHighlight;
 
         if (cmd) {
           try { document.execCommand(cmd, false, null); } catch {}
-          return;
-        }
-        if (color) {
-          try { document.execCommand('foreColor', false, color); } catch {}
-          return;
-        }
-        if (highlight) {
-          // 'hiliteColor' funciona en la mayoría; 'backColor' como fallback
+        } else if (highlight) {
           try { document.execCommand('hiliteColor', false, highlight); }
-          catch {
-            try { document.execCommand('backColor', false, highlight); } catch {}
-          }
-          return;
+          catch { try { document.execCommand('backColor', false, highlight); } catch {} }
+          try { document.execCommand('foreColor', false, RTE_HIGHLIGHT_TEXT_COLOR); } catch {}
+        } else if (clearHighlight) {
+          const themeColor = getComputedStyle(editor).color;
+          try { document.execCommand('hiliteColor', false, 'transparent'); }
+          catch { try { document.execCommand('backColor', false, 'transparent'); } catch {} }
+          try { document.execCommand('foreColor', false, themeColor); } catch {}
         }
-        if (clear) {
-          try {
-            document.execCommand('removeFormat', false, null);
-            document.execCommand('unlink', false, null);
-          } catch {}
-          return;
-        }
+
+        updateBar();
       });
     };
 

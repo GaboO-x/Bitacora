@@ -525,12 +525,89 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   border-radius: 12px;
   padding:10px;
   background: var(--surface-alt);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
 }
 .dc-item--wide{grid-column: span 2}
-.dc-item__title{font-weight:600; text-align:center; margin-bottom:8px; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color: var(--text-secondary)}
+.dc-item__title{font-weight:600; text-align:center; font-size:12px; letter-spacing:.05em; text-transform:uppercase; color: var(--text-secondary)}
+.dc-item__note{margin-top:-6px; text-align:center; font-size:11px; font-style:italic; color: var(--muted)}
 .dc-item__row{display:flex; align-items:center; gap:8px}
+.dc-item__time{justify-content:center}
+.dc-item__resp{margin-top:2px}
+.dc-item__resp .input{width:100%}
 .dc-item__ref{font-weight:700; min-width:26px; text-align:right; color: var(--accent)}
 .dc-item__slash{color:var(--muted)}
+
+/* Wheel de tiempo (selector 0-60 tipo temporizador móvil) */
+.dc-wheel{position:relative; display:inline-block}
+.dc-wheel__value{
+  width:52px;
+  text-align:center;
+  cursor:pointer;
+  caret-color: transparent;
+}
+.dc-wheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-wheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:50%;
+  transform:translateX(-50%);
+  width:80px;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-wheel__panel::before,
+.dc-wheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-wheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-wheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-wheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-wheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-wheel__list::-webkit-scrollbar{display:none}
+.dc-wheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  scroll-snap-align:center;
+  font-size:15px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+}
+.dc-wheel__option.is-active{
+  color: var(--text);
+  font-weight:700;
+  font-size:17px;
+}
 
 .dc-summary{
   display:grid;

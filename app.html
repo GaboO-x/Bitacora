@@ -57,22 +57,18 @@
   vertical-align:middle;
 }
 
-/* Ocultar subtítulos redundantes de Notas: la info de semana/hoja ahora vive junto al <h1>Notas</h1> */
+/* Botones únicos Atrás/Compartir de Notas: a la altura del tail, alineados a la derecha */
+#notesHeaderActions{ align-self:center; }
+
+/* Ocultar filas de título redundantes en Notas: la info de semana/hoja ahora vive junto al <h1>Notas</h1>,
+   y los botones Atrás/Compartir se movieron al header (ver #notesHeaderActions) */
 #notesWeekPicker > .panel__title,
-#notesWeekScreen #weekTitle,
-#notesSheetScreen .sheet-title,
-#notesSheetTakers .sheet-title,
-#notesSheetCultos .sheet-title,
-#notesSheetLideres .sheet-title{
-  display:none;
-}
-/* Mantener Volver/Compartir alineados a la derecha al ocultar el título de la fila */
 #notesWeekScreen .panel__title-row,
 #notesSheetScreen .sheet-header,
 #notesSheetTakers .sheet-header,
 #notesSheetCultos .sheet-header,
 #notesSheetLideres .sheet-header{
-  justify-content:flex-end;
+  display:none;
 }
 
 /* Botones Volver/Compartir como icono (optimización de espacio en hojas de Notas) */
@@ -89,7 +85,6 @@
 <button aria-label="Abrir/cerrar menú" class="icon-btn" id="btnToggleSidebar" title="Menú">☰</button>
 <div class="topbar__title">
 <span class="brand">Bitácora</span>
-<span class="crumb" id="crumb">Inicio</span>
 </div>
 <div class="topbar__actions">
 <button aria-label="Inicio" class="icon-btn" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
@@ -221,6 +216,10 @@
 <section class="view" data-view-section="notas" id="view-notas">
 <div class="view__header">
 <h1>Notas<span class="view-header__tail" id="notesHeaderTail"><span class="crumb__full" id="notesTailFull"></span><span class="crumb__compact" id="notesTailCompact"></span></span></h1>
+<div class="view__nav is-hidden" id="notesHeaderActions">
+<button aria-label="Volver" class="pill pill--icon" id="notesBtnBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
+<button aria-label="Compartir" class="pill pill--icon is-hidden" id="notesBtnShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
+</div>
 </div>
 <!-- Subvista 1: Selector de semanas -->
 <div class="panel" id="notesWeekPicker">
@@ -231,7 +230,6 @@
 <div aria-live="polite" class="panel is-hidden" id="notesWeekScreen">
 <div class="panel__title-row">
 <div class="panel__title" id="weekTitle">Semana</div>
-<button aria-label="Volver" class="pill pill--icon" id="btnBackToWeeks" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
 </div>
 <div class="week-tools">
 <label class="check">
@@ -260,7 +258,6 @@
   <div class="sheet-header">
     <div class="sheet-title" id="dcSheetTitle">Dinámica Celular</div>
     <div class="sheet-actions">
-      <button aria-label="Volver" class="pill pill--icon" id="btnDcBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
     </div>
   </div>
 
@@ -433,8 +430,6 @@
   <div class="sheet-header">
     <div class="sheet-title" id="takersSheetTitle">Takers</div>
     <div class="sheet-actions">
-      <button aria-label="Volver" class="pill pill--icon" id="btnTakersBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
-      <button aria-label="Compartir" class="pill pill--icon" id="btnTakersShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
     </div>
   </div>
   <div class="sheet-body">
@@ -471,8 +466,6 @@
   <div class="sheet-header">
     <div class="sheet-title" id="cultosSheetTitle">Cultos</div>
     <div class="sheet-actions">
-      <button aria-label="Volver" class="pill pill--icon" id="btnCultosBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
-      <button aria-label="Compartir" class="pill pill--icon" id="btnCultosShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
     </div>
   </div>
   <div class="sheet-body">
@@ -509,8 +502,6 @@
   <div class="sheet-header">
     <div class="sheet-title" id="lideresSheetTitle">Reunión de Líderes/Ministerios</div>
     <div class="sheet-actions">
-      <button aria-label="Volver" class="pill pill--icon" id="btnLideresBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
-      <button aria-label="Compartir" class="pill pill--icon" id="btnLideresShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
     </div>
   </div>
   <div class="sheet-body">

@@ -230,10 +230,6 @@ btnBack?.addEventListener('click', () => {
         return { t, r };
       });
 
-      const asistieron = qs('#dcAsistieron')?.value || '';
-      const faltaron = qs('#dcFaltaron')?.value || '';
-      const nuevos = qs('#dcNuevos')?.value || '';
-
       const follow = qsa('tr', dcFollowBody || document).map(tr => {
         const name = qs('td:nth-child(1) input', tr)?.value || '';
         const enc = qs('td:nth-child(2) input', tr)?.value || '';
@@ -247,7 +243,6 @@ btnBack?.addEventListener('click', () => {
       return {
         date: dcDate?.value || '',
         blocks,
-        asistencia: { asistieron, faltaron, nuevos },
         follow,
         notes: dcNotes?.value || '',
       };
@@ -257,14 +252,6 @@ btnBack?.addEventListener('click', () => {
       if (!draft || !notesSheetScreen) return;
       if (dcDate && draft.date) dcDate.value = draft.date;
       if (dcNotes && typeof draft.notes === 'string') dcNotes.value = draft.notes;
-
-      const a = draft.asistencia || {};
-      const dcAsistieron = qs('#dcAsistieron');
-      const dcFaltaron = qs('#dcFaltaron');
-      const dcNuevos = qs('#dcNuevos');
-      if (dcAsistieron && a.asistieron != null) dcAsistieron.value = a.asistieron;
-      if (dcFaltaron && a.faltaron != null) dcFaltaron.value = a.faltaron;
-      if (dcNuevos && a.nuevos != null) dcNuevos.value = a.nuevos;
 
       const items = qsa('.dc-item', notesSheetScreen);
       (draft.blocks || []).forEach((b, i) => {
@@ -1570,6 +1557,513 @@ btnBack?.addEventListener('click', () => {
       setDcDirty(true);
     });
 
+    // Asignado dentro del IIFE del widget de Asistencia (más abajo). Se llama
+    // desde openDinamicaCelular() cada vez que se abre/cambia de semana.
+    let attRefreshForWeek = () => {};
+
+    // ======================================================================
+    // Asistencia (app externa integrada) — control de asistencia y ofrendas
+    // Adaptado de "Control_Asistencia_Lider.html":
+    //  - sin selector de semana propio: usa state.selectedWeek de Bitácora
+    //  - variables de color scoped en #dcAttApp (nunca toca --accent global)
+    //  - storage local independiente (bitacora_asistencia_v1), NO es parte
+    //    del sistema de borradores de Supabase del resto de Dinámica Celular
+    //  - modelo por semana: los NOMBRES se heredan hacia adelante desde la
+    //    semana más reciente con datos; los checkboxes siempre entran en
+    //    blanco; la ofrenda nunca se hereda (siempre nace vacía)
+    // ======================================================================
+    (() => {
+      const attRoot = qs('#dcAttApp');
+      if (!attRoot) return; // no está esta sección en esta vista
+
+      const attColorSelector   = qs('#attColorSelector', attRoot);
+      const attSectionSelector = qs('#attSectionSelector', attRoot);
+      const attLeaderName      = qs('#attLeaderName', attRoot);
+      const attOffSinpe        = qs('#attOffSinpe', attRoot);
+      const attOffEfectivo     = qs('#attOffEfectivo', attRoot);
+      const attTotalOffering   = qs('#attTotalOffering', attRoot);
+      const attActiveSectionLabel = qs('#attActiveSectionLabel', attRoot);
+      const attActiveVisitLabel   = qs('#attActiveVisitLabel', attRoot);
+      const attMainBody  = qs('#attMainBody', attRoot);
+      const attVisitBody = qs('#attVisitBody', attRoot);
+      const attThCelMain  = qs('#attThCelMain', attRoot);
+      const attThRedMain  = qs('#attThRedMain', attRoot);
+      const attThCelVisit = qs('#attThCelVisit', attRoot);
+      const attThRedVisit = qs('#attThRedVisit', attRoot);
+      const attSummaryTitle  = qs('#attSummaryTitle', attRoot);
+      const attLblCel = qs('#attLblCel', attRoot);
+      const attLblRed = qs('#attLblRed', attRoot);
+      const attSumCel = qs('#attSumCel', attRoot);
+      const attSumRed = qs('#attSumRed', attRoot);
+      const attSumNuevosRow = qs('#attSumNuevosRow', attRoot);
+      const attSumNuevos    = qs('#attSumNuevos', attRoot);
+      const attAddMain  = qs('#attAddMain', attRoot);
+      const attAddVisit = qs('#attAddVisit', attRoot);
+      const attCopyTodoBtn     = qs('#attCopyTodo', attRoot);
+      const attCopyOfrendasBtn = qs('#attCopyOfrendas', attRoot);
+
+      // ---- Paleta por Unidad: scoped en attRoot, jamás en :root ----
+      const ATT_COLOR_THEMES = {
+        red:    { accent:'#dc3545', dark:'#b02a37', bg:'#fff5f5', bdr:'#feb2b2' },
+        blue:   { accent:'#1d6fa4', dark:'#155780', bg:'#eff8ff', bdr:'#93c5e8' },
+        yellow: { accent:'#b7860b', dark:'#8a6408', bg:'#fffdf0', bdr:'#f5d97a' },
+        orange: { accent:'#d9600a', dark:'#b04c07', bg:'#fff7f0', bdr:'#f8c49a' },
+        green:  { accent:'#1a7a3c', dark:'#145e2d', bg:'#f0fff5', bdr:'#6fcf97' },
+        purple: { accent:'#7c3aed', dark:'#5b21b6', bg:'#faf5ff', bdr:'#c4b5fd' }
+      };
+
+      const ATT_SECTIONS = {
+        rj:     { label:'RJ',     visitLabel:'VISITAS RJ',     copyLabel:'RJ',     copyVisitLabel:'VISITAS RJ' },
+        takers: { label:'TAKERS', visitLabel:'VISITAS TAKERS', copyLabel:'TAKERS', copyVisitLabel:'VISITAS TAKERS' },
+        makers: { label:'MAKERS', visitLabel:'VISITAS MAKERS', copyLabel:'MAKERS', copyVisitLabel:'VISITAS MAKERS' }
+      };
+
+      const ATT_LIDERES = {
+        red: {
+          rj:     ['Anyel', 'Joel', 'Josue R', 'Waldin'],
+          takers: ['EQUIPO Gabriel y Raquel', 'Cynthia', 'Jean', 'Tony R','Enrique y Debbie'],
+          makers: ['John y Esther', 'Esther', 'Marina']
+        },
+        blue: {
+          rj:     ['Alex y Yuli', 'Sharon y Abraham', 'Alejandro Duran'],
+          takers: ['EQUIPO Alonso y Amanda', 'Evelyn', 'Jorge, Melany', 'Tony G', 'Valery B'],
+          makers: ['Pra Francela Virtual', 'Pra. Francela2', 'Ana Yansi', 'Miriam']
+        },
+        green: {
+          rj:     ['Will y Dani', 'Greivin'],
+          takers: ['EQUIPO Ariel y Byron', 'Gaudy', 'Iveth', 'Jose y Eva', 'Maiky y Giovanna', 'Sarai Armas'],
+          makers: ['Pr. Julio', 'Javier y Yorleni', 'Migdalia']
+        },
+        orange: {
+          rj:     ['Andres Matuz', 'Carolina', 'Josué S', 'Stephen y Valery'],
+          takers: ['EQUIPO Angie y Bayron', 'Brayan y Kelly', 'Dago y Maira', 'Jonathan y Priscilla', 'Kenneth'],
+          makers: ['Nuria', 'Roxana', 'Yorleny M']
+        },
+        yellow: {
+          rj:     ['Pablo A', 'Sheily', 'Yehilin'],
+          takers: ['EQUIPO Aaron y Heyling', 'Abigail', 'Hazel', 'Laura'],
+          makers: ['Pr Carlos', 'Alex V', 'Dany y Sandra', 'Gladys', 'Mario Y Ginneth', 'Joyce']
+        },
+        purple: {
+          takers: ['Pra Rita Takers'],
+          makers: ['Pra Rita Makers']
+        }
+      };
+
+      const ATT_STORAGE_KEY = 'bitacora_asistencia_v1';
+
+      // ---- Storage: { weeks: { "5": { leaders: { "red__Anyel": { rj:{main,visit}, takers:{...}, makers:{...}, offering:{sinpe,efectivo} } } } } } ----
+      const attReadStore = () => {
+        try { return JSON.parse(localStorage.getItem(ATT_STORAGE_KEY) || '{}'); }
+        catch { return {}; }
+      };
+      const attWriteStore = (obj) => {
+        try { localStorage.setItem(ATT_STORAGE_KEY, JSON.stringify(obj)); } catch {}
+      };
+
+      const attEmptySections = () => ({
+        rj:     { main: [], visit: [] },
+        takers: { main: [], visit: [] },
+        makers: { main: [], visit: [] }
+      });
+
+      // Semana más reciente (<= currentWeek) que tenga datos guardados para este leaderKey.
+      const attFindInheritedWeek = (store, currentWeek, leaderKey) => {
+        for (let w = currentWeek - 1; w >= 1; w--) {
+          const entry = store.weeks?.[String(w)]?.leaders?.[leaderKey];
+          if (entry) return w;
+        }
+        return null;
+      };
+
+      // Clona solo los NOMBRES de una sección (main/visit), con cel/red/new en false.
+      const attCloneNamesOnly = (sections) => {
+        const clone = attEmptySections();
+        ['rj', 'takers', 'makers'].forEach(sec => {
+          ['main', 'visit'].forEach(tbl => {
+            clone[sec][tbl] = (sections[sec]?.[tbl] || []).map(r => ({
+              name: r.name || '', cel: false, red: false, new: false
+            }));
+          });
+        });
+        return clone;
+      };
+
+      let attState = {
+        color: attColorSelector.value,
+        section: attSectionSelector.value,
+        currentLeaderKey: null,
+        sections: attEmptySections(), // datos EN MEMORIA de la semana/líder activos
+      };
+
+      const attGetLeaderKey = () => {
+        const color  = attColorSelector.value;
+        const leader = attLeaderName.value;
+        return leader ? `${color}__${leader}` : null;
+      };
+
+      // ---- Semana ----
+      const attCurrentWeek = () => state.selectedWeek;
+
+      // Carga (con herencia) los datos de un leaderKey para la semana actual.
+      // No escribe nada en storage — solo arma attState.sections en memoria.
+      const attLoadLeaderForWeek = (leaderKey) => {
+        const week = attCurrentWeek();
+        if (!week || !leaderKey) { attState.sections = attEmptySections(); return; }
+
+        const store = attReadStore();
+        const ownEntry = store.weeks?.[String(week)]?.leaders?.[leaderKey];
+        if (ownEntry) {
+          // La semana ya tiene datos propios guardados para este líder: úsalos tal cual.
+          attState.sections = {
+            rj:     ownEntry.rj     || { main: [], visit: [] },
+            takers: ownEntry.takers || { main: [], visit: [] },
+            makers: ownEntry.makers || { main: [], visit: [] },
+          };
+          return;
+        }
+
+        // No hay datos propios: heredar nombres de la semana anterior más reciente con datos.
+        const inheritedWeek = attFindInheritedWeek(store, week, leaderKey);
+        if (inheritedWeek != null) {
+          const src = store.weeks[String(inheritedWeek)].leaders[leaderKey];
+          attState.sections = attCloneNamesOnly(src);
+        } else {
+          attState.sections = attEmptySections();
+        }
+      };
+
+      // Persiste attState.sections (leído del DOM) en la semana actual. La ofrenda
+      // se guarda aparte (attSaveOffering), nunca se hereda.
+      const attSaveLeaderForWeek = () => {
+        const week = attCurrentWeek();
+        const leaderKey = attState.currentLeaderKey;
+        if (!week || !leaderKey) return;
+
+        attState.sections[attState.section].main  = attGetSectionData(attMainBody, false);
+        attState.sections[attState.section].visit = attGetSectionData(attVisitBody, true);
+
+        const store = attReadStore();
+        store.weeks = store.weeks || {};
+        store.weeks[String(week)] = store.weeks[String(week)] || { leaders: {} };
+        store.weeks[String(week)].leaders = store.weeks[String(week)].leaders || {};
+        store.weeks[String(week)].leaders[leaderKey] = {
+          rj: attState.sections.rj, takers: attState.sections.takers, makers: attState.sections.makers,
+        };
+        attWriteStore(store);
+      };
+
+      const attSaveOffering = () => {
+        const week = attCurrentWeek();
+        const leaderKey = attState.currentLeaderKey;
+        if (!week || !leaderKey) return;
+        const store = attReadStore();
+        store.weeks = store.weeks || {};
+        store.weeks[String(week)] = store.weeks[String(week)] || { leaders: {} };
+        store.weeks[String(week)].leaders = store.weeks[String(week)].leaders || {};
+        store.weeks[String(week)].leaders[leaderKey] = store.weeks[String(week)].leaders[leaderKey] || {};
+        store.weeks[String(week)].leaders[leaderKey].offering = {
+          sinpe: attOffSinpe.value || '',
+          efectivo: attOffEfectivo.value || '',
+        };
+        attWriteStore(store);
+      };
+
+      const attLoadOffering = () => {
+        const week = attCurrentWeek();
+        const leaderKey = attState.currentLeaderKey;
+        const store = attReadStore();
+        const off = (week && leaderKey) ? store.weeks?.[String(week)]?.leaders?.[leaderKey]?.offering : null;
+        attOffSinpe.value = off?.sinpe || '';
+        attOffEfectivo.value = off?.efectivo || '';
+        attCalculateOffering();
+      };
+
+      // ---- Paleta / secciones disponibles según Unidad ----
+      const attApplyColor = (rerender) => {
+        const key = attColorSelector.value;
+        const theme = ATT_COLOR_THEMES[key];
+        attRoot.style.setProperty('--att-accent', theme.accent);
+        attRoot.style.setProperty('--att-accent-dark', theme.dark);
+        attRoot.style.setProperty('--att-accent-bg', theme.bg);
+        attRoot.style.setProperty('--att-accent-bdr', theme.bdr);
+
+        const isEquipos = key === 'purple';
+        const prevSection = attSectionSelector.value;
+        attSectionSelector.innerHTML = '';
+        const opts = isEquipos
+          ? [['takers','Takers'],['makers','Makers']]
+          : [['rj','RJ (Menores)'],['takers','Takers (Mayores)'],['makers','Makers']];
+        opts.forEach(([v,t]) => {
+          const o = document.createElement('option'); o.value = v; o.text = t;
+          if (v === prevSection) o.selected = true;
+          attSectionSelector.appendChild(o);
+        });
+        if (isEquipos && !['takers','makers'].includes(attSectionSelector.value)) {
+          attSectionSelector.value = 'takers';
+        }
+
+        if (rerender) {
+          const newSection = attSectionSelector.value;
+          if (newSection !== attState.section) {
+            attSaveLeaderForWeek();
+            attState.section = newSection;
+            attApplySectionLabels();
+          }
+          attUpdateLeaderDropdown();
+        }
+      };
+
+      const attApplySectionLabels = () => {
+        const sec = ATT_SECTIONS[attState.section];
+        attActiveSectionLabel.textContent = sec.label;
+        attActiveVisitLabel.textContent = sec.visitLabel;
+        const col2 = attState.section === 'makers' ? 'Culto' : 'Red';
+        attThCelMain.textContent = 'Célula';
+        attThRedMain.textContent = col2;
+        attThCelVisit.textContent = 'Célula';
+        attThRedVisit.textContent = col2;
+        attLblCel.textContent = 'Total Célula:';
+        attLblRed.textContent = `Total ${col2}:`;
+      };
+
+      // ---- Filas ----
+      const attAddRow = (tbody, isNewCol, nameValue = '', celChecked = false, redChecked = false, newChecked = false) => {
+        const tr = document.createElement('tr');
+        let html = `
+          <td><button class="dc-att__btn-del" type="button">✕</button></td>
+          <td><input type="text" class="in-n" placeholder="Nombre" value="${nameValue}"/></td>
+          <td class="check-col"><input type="checkbox" class="chk-cel" ${celChecked ? 'checked' : ''}></td>
+          <td class="check-col"><input type="checkbox" class="chk-red" ${redChecked ? 'checked' : ''}></td>
+        `;
+        if (isNewCol) html += `<td class="check-col"><input type="checkbox" class="chk-new" ${newChecked ? 'checked' : ''}></td>`;
+        tr.innerHTML = html;
+        qs('.dc-att__btn-del', tr).addEventListener('click', () => {
+          tr.remove();
+          attUpdateCounts();
+          attSaveLeaderForWeek();
+          setDcDirty(true);
+        });
+        tbody.appendChild(tr);
+        return tr;
+      };
+
+      const attRenderSection = (tbody, rows, isNew) => {
+        tbody.innerHTML = '';
+        if (rows && rows.length > 0) {
+          rows.forEach(r => attAddRow(tbody, isNew, r.name || '', !!r.cel, !!r.red, !!r.new));
+        } else {
+          for (let i = 0; i < 3; i++) attAddRow(tbody, isNew);
+        }
+      };
+
+      const attGetSectionData = (tbody, hasNewCol) => {
+        return qsa('tr', tbody).map(tr => ({
+          name: qs('.in-n', tr)?.value || '',
+          cel:  !!qs('.chk-cel', tr)?.checked,
+          red:  !!qs('.chk-red', tr)?.checked,
+          new:  hasNewCol ? !!qs('.chk-new', tr)?.checked : false,
+        }));
+      };
+
+      // ---- Conteos ----
+      const attUpdateCounts = () => {
+        let visitCel = 0, visitRed = 0;
+        qsa('tr', attVisitBody).forEach(tr => {
+          const isNew = qs('.chk-new', tr)?.checked;
+          if (!isNew) {
+            if (qs('.chk-cel', tr)?.checked) visitCel++;
+            if (qs('.chk-red', tr)?.checked) visitRed++;
+          }
+        });
+        const cel = qsa('.chk-cel:checked', attMainBody).length + visitCel;
+        const red = qsa('.chk-red:checked', attMainBody).length + visitRed;
+        const nw  = qsa('.chk-new:checked', attVisitBody).length;
+
+        attSummaryTitle.textContent = `RESUMEN TOTAL ASISTENCIA — ${ATT_SECTIONS[attState.section].label}`;
+        attSumCel.textContent = cel;
+        attSumRed.textContent = red;
+        if (nw > 0) { attSumNuevos.textContent = nw; attSumNuevosRow.style.display = 'block'; }
+        else { attSumNuevosRow.style.display = 'none'; }
+      };
+
+      const attCalculateOffering = () => {
+        const sinpe = parseFloat(attOffSinpe.value) || 0;
+        const efectivo = parseFloat(attOffEfectivo.value) || 0;
+        attTotalOffering.textContent = (sinpe + efectivo).toLocaleString('es-CR');
+      };
+
+      // ---- Dropdown de líderes ----
+      const attUpdateLeaderDropdownSilent = (color, section, leaderValue) => {
+        const names = (ATT_LIDERES[color] && ATT_LIDERES[color][section]) ? ATT_LIDERES[color][section] : [];
+        attLeaderName.innerHTML = '<option value="">— Seleccionar Líder —</option>';
+        names.forEach(n => {
+          const opt = document.createElement('option');
+          opt.value = n; opt.text = n;
+          if (n === leaderValue) opt.selected = true;
+          attLeaderName.appendChild(opt);
+        });
+        if (color === 'purple' && names.length === 1) attLeaderName.value = names[0];
+      };
+
+      const attUpdateLeaderDropdown = () => {
+        const prev = attLeaderName.value;
+        attUpdateLeaderDropdownSilent(attColorSelector.value, attState.section, prev);
+        attOnLeaderChange();
+      };
+
+      const attOnLeaderChange = () => {
+        // Guardar lo que había en pantalla bajo el líder anterior antes de cambiar.
+        if (attState.currentLeaderKey) {
+          attSaveLeaderForWeek();
+        }
+        const newKey = attGetLeaderKey();
+        attState.currentLeaderKey = newKey;
+        attLoadLeaderForWeek(newKey);
+        attRenderSection(attMainBody, attState.sections[attState.section].main, false);
+        attRenderSection(attVisitBody, attState.sections[attState.section].visit, true);
+        attUpdateCounts();
+        attLoadOffering();
+      };
+
+      // ---- Copiar ----
+      const attCopyText = (text, msg) => {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        alert(msg);
+      };
+
+      const attFormatRows = (rows, hasNew) => {
+        const col2Label = attState.section === 'makers' ? 'Culto' : 'Red';
+        let out = ''; let idx = 1;
+        rows.forEach(r => {
+          if (r.name && r.name.trim()) {
+            const cel = r.cel ? '✅' : '❌';
+            const red = r.red ? '✅' : '❌';
+            const nFlag = (hasNew && r.new) ? ' | 🌟 Nuevo' : '';
+            out += `${idx}. ${r.name.trim()} | Célula: ${cel} | ${col2Label}: ${red}${nFlag}\n`;
+            idx++;
+          }
+        });
+        return out;
+      };
+      const attCountFromRows = (rows, key) => rows.filter(r => r[key]).length;
+
+      const attSortTableAlphabetically = (tbody) => {
+        const rows = qsa('tr', tbody);
+        rows.sort((a, b) => {
+          const nameA = (qs('.in-n', a)?.value || '').trim().toLowerCase();
+          const nameB = (qs('.in-n', b)?.value || '').trim().toLowerCase();
+          if (!nameA) return 1;
+          if (!nameB) return -1;
+          return nameA.localeCompare(nameB, 'es');
+        });
+        rows.forEach(r => tbody.appendChild(r));
+      };
+
+      attCopyTodoBtn.addEventListener('click', () => {
+        if (!attLeaderName.value) { alert('⚠️ Debes seleccionar el nombre del líder antes de copiar.'); return; }
+
+        attSortTableAlphabetically(attMainBody);
+        attSortTableAlphabetically(attVisitBody);
+        attSaveLeaderForWeek();
+
+        const week = attCurrentWeek();
+        const weekLabel = `Semana ${week}`;
+        const dateStr = weekRangeLabel(week);
+        const sec = ATT_SECTIONS[attState.section];
+        const main = attGetSectionData(attMainBody, false);
+        const visit = attGetSectionData(attVisitBody, true);
+
+        const isEquipos = attColorSelector.value === 'purple';
+        const secName = isEquipos ? 'EQUIPOS' : sec.label;
+        let text = `*${weekLabel}* (${dateStr})\n*LÍDER (${secName}): ${attLeaderName.value.toUpperCase()}*\n\n`;
+
+        const mainRows = attFormatRows(main, false);
+        const visitRows = attFormatRows(visit, true);
+        if (mainRows) text += `*--- ${sec.copyLabel} ---*\n${mainRows}\n`;
+        if (visitRows) text += `*--- ${sec.copyVisitLabel} ---*\n${visitRows}\n`;
+
+        const visitNoNew = visit.filter(r => !r.new);
+        const cel = attCountFromRows(main, 'cel') + attCountFromRows(visitNoNew, 'cel');
+        const red = attCountFromRows(main, 'red') + attCountFromRows(visitNoNew, 'red');
+        const nw  = attCountFromRows(visit, 'new');
+
+        const col2Label = attState.section === 'makers' ? 'Culto' : 'Red';
+        text += `*RESUMEN TOTAL ASISTENCIA*\n`;
+        text += `Total ${sec.copyLabel} Célula: ${cel}\n`;
+        text += `Total ${sec.copyLabel} ${col2Label}: ${red}`;
+        if (nw > 0) text += `\n*NUEVOS:* ${sec.copyLabel}: ${nw}`;
+
+        const sinpe = attOffSinpe.value;
+        const efectivo = attOffEfectivo.value;
+        if (sinpe || efectivo) {
+          const total = (parseFloat(sinpe)||0) + (parseFloat(efectivo)||0);
+          text += `\n\n*--- OFRENDAS ---*\n`;
+          if (sinpe) text += `Sinpe: ₡${sinpe}\n`;
+          if (efectivo) text += `Efectivo: ₡${efectivo}\n`;
+          text += `*Total: ₡${total.toLocaleString('es-CR')}*`;
+        }
+        attCopyText(text, '¡Copiado!');
+      });
+
+      attCopyOfrendasBtn.addEventListener('click', () => {
+        const week = attCurrentWeek();
+        const weekLabel = `Semana ${week}`;
+        const dateStr = weekRangeLabel(week);
+        const sinpe = attOffSinpe.value;
+        const efectivo = attOffEfectivo.value;
+        if (!sinpe && !efectivo) { alert('No hay datos de ofrenda para copiar.'); return; }
+        const total = (parseFloat(sinpe)||0) + (parseFloat(efectivo)||0);
+        const isEquipos = attColorSelector.value === 'purple';
+        const secName = isEquipos ? 'EQUIPOS' : ATT_SECTIONS[attState.section].label;
+        let text = `*${weekLabel}* (${dateStr})\n*LÍDER (${secName}): ${(attLeaderName.value||'').toUpperCase()}*\n\n`;
+        text += `*--- OFRENDAS ---*\n`;
+        if (sinpe) text += `Sinpe: ₡${sinpe}\n`;
+        if (efectivo) text += `Efectivo: ₡${efectivo}\n`;
+        text += `*Total: ₡${total.toLocaleString('es-CR')}*`;
+        attCopyText(text, '¡Ofrendas copiadas!');
+      });
+
+      // ---- Listeners ----
+      attColorSelector.addEventListener('change', () => { attApplyColor(true); setDcDirty(true); });
+      attSectionSelector.addEventListener('change', () => {
+        attSaveLeaderForWeek();
+        attState.section = attSectionSelector.value;
+        attApplySectionLabels();
+        attUpdateLeaderDropdown();
+        setDcDirty(true);
+      });
+      attLeaderName.addEventListener('change', () => { attOnLeaderChange(); setDcDirty(true); });
+
+      attOffSinpe.addEventListener('input', () => { attCalculateOffering(); attSaveOffering(); setDcDirty(true); });
+      attOffEfectivo.addEventListener('input', () => { attCalculateOffering(); attSaveOffering(); setDcDirty(true); });
+
+      attAddMain.addEventListener('click', () => { attAddRow(attMainBody, false); attUpdateCounts(); attSaveLeaderForWeek(); setDcDirty(true); });
+      attAddVisit.addEventListener('click', () => { attAddRow(attVisitBody, true); attUpdateCounts(); attSaveLeaderForWeek(); setDcDirty(true); });
+
+      // Delegado: cualquier edición dentro de las tablas del widget guarda y marca "dirty".
+      attRoot.addEventListener('input', (e) => {
+        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveLeaderForWeek(); }
+      });
+      attRoot.addEventListener('change', (e) => {
+        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveLeaderForWeek(); }
+      });
+
+      // ---- Init (una sola vez) ----
+      attApplySectionLabels();
+      attApplyColor(false);
+
+      // ---- Refresco al abrir/cambiar de semana (llamado desde openDinamicaCelular) ----
+      attRefreshForWeek = () => {
+        attApplyColor(false);
+        attApplySectionLabels();
+        attUpdateLeaderDropdown();
+      };
+    })();
+
     const openDinamicaCelular = () => {
       if (!state.selectedWeek) {
         alert('Primero selecciona una semana.');
@@ -1590,6 +2084,7 @@ btnBack?.addEventListener('click', () => {
         initDcDefaults();
       }
       rebuildJustNames();
+      attRefreshForWeek();
       updateNotesCrumb();
       updateNotesHeaderActions();
     };

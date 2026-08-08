@@ -85,14 +85,12 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
-    const setCrumb = (full, compact = full) => {
-      const crumbFull = qs('#crumbFull');
-      const crumbCompact = qs('#crumbCompact');
-      if (crumbFull) crumbFull.textContent = full;
-      if (crumbCompact) crumbCompact.textContent = compact;
+    const setCrumb = (text) => {
+      const crumb = qs('#crumb');
+      if (crumb) crumb.textContent = text;
     };
 
-    // Etiquetas (completa/abreviada) de cada hoja de Notas para el breadcrumb
+    // Etiquetas (completa/abreviada) de cada hoja de Notas para el subtítulo junto al <h1>
     const NOTE_SHEET_CRUMB = {
       dc:      { full: 'Célula',                             compact: 'Célula' },
       takers:  { full: 'Takers',                              compact: 'Takers' },
@@ -100,19 +98,24 @@ btnBack?.addEventListener('click', () => {
       lideres: { full: 'Reunión de Líderes/Ministerios',      compact: 'Reu Lid/Min' },
     };
 
-    // Arma "Notas | Semana X | Hoja" (full) y "Notas | Sem X | Hoja" (compact)
-    // según el estado actual (semana seleccionada / hoja abierta).
+    // Arma " | Semana X" (full) / " | Sem X" (compact), y agrega la hoja abierta si aplica.
+    // Se muestra junto al <h1>Notas</h1>, no en la barra superior.
     const updateNotesCrumb = () => {
-      if (!state.selectedWeek) { setCrumb('Notas'); return; }
+      const tailFull = qs('#notesTailFull');
+      const tailCompact = qs('#notesTailCompact');
+      if (!tailFull || !tailCompact) return;
+
+      if (!state.selectedWeek) { tailFull.textContent = ''; tailCompact.textContent = ''; return; }
 
       const weekPart = { full: `Semana ${state.selectedWeek}`, compact: `Sem ${state.selectedWeek}` };
       const sheet = state.notesOpenSheet ? NOTE_SHEET_CRUMB[state.notesOpenSheet] : null;
 
-      const fullParts = ['Notas', weekPart.full];
-      const compactParts = ['Notas', weekPart.compact];
+      const fullParts = [weekPart.full];
+      const compactParts = [weekPart.compact];
       if (sheet) { fullParts.push(sheet.full); compactParts.push(sheet.compact); }
 
-      setCrumb(fullParts.join(' | '), compactParts.join(' | '));
+      tailFull.textContent = ' | ' + fullParts.join(' | ');
+      tailCompact.textContent = ' | ' + compactParts.join(' | ');
     };
 
     const showView = (view) => {
@@ -122,8 +125,8 @@ btnBack?.addEventListener('click', () => {
       section?.classList.add('is-visible');
 
       setActiveNav(view);
+      setCrumb(viewLabel(view));
       if (view === 'notas') updateNotesCrumb();
-      else setCrumb(viewLabel(view));
       closeSidebarOnMobile();
 
       if (view === 'calendario') {

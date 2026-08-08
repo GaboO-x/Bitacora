@@ -348,95 +348,128 @@
     <div class="panel__subtitle">Dinámica Celular <span class="muted tiny">(Tiempo | Responsable)</span></div>
 
     <div class="dc-grid" id="dcBlocks">
-      <div class="dc-item" data-dc-item="bienvenida">
-        <div class="dc-item__title">Bienvenida</div>
-        <div class="dc-item__row">
+
+      <div class="dc-item" data-dc-item="comenzamos-oracion">
+        <div class="dc-item__title">Comenzamos con Oración</div>
+        <div class="dc-item__row dc-item__time">
           <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="5">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
           <input class="input" placeholder="Responsable" type="text"/>
         </div>
       </div>
 
-      <div class="dc-item" data-dc-item="oracion-inicial">
-        <div class="dc-item__title">Oración inicial</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
+      <div class="dc-item" data-dc-item="edificacion">
+        <div class="dc-item__title">Edificación</div>
+        <div class="dc-item__row dc-item__time">
+          <span class="dc-item__ref">35</span><span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="35">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
           <input class="input" placeholder="Responsable" type="text"/>
         </div>
       </div>
 
-      <div class="dc-item" data-dc-item="tema">
-        <div class="dc-item__title">Tema</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">25</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
-          <input class="input" placeholder="Responsable" type="text"/>
-        </div>
-      </div>
-
-      <div class="dc-item" data-dc-item="ofrenda">
-        <div class="dc-item__title">Ofrenda</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
-          <input class="input" placeholder="Responsable" type="text"/>
-        </div>
-      </div>
-
-      <div class="dc-item" data-dc-item="anuncios">
-        <div class="dc-item__title">Anuncios</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
-          <input class="input" placeholder="Responsable" type="text"/>
-        </div>
-      </div>
-
-      <div class="dc-item" data-dc-item="testimonios">
-        <div class="dc-item__title">Testimonios</div>
-        <div class="dc-item__row">
+      <div class="dc-item" data-dc-item="luz-tinieblas">
+        <div class="dc-item__title">Luz en las tinieblas</div>
+        <div class="dc-item__note">Llamado</div>
+        <div class="dc-item__row dc-item__time">
           <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="10">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
           <input class="input" placeholder="Responsable" type="text"/>
         </div>
       </div>
 
-      <div class="dc-item" data-dc-item="adoracion">
-        <div class="dc-item__title">Adoración</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
-          <input class="input" placeholder="Responsable" type="text"/>
-        </div>
-      </div>
-
-      <div class="dc-item" data-dc-item="llamado">
-        <div class="dc-item__title">Llamado</div>
-        <div class="dc-item__row">
-          <span class="dc-item__ref">10</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
-          <input class="input" placeholder="Responsable" type="text"/>
-        </div>
-      </div>
-
-      <div class="dc-item" data-dc-item="oracion-final">
-        <div class="dc-item__title">Oración final</div>
-        <div class="dc-item__row">
+      <div class="dc-item" data-dc-item="ubicar-tesoro">
+        <div class="dc-item__title">Ubicar el tesoro</div>
+        <div class="dc-item__note">Ofrenda</div>
+        <div class="dc-item__row dc-item__time">
           <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
-          <input class="input input--mini" inputmode="numeric" maxlength="3" placeholder="__" type="text"/>
-          <span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="5">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
           <input class="input" placeholder="Responsable" type="text"/>
         </div>
       </div>
+
+      <div class="dc-item" data-dc-item="logistica">
+        <div class="dc-item__title">Logística</div>
+        <div class="dc-item__row dc-item__time">
+          <span class="dc-item__ref">15</span><span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="15">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="agradecer">
+        <div class="dc-item__title">Agradecer</div>
+        <div class="dc-item__row dc-item__time">
+          <span class="dc-item__ref">5</span><span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="5">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
+      <div class="dc-item" data-dc-item="refrigerio">
+        <div class="dc-item__title">Refrigerio</div>
+        <div class="dc-item__row dc-item__time">
+          <span class="dc-item__ref">30</span><span class="dc-item__slash">/</span>
+          <div class="dc-wheel" data-ref="30">
+            <input class="input input--mini dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="__" value=""/>
+            <div class="dc-wheel__panel is-hidden">
+              <div class="dc-wheel__marker"></div>
+              <div class="dc-wheel__list"></div>
+            </div>
+          </div>
+        </div>
+        <div class="dc-item__row dc-item__resp">
+          <input class="input" placeholder="Responsable" type="text"/>
+        </div>
+      </div>
+
     </div>
   </div>
 

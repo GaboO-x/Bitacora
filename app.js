@@ -113,9 +113,9 @@ btnBack?.addEventListener('click', () => {
       tailCompact.textContent = ' | ' + compactParts.join(' | ');
     };
 
-    // Muestra/oculta el par único de botones Atrás/Compartir (junto al tail del <h1>Notas</h1>)
-    // según el estado actual: ocultos en el selector de semanas, solo Atrás en pantalla de semana
-    // y en Dinámica Celular (sin Compartir), Atrás+Compartir en Takers/Cultos/Líderes.
+    // Muestra/oculta el trío de botones Atrás/Guardar/Compartir (junto al tail del <h1>Notas</h1>)
+    // según el estado actual: ocultos en el selector de semanas, solo Atrás en pantalla de semana,
+    // Atrás+Guardar en Dinámica Celular (sin Compartir), Atrás+Guardar+Compartir en Takers/Cultos/Líderes.
     const NOTES_SHEETS_WITH_SHARE = ['takers', 'cultos', 'lideres'];
     const updateNotesHeaderActions = () => {
       if (!notesHeaderActions) return;
@@ -124,6 +124,9 @@ btnBack?.addEventListener('click', () => {
       if (notesBtnShare) {
         const showShare = NOTES_SHEETS_WITH_SHARE.includes(state.notesOpenSheet);
         notesBtnShare.classList.toggle('is-hidden', !showShare);
+      }
+      if (notesBtnSave) {
+        notesBtnSave.classList.toggle('is-hidden', !state.notesOpenSheet);
       }
     };
 
@@ -306,6 +309,46 @@ btnBack?.addEventListener('click', () => {
         setStatus(lideresStatus, `Guardado automáticamente: ${nowLabel()} (local)`);
         return;
       }
+    };
+
+    // Guardado manual (botón "Guardar"): fuerza el guardado de la hoja abierta,
+    // sin depender del flag "dirty". Misma persistencia local (localStorage) de siempre.
+    const saveNotesNow = () => {
+      if (!state.selectedWeek || !state.notesOpenSheet) return;
+
+      if (state.notesOpenSheet === 'dc') {
+        const d = collectDcDraft();
+        if (d) setWeekDraft(state.selectedWeek, { dc: d });
+        state.dcDirty = false;
+        setStatus(dcStatus, `Guardado: ${nowLabel()} (local)`);
+      } else if (state.notesOpenSheet === 'takers') {
+        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
+        state.takersDirty = false;
+        setStatus(takersStatus, `Guardado: ${nowLabel()} (local)`);
+      } else if (state.notesOpenSheet === 'cultos') {
+        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
+        state.cultosDirty = false;
+        setStatus(cultosStatus, `Guardado: ${nowLabel()} (local)`);
+      } else if (state.notesOpenSheet === 'lideres') {
+        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
+        state.lideresDirty = false;
+        setStatus(lideresStatus, `Guardado: ${nowLabel()} (local)`);
+      }
+    };
+
+    // Animación breve del botón Guardar (usa el gif de disquete mientras "guarda")
+    let notesSaveAnimTimer = null;
+    const playNotesSaveAnimation = () => {
+      if (!notesBtnSave) return;
+      notesBtnSave.disabled = true;
+      notesSaveIcon?.classList.add('is-hidden');
+      notesSaveSpinner?.classList.remove('is-hidden');
+      clearTimeout(notesSaveAnimTimer);
+      notesSaveAnimTimer = setTimeout(() => {
+        notesSaveSpinner?.classList.add('is-hidden');
+        notesSaveIcon?.classList.remove('is-hidden');
+        notesBtnSave.disabled = false;
+      }, 700);
     };
 
     const confirmLeaveDcSheet = () => {
@@ -1129,10 +1172,13 @@ btnBack?.addEventListener('click', () => {
     const dcNotes = qs('#dcNotes');
     const dcStatus = qs('#dcStatus');
 
-    // Botones únicos Atrás/Compartir, ubicados junto al tail del <h1>Notas</h1>
+    // Botones únicos Atrás/Guardar/Compartir, ubicados junto al tail del <h1>Notas</h1>
     const notesHeaderActions = qs('#notesHeaderActions');
     const notesBtnBack = qs('#notesBtnBack');
     const notesBtnShare = qs('#notesBtnShare');
+    const notesBtnSave = qs('#notesBtnSave');
+    const notesSaveIcon = qs('#notesSaveIcon');
+    const notesSaveSpinner = qs('#notesSaveSpinner');
 
     const chkWeekDone = qs('#chkWeekDone');
 
@@ -1476,6 +1522,11 @@ btnBack?.addEventListener('click', () => {
     notesBtnShare?.addEventListener('click', () => {
       const action = NOTES_SHARE_ACTIONS[state.notesOpenSheet];
       if (action) action();
+    });
+
+    notesBtnSave?.addEventListener('click', () => {
+      playNotesSaveAnimation();
+      saveNotesNow();
     });
 
 btnNoteDinamica?.addEventListener('click', openDinamicaCelular);

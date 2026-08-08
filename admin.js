@@ -1007,7 +1007,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         const btnToggle = document.createElement("button");
         btnToggle.type = "button";
         btnToggle.className = "secondary users-action-btn";
-        btnToggle.textContent = u.active ? "Suspender" : "Activar";
+        btnToggle.textContent = u.active ? "Block" : "Activar";
         btnToggle.addEventListener("click", async () => {
           if (usersBusy) return;
           const newActive = !u.active;
@@ -1038,7 +1038,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       const btnReset = document.createElement("button");
       btnReset.type = "button";
       btnReset.className = "secondary users-action-btn";
-      btnReset.textContent = "Reset password";
+      btnReset.textContent = "Reset passw";
       btnReset.addEventListener("click", async () => {
         if (!u.email) {
           setMsg("usersMsg", "Este usuario no tiene email registrado.", true);

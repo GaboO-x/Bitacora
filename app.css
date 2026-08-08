@@ -617,6 +617,75 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .dc-summary__item{display:flex; flex-direction:column; gap:4px}
 
+/* Wheel de nombres (Responsable) — mismo patrón que .dc-wheel (tiempo),
+   pero ancho completo y opciones de texto en vez de números. La lista se
+   reconstruye cada vez que se abre, leyendo en vivo los nombres actuales
+   de la tabla de discípulos (#attMainBody) + visitas (#attVisitBody). */
+.dc-namewheel{position:relative; width:100%}
+.dc-namewheel__value{width:100%; box-sizing:border-box; cursor:pointer; caret-color:transparent}
+.dc-namewheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-namewheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  right:0;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-namewheel__panel::before,
+.dc-namewheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-namewheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-namewheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-namewheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-namewheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-namewheel__list::-webkit-scrollbar{display:none}
+.dc-namewheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  padding:0 14px;
+  scroll-snap-align:center;
+  font-size:14px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.dc-namewheel__option.is-active{
+  color: var(--text);
+  font-weight:700;
+}
+
 .dc-followup__head{
   display:flex;
   align-items:center;

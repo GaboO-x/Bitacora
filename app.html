@@ -6,6 +6,18 @@
 <meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>Bitácora - App</title>
 <link href="app.css" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script>
+  /* Aplica el tema guardado ANTES de pintar, para evitar parpadeo claro->oscuro */
+  (function(){
+    try{
+      var t = localStorage.getItem('bitacora_theme');
+      if(t === 'dark' || t === 'light'){
+        document.documentElement.setAttribute('data-theme', t);
+      }
+    }catch(e){}
+  })();
+</script>
 <style>
 /* Ajustes mínimos solicitados (solo estilos; sin afectar lógica) */
 
@@ -37,13 +49,16 @@
 <span class="brand">Bitácora</span>
 <span class="crumb" id="crumb">Inicio</span>
 </div>
+<div class="topbar__actions">
+<button aria-label="Cambiar tema" class="theme-toggle" id="btnThemeToggle" title="Cambiar tema" type="button">☾</button>
+</div>
 </header>
 <aside aria-label="Navegación" class="sidebar" id="sidebar">
 <div class="sidebar__group">
 <div class="sidebar__label">Menú</div>
 
 <button class="nav-btn" data-view="notas" type="button">
-<span class="nav-btn__icon">📝</span>
+<span class="nav-btn__icon"><i class="fa-solid fa-book-bookmark"></i></span>
 <span class="nav-btn__text">Notas</span>
 </button>
 	<button class="nav-btn is-hidden" data-view="revision" id="navReviewNotes" type="button">
@@ -51,19 +66,19 @@
 	<span class="nav-btn__text">Revisión de Notas</span>
 	</button>
 <button class="nav-btn" data-view="calendario" type="button">
-<span class="nav-btn__icon">📅</span>
+<span class="nav-btn__icon"><i class="fa-solid fa-calendar-days"></i></span>
 <span class="nav-btn__text">Calendario</span>
 </button>
 <button class="nav-btn" data-view="anuncios" type="button">
-<span class="nav-btn__icon">📣</span>
+<span class="nav-btn__icon"><i class="fa-solid fa-bell"></i></span>
 <span class="nav-btn__text">Anuncios</span>
 </button>
 <button class="nav-btn" data-view="material" type="button">
-<span class="nav-btn__icon">📚</span>
+<span class="nav-btn__icon"><i class="fa-solid fa-user-graduate"></i></span>
 <span class="nav-btn__text">Material de apoyo</span>
 </button>
 <button class="nav-btn" data-view="misdoce" type="button">
-<span class="nav-btn__icon">👥</span>
+<span class="nav-btn__icon"><i class="fa-solid fa-people-group"></i></span>
 <span class="nav-btn__text">Mis Doce</span>
 </button>
 
@@ -81,12 +96,12 @@
 <h1>Inicio</h1>
 <p class="muted">Accesos directos:</p>
 	<div class="cards">
-		<button class="card card--action" data-view="notas" type="button"><div class="card__title">📝 Notas</div><div class="card__body">Semanas (1–52)</div></button>
+		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas (1–52)</div></button>
 		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title">✅ Revisión de Notas</div><div class="card__body">Solo líderes</div></button>
-		<button class="card card--action" data-view="calendario" type="button"><div class="card__title">📅 Calendario</div><div class="card__body">Eventos y recordatorios.</div></button>
-		<button class="card card--action" data-view="anuncios" type="button"><div class="card__title">📣 Anuncios</div><div class="card__body">Publicaciones y avisos.</div></button>
-		<button class="card card--action" data-view="material" type="button"><div class="card__title">📚 Material de apoyo</div><div class="card__body">Recursos evangelistos.</div></button>
-		<button class="card card--action" data-view="misdoce" type="button"><div class="card__title">👥 Mis Doce</div><div class="card__body">Tu equipo/lista.</div></button>
+		<button class="card card--action" data-view="calendario" type="button"><div class="card__title"><i class="fa-solid fa-calendar-days"></i> Calendario</div><div class="card__body">Eventos y recordatorios.</div></button>
+		<button class="card card--action" data-view="anuncios" type="button"><div class="card__title"><i class="fa-solid fa-bell"></i> Anuncios</div><div class="card__body">Publicaciones y avisos.</div></button>
+		<button class="card card--action" data-view="material" type="button"><div class="card__title"><i class="fa-solid fa-user-graduate"></i> Material de apoyo</div><div class="card__body">Recursos evangelistos.</div></button>
+		<button class="card card--action" data-view="misdoce" type="button"><div class="card__title"><i class="fa-solid fa-people-group"></i> Mis Doce</div><div class="card__body">Tu equipo/lista.</div></button>
 	</div>
 </section>
 
@@ -652,6 +667,31 @@
 </section>
 </main>
 </div>
+<script>
+  /* Toggle de tema claro/oscuro — independiente de app.js */
+  (function(){
+    var btn = document.getElementById('btnThemeToggle');
+    if(!btn) return;
+
+    function currentTheme(){
+      return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+    }
+    function updateIcon(){
+      btn.textContent = currentTheme() === 'dark' ? '☀' : '☾';
+    }
+    function applyTheme(theme){
+      document.documentElement.setAttribute('data-theme', theme);
+      try{ localStorage.setItem('bitacora_theme', theme); }catch(e){}
+      updateIcon();
+    }
+
+    btn.addEventListener('click', function(){
+      applyTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+    });
+
+    updateIcon();
+  })();
+</script>
 <script type="module" src="./app.js"></script>
 </body>
 </html>

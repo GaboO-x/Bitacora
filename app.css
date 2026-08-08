@@ -741,13 +741,13 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 
 .dc-att__header{
   display:flex;
-  flex-wrap:wrap;
-  align-items:center;
-  gap:10px;
+  flex-direction:column;
+  gap:8px;
 }
-.dc-att__select-wrap{display:flex; flex-direction:column; gap:4px}
+.dc-att__unit-row{display:flex; gap:8px}
+.dc-att__unit-row .dc-att__select{flex:1 1 0; min-width:0}
 .dc-att__select{
-  padding:9px 14px;
+  padding:9px 10px;
   border-radius:10px;
   border:1px solid var(--line);
   background: var(--panel2);
@@ -756,6 +756,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   font-size:14px;
   font-weight:600;
   cursor:pointer;
+  text-align:center;
+  text-overflow:ellipsis;
 }
 .dc-att__select--accent{
   border:2px solid var(--att-accent);
@@ -763,7 +765,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   background: var(--panel);
 }
 .dc-att__leader{
-  flex:1 1 200px;
+  width:100%;
+  box-sizing:border-box;
   padding:9px 14px;
   border-radius:10px;
   border:1px solid var(--att-accent);
@@ -823,8 +826,11 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .dc-att__btn-add:hover{background: rgba(255,255,255,.4)}
 
-.dc-att-app .table-wrap{border-top:none; border-radius: 0 0 10px 10px; margin-bottom:4px}
-.dc-att-app .check-col{text-align:center; width:56px}
+.dc-att-app .table-wrap{border-top:none; border-radius: 0 0 10px 10px; margin-bottom:4px; overflow:visible}
+.dc-att-app .dc-att__table{min-width:0; width:100%; table-layout:fixed}
+.dc-att-app .dc-att__table th:first-child,
+.dc-att-app .dc-att__table td:first-child{width:26px; padding-left:2px; padding-right:0}
+.dc-att-app .check-col{text-align:center; width:44px; padding-left:2px; padding-right:2px}
 .dc-att-app .in-n{
   width:100%;
   box-sizing:border-box;
@@ -870,7 +876,18 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-att__summary-row span:last-child{font-weight:700}
 .dc-att__summary-nuevos{text-align:center; margin-top:8px; font-size:.85em; color: var(--accent2); font-weight:700}
 
-.dc-att__actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+.dc-att__actions{display:flex; gap:8px; flex-wrap:nowrap}
+.dc-att__actions .pill{
+  width:auto;
+  flex:1 1 0;
+  min-width:0;
+  margin-top:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  white-space:nowrap;
+}
 
 @media (max-width: 640px){
   .dc-att__offering-grid{grid-template-columns:1fr}

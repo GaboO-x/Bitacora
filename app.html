@@ -50,7 +50,7 @@
 <span class="crumb" id="crumb">Inicio</span>
 </div>
 <div class="topbar__actions">
-<button aria-label="Cambiar tema" class="theme-toggle" id="btnThemeToggle" title="Cambiar tema" type="button">☾</button>
+<button aria-label="Inicio" class="icon-btn" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
 </div>
 </header>
 <aside aria-label="Navegación" class="sidebar" id="sidebar">
@@ -88,6 +88,10 @@
 </button>
 </div>
 <div class="sidebar__footer">
+<button aria-label="Cambiar tema" class="sidebar-theme-btn" id="btnThemeToggle" title="Cambiar tema" type="button">
+<span class="nav-btn__icon" id="themeToggleIcon">☾</span>
+<span class="nav-btn__text">Tema</span>
+</button>
 </div>
 </aside>
 <main class="main" id="main">
@@ -671,13 +675,14 @@
   /* Toggle de tema claro/oscuro — independiente de app.js */
   (function(){
     var btn = document.getElementById('btnThemeToggle');
-    if(!btn) return;
+    var icon = document.getElementById('themeToggleIcon');
+    if(!btn || !icon) return;
 
     function currentTheme(){
       return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
     }
     function updateIcon(){
-      btn.textContent = currentTheme() === 'dark' ? '☀' : '☾';
+      icon.textContent = currentTheme() === 'dark' ? '☀' : '☾';
     }
     function applyTheme(theme){
       document.documentElement.setAttribute('data-theme', theme);

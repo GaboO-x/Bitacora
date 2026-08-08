@@ -717,3 +717,161 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .md-plan input{accent-color: var(--accent)}
 .md-drc{min-width: 140px}
 .md-note{margin-top:10px; line-height:1.5; color: var(--text-secondary)}
+
+
+/* -----------------------------
+   Asistencia (app externa integrada)
+   Todo scoped bajo .dc-att-app: nunca toca --accent global del :root,
+   usa variables propias (--att-*) que por defecto heredan el tema activo
+   (Verso claro/oscuro) y que el selector de "Unidad" solo sobreescribe
+   localmente en este contenedor, no en toda la interfaz.
+   ----------------------------- */
+.dc-att-app{
+  --att-accent: var(--accent);
+  --att-accent-dark: var(--accent2);
+  --att-accent-bg: var(--accent-bg);
+  --att-accent-bdr: var(--accent-border);
+
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  font-family: var(--font-sans);
+  color: var(--text);
+}
+
+.dc-att__header{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:10px;
+}
+.dc-att__select-wrap{display:flex; flex-direction:column; gap:4px}
+.dc-att__select{
+  padding:9px 14px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+}
+.dc-att__select--accent{
+  border:2px solid var(--att-accent);
+  color: var(--att-accent);
+  background: var(--panel);
+}
+.dc-att__leader{
+  flex:1 1 200px;
+  padding:9px 14px;
+  border-radius:10px;
+  border:1px solid var(--att-accent);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-serif);
+  font-weight:600;
+  font-size:15px;
+  text-align:center;
+  cursor:pointer;
+}
+
+.dc-att__offering{
+  background: var(--att-accent-bg);
+  border:1px solid var(--att-accent-bdr);
+  border-radius: var(--radius);
+  padding:14px;
+}
+.dc-att__offering-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  margin-bottom:10px;
+}
+.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:13px; font-weight:600; color: var(--att-accent-dark)}
+.dc-att__offering-item .input{width:100%; box-sizing:border-box}
+.dc-att__offering-total{
+  text-align:center;
+  font-weight:700;
+  border-top:1px dashed var(--att-accent-bdr);
+  padding-top:10px;
+  color: var(--att-accent);
+}
+
+.dc-att__section-title{
+  background: var(--att-accent);
+  color:#fff;
+  padding:10px 14px;
+  border-radius: 10px 10px 0 0;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-weight:700;
+  font-size:13px;
+  letter-spacing:.02em;
+}
+.dc-att__btn-add{
+  background: rgba(255,255,255,.25);
+  border:1px solid rgba(255,255,255,.6);
+  color:#fff;
+  width:auto;
+  padding:2px 12px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:1.1em;
+  line-height:1.4;
+}
+.dc-att__btn-add:hover{background: rgba(255,255,255,.4)}
+
+.dc-att-app .table-wrap{border-top:none; border-radius: 0 0 10px 10px; margin-bottom:4px}
+.dc-att-app .check-col{text-align:center; width:56px}
+.dc-att-app .in-n{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid transparent;
+  border-radius:6px;
+  padding:6px;
+  font-size:14px;
+  font-family: var(--font-sans);
+  background:transparent;
+  color: var(--text);
+}
+.dc-att-app .in-n:focus{border-bottom:2px solid var(--att-accent); outline:none}
+.dc-att-app input[type="checkbox"]{transform:scale(1.15); cursor:pointer; accent-color: var(--att-accent)}
+.dc-att__btn-del{
+  border:none;
+  background:none;
+  width:auto;
+  color: var(--att-accent);
+  cursor:pointer;
+  font-weight:700;
+  font-size:1em;
+  padding:4px 6px;
+}
+
+.dc-att__summary{
+  background: var(--panel2);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:14px;
+  font-size:13px;
+}
+.dc-att__summary-title{
+  text-align:center;
+  font-weight:700;
+  margin-bottom:8px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:8px;
+  color: var(--att-accent);
+}
+.dc-att__summary-row{display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line)}
+.dc-att__summary-row:last-child{border-bottom:none}
+.dc-att__summary-row span:first-child{color: var(--text-secondary)}
+.dc-att__summary-row span:last-child{font-weight:700}
+.dc-att__summary-nuevos{text-align:center; margin-top:8px; font-size:.85em; color: var(--accent2); font-weight:700}
+
+.dc-att__actions{display:flex; gap:8px; justify-content:center; flex-wrap:wrap}
+
+@media (max-width: 640px){
+  .dc-att__offering-grid{grid-template-columns:1fr}
+}

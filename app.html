@@ -613,7 +613,7 @@
       <button class="pill" id="btnDcRowAdd" type="button">+ Fila</button>
       <button class="pill" id="btnDcRowRemove" type="button">− Fila</button>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap dc-follow-wrap">
       <table class="table dc-table" id="dcFollowTable">
         <thead>
           <tr>
@@ -625,8 +625,24 @@
         </thead>
         <tbody id="dcFollowBody">
           <tr>
-            <td><input class="input" type="text" placeholder="Nombre"/></td>
-            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td>
+              <div class="dc-namewheel">
+                <input class="input dc-namewheel__value" type="text" readonly placeholder="Nombre" value=""/>
+                <div class="dc-namewheel__panel is-hidden">
+                  <div class="dc-namewheel__marker"></div>
+                  <div class="dc-namewheel__list"></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="dc-namewheel">
+                <input class="input dc-namewheel__value" type="text" readonly placeholder="Encargado" value=""/>
+                <div class="dc-namewheel__panel is-hidden">
+                  <div class="dc-namewheel__marker"></div>
+                  <div class="dc-namewheel__list"></div>
+                </div>
+              </div>
+            </td>
             <td class="dc-table__just">
               <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
               <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
@@ -634,8 +650,24 @@
             <td class="dc-table__date"><input class="input" type="date"/></td>
           </tr>
           <tr>
-            <td><input class="input" type="text" placeholder="Nombre"/></td>
-            <td><input class="input" type="text" placeholder="Encargado"/></td>
+            <td>
+              <div class="dc-namewheel">
+                <input class="input dc-namewheel__value" type="text" readonly placeholder="Nombre" value=""/>
+                <div class="dc-namewheel__panel is-hidden">
+                  <div class="dc-namewheel__marker"></div>
+                  <div class="dc-namewheel__list"></div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <div class="dc-namewheel">
+                <input class="input dc-namewheel__value" type="text" readonly placeholder="Encargado" value=""/>
+                <div class="dc-namewheel__panel is-hidden">
+                  <div class="dc-namewheel__marker"></div>
+                  <div class="dc-namewheel__list"></div>
+                </div>
+              </div>
+            </td>
             <td class="dc-table__just">
               <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
               <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>

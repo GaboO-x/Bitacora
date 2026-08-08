@@ -735,6 +735,43 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-just{display:inline-flex; align-items:center; gap:6px; margin-right:10px; font-size:13px; color:var(--text)}
 .dc-just input{accent-color: var(--accent)}
 
+/* Seguimiento en móvil: la tabla se convierte en tarjetas apiladas (nunca lado a
+   lado), sin scroll lateral. En PC/tablet ancho (>920px) sigue siendo la tabla
+   normal, sin cambios. Es el MISMO <table> y los MISMOS <tr>/<td> — solo se
+   les cambia el modo de layout con CSS Grid, así que toda la lógica de
+   JS (collectDcDraft, makeFollowRow, etc.) sigue funcionando sin tocarla. */
+@media (max-width: 920px){
+  #dcFollowTable{ min-width:0; width:100%; display:block; }
+  #dcFollowTable thead{ display:none; }
+  #dcFollowTable tbody{ display:block; }
+  #dcFollowTable tr{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name enc"
+      "just date";
+    gap:8px 10px;
+    border:1px solid var(--line);
+    border-radius: 12px;
+    padding:10px;
+    margin-bottom:10px;
+    background: var(--surface-alt);
+  }
+  #dcFollowTable tr:last-child{ margin-bottom:0; }
+  #dcFollowTable td{
+    display:block;
+    border-bottom:none;
+    padding:0;
+    width:auto;
+  }
+  #dcFollowTable td:nth-child(1){ grid-area:name; }
+  #dcFollowTable td:nth-child(2){ grid-area:enc; }
+  #dcFollowTable td.dc-table__just{ grid-area:just; align-self:center; }
+  #dcFollowTable td.dc-table__date{ grid-area:date; }
+  #dcFollowTable td.dc-table__date .input{ width:100%; box-sizing:border-box; }
+  .dc-follow-wrap{ overflow:visible; border:none; }
+}
+
 @media (max-width: 920px){
   .dc-grid{grid-template-columns: repeat(2, minmax(160px, 1fr))}
   .dc-item--wide{grid-column: span 2}

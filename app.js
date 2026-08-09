@@ -161,6 +161,20 @@ btnBack?.addEventListener('click', () => {
       if (notesLeaveResolve) { notesLeaveResolve(result); notesLeaveResolve = null; }
     };
 
+    // Modal de aviso para Asistencia (botones TODO/Ofrendas): mismo estilo
+    // que notesLeaveModal, pero de un solo botón "Aceptar".
+    const attInfoModal = qs('#attInfoModal');
+    const attInfoModalBody = qs('#attInfoModalBody');
+    const attInfoModalOk = qs('#attInfoModalOk');
+    const showAttInfoModal = (msg) => {
+      if (!attInfoModal || !attInfoModalBody) { alert(msg); return; }
+      attInfoModalBody.textContent = msg;
+      attInfoModal.classList.remove('is-hidden');
+    };
+    const closeAttInfoModal = () => { attInfoModal?.classList.add('is-hidden'); };
+    attInfoModalOk?.addEventListener('click', closeAttInfoModal);
+    attInfoModal?.addEventListener('click', (e) => { if (e.target === attInfoModal) closeAttInfoModal(); });
+
     const showView = (view) => {
       state.view = view;
       qsa('.view').forEach(v => v.classList.remove('is-visible'));
@@ -2340,7 +2354,7 @@ btnBack?.addEventListener('click', () => {
         ta.value = text; document.body.appendChild(ta);
         ta.select(); document.execCommand('copy');
         document.body.removeChild(ta);
-        alert(msg);
+        showAttInfoModal(msg);
       };
 
       const attFormatRows = (rows, hasNew) => {
@@ -2372,7 +2386,7 @@ btnBack?.addEventListener('click', () => {
       };
 
       attCopyTodoBtn.addEventListener('click', () => {
-        if (!attLeaderName.value) { alert('⚠️ Debes seleccionar el nombre del líder antes de copiar.'); return; }
+        if (!attLeaderName.value) { showAttInfoModal('⚠️ Debes seleccionar el nombre del líder antes de copiar.'); return; }
 
         attSortTableAlphabetically(attMainBody);
         attSortTableAlphabetically(attVisitBody);
@@ -2423,7 +2437,7 @@ btnBack?.addEventListener('click', () => {
         const dateStr = weekRangeLabel(week);
         const sinpe = attOffSinpe.value;
         const efectivo = attOffEfectivo.value;
-        if (!sinpe && !efectivo) { alert('No hay datos de ofrenda para copiar.'); return; }
+        if (!sinpe && !efectivo) { showAttInfoModal('No hay datos de ofrenda para copiar.'); return; }
         const total = (parseFloat(sinpe)||0) + (parseFloat(efectivo)||0);
         const isEquipos = attColorSelector.value === 'purple';
         const secName = isEquipos ? 'EQUIPOS' : ATT_SECTIONS[attState.section].label;

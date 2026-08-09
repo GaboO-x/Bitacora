@@ -537,21 +537,30 @@
 
       <div class="dc-att__header">
         <div class="dc-att__unit-row">
-          <select id="attColorSelector" class="dc-att__select dc-att__select--accent">
-            <option value="purple">🟣 Equipos</option>
-            <option value="red">🔴 Roja</option>
-            <option value="blue">🔵 Azul</option>
-            <option value="yellow">🟡 Amarilla</option>
-            <option value="orange">🟠 Naranja</option>
-            <option value="green">🟢 Verde</option>
-          </select>
-          <select id="attSectionSelector" class="dc-att__select dc-att__select--accent">
-            <option value="rj">RJ</option>
-            <option value="takers">TAKERS</option>
-            <option value="makers">MAKERS</option>
-          </select>
+          <div class="dc-att__select-wrap">
+            <select id="attColorSelector" class="dc-att__select dc-att__select--accent">
+              <option value="purple">🟣 Equipos</option>
+              <option value="red">🔴 Roja</option>
+              <option value="blue">🔵 Azul</option>
+              <option value="yellow">🟡 Amarilla</option>
+              <option value="orange">🟠 Naranja</option>
+              <option value="green">🟢 Verde</option>
+            </select>
+            <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+          </div>
+          <div class="dc-att__select-wrap">
+            <select id="attSectionSelector" class="dc-att__select dc-att__select--accent">
+              <option value="rj">RJ</option>
+              <option value="takers">TAKERS</option>
+              <option value="makers">MAKERS</option>
+            </select>
+            <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+          </div>
         </div>
-        <select class="dc-att__leader" id="attLeaderName"></select>
+        <div class="dc-att__select-wrap dc-att__select-wrap--leader">
+          <select class="dc-att__leader" id="attLeaderName"></select>
+          <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+        </div>
       </div>
 
       <div class="dc-att__offering">

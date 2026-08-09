@@ -749,11 +749,11 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
    no cambian. En PC se mantienen los radios de siempre. Ver initJustWheels()
    en app.js. */
 .dc-just-mobile{display:none}
-.dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--text-secondary); margin-bottom:4px}
-.dc-justwheel{position:relative; width:100%}
+.dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--text-secondary); white-space:nowrap}
+.dc-justwheel{position:relative; width:40%}
 @media (max-width: 920px){
   .dc-just-radios{display:none}
-  .dc-just-mobile{display:block}
+  .dc-just-mobile{display:flex; align-items:center; gap:8px}
 }
 
 /* #dcFollowTable (Seguimiento): mismo tamaño/tipo de letra compacto que

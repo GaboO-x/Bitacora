@@ -493,30 +493,38 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .input--mini2{max-width:70px; text-align:center}
 .input--mini5{max-width:110px; text-align:center}
 
-/* Notas (Takers/Cultos/Líderes): cabecera con Tema + Fecha */
+/* Notas (Takers/Cultos/Líderes): cabecera con Fecha (línea 1) + Tema (línea 2) */
 .note-head{
   display:flex;
-  gap:12px;
-  flex-wrap:nowrap;
-  align-items:center;
+  flex-direction:column;
+  gap:8px;
   margin: 6px 0 10px;
 }
-.note-head__field{display:flex; flex-direction:column; gap:6px; min-width:0}
-.note-head__field--fecha{flex:0 0 auto; white-space:nowrap}
-.note-head__field--tema{flex:1 1 auto; min-width:0}
+.note-head__field{min-width:0}
+.note-head__field--fecha{white-space:nowrap}
+.note-head__field--tema{
+  display:flex;
+  flex-direction:row;
+  align-items:center;
+  gap:8px;
+}
+.note-head__field--tema .field__label{flex:0 0 auto; white-space:nowrap}
 .input--tema{
+  flex:1 1 auto;
+  min-width:0;
   max-width:none;
   width:100%;
   background:transparent;
   border:none;
+  border-bottom:1px solid var(--line);
   border-radius:0;
   padding:4px 0;
   box-shadow:none;
 }
 .input--tema:focus{
   border:none;
-  box-shadow:none;
   border-bottom:1px solid var(--accent2);
+  box-shadow:none;
 }
 
 .dc-top{

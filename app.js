@@ -280,6 +280,7 @@ btnBack?.addEventListener('click', () => {
           }
           if (date && row.date != null) date.value = row.date;
         });
+        syncAllJustWheels(); // refleja en los wheels móviles los radios recién cargados
       }
     };
 
@@ -1747,21 +1748,135 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
-    // Cierra cualquier panel abierto al hacer click fuera o presionar Escape.
-    document.addEventListener('click', (e) => {
-      if (!notesSheetScreen) return;
-      if (e.target.closest && (e.target.closest('.dc-wheel') || e.target.closest('.dc-namewheel') || e.target.closest('.dc-optwheel'))) return;
+    // ---- Wheel de "Justificó" (Seguimiento, solo móvil) — lista fija Sí/No,
+    // mismo patrón visual/scroll-snap que .dc-optwheel (reutiliza sus clases
+    // __value/__panel/__marker/__list/__option vía CSS), pero SIN <select>:
+    // el wheel lee y escribe directamente sobre los radios reales
+    // (input[name="dcJust${n}"]) que ya existen en la fila, así
+    // collectDcDraft/applyDcDraft siguen intactos — el wheel es solo la
+    // representación visual en móvil. ----
+    const JUST_WHEEL_ITEM_H = 36; // debe coincidir con .dc-optwheel__option { height:36px }
+
+    const closeAllJustWheels = (exceptPanel) => {
+      qsa('.dc-justwheel .dc-optwheel__panel', notesSheetScreen || document).forEach(panel => {
+        if (panel === exceptPanel) return;
+        panel.classList.add('is-hidden');
+      });
+    };
+
+    const getJustRadios = (wheelEl) => {
+      const tr = wheelEl.closest('tr');
+      if (!tr) return { yes: null, no: null };
+      return {
+        yes: qs('input[type="radio"][value="si"]', tr),
+        no: qs('input[type="radio"][value="no"]', tr),
+      };
+    };
+
+    // Refleja en el input visible el radio actualmente marcado. Se usa al
+    // inicializar y también hay que llamarla después de que applyDcDraft
+    // marque los radios al cargar datos guardados (ver más abajo).
+    const syncJustWheelLabel = (wheelEl) => {
+      const valueInput = qs('.dc-optwheel__value', wheelEl);
+      if (!valueInput) return;
+      const { yes, no } = getJustRadios(wheelEl);
+      valueInput.value = yes?.checked ? 'Sí' : (no?.checked ? 'No' : '');
+    };
+
+    const syncAllJustWheels = () => {
+      qsa('.dc-justwheel', notesSheetScreen || document).forEach(syncJustWheelLabel);
+    };
+
+    const openJustWheelPanel = (wheelEl) => {
+      const panel = qs('.dc-optwheel__panel', wheelEl);
+      const list = qs('.dc-optwheel__list', wheelEl);
+      if (!panel || !list) return;
+
       closeAllDcWheels();
       closeAllNameWheels();
       closeAllOptWheels();
+      closeAllJustWheels(panel);
+      panel.classList.remove('is-hidden');
+
+      const { yes, no } = getJustRadios(wheelEl);
+      const idx = yes?.checked ? 0 : (no?.checked ? 1 : 0);
+      list.scrollTop = idx * JUST_WHEEL_ITEM_H;
+      setOptWheelActiveOption(wheelEl, idx);
+    };
+
+    // Confirma la opción `idx` (0=Sí, 1=No): marca el radio real correspondiente
+    // y dispara 'change' sobre él, igual que si el usuario hubiera tocado el
+    // checkbox directamente.
+    const commitJustWheelValue = (wheelEl, idx) => {
+      const { yes, no } = getJustRadios(wheelEl);
+      if (!yes || !no) return;
+      const val = idx === 0 ? 'si' : 'no';
+      const target = val === 'si' ? yes : no;
+      const changed = !target.checked;
+      yes.checked = val === 'si';
+      no.checked = val === 'no';
+      syncJustWheelLabel(wheelEl);
+      if (changed) target.dispatchEvent(new Event('change', { bubbles: true }));
+      setDcDirty(true);
+    };
+
+    const initJustWheels = () => {
+      qsa('.dc-justwheel', notesSheetScreen || document).forEach(wheelEl => {
+        if (wheelEl.dataset.wheelInit === '1') return;
+        wheelEl.dataset.wheelInit = '1';
+
+        const valueInput = qs('.dc-optwheel__value', wheelEl);
+        const list = qs('.dc-optwheel__list', wheelEl);
+        const panel = qs('.dc-optwheel__panel', wheelEl);
+        if (!valueInput || !list || !panel) return;
+
+        syncJustWheelLabel(wheelEl);
+
+        valueInput.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !panel.classList.contains('is-hidden');
+          if (isOpen) panel.classList.add('is-hidden');
+          else openJustWheelPanel(wheelEl);
+        });
+
+        let scrollTimer = null;
+        const clampIdx = (raw) => Math.min(1, Math.max(0, raw));
+        list.addEventListener('scroll', () => {
+          const liveIdx = clampIdx(Math.round(list.scrollTop / JUST_WHEEL_ITEM_H));
+          setOptWheelActiveOption(wheelEl, liveIdx);
+          if (scrollTimer) clearTimeout(scrollTimer);
+          scrollTimer = setTimeout(() => {
+            const settledIdx = clampIdx(Math.round(list.scrollTop / JUST_WHEEL_ITEM_H));
+            commitJustWheelValue(wheelEl, settledIdx);
+          }, 140);
+        });
+
+        list.addEventListener('click', (e) => {
+          const opt = e.target.closest('.dc-optwheel__option');
+          if (!opt) return;
+          commitJustWheelValue(wheelEl, Number(opt.dataset.idx));
+          panel.classList.add('is-hidden');
+        });
+      });
+    };
+
+    // Cierra cualquier panel abierto al hacer click fuera o presionar Escape.
+    document.addEventListener('click', (e) => {
+      if (!notesSheetScreen) return;
+      if (e.target.closest && (e.target.closest('.dc-wheel') || e.target.closest('.dc-namewheel') || e.target.closest('.dc-optwheel') || e.target.closest('.dc-justwheel'))) return;
+      closeAllDcWheels();
+      closeAllNameWheels();
+      closeAllOptWheels();
+      closeAllJustWheels();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeAllDcWheels(); closeAllNameWheels(); closeAllOptWheels(); }
+      if (e.key === 'Escape') { closeAllDcWheels(); closeAllNameWheels(); closeAllOptWheels(); closeAllJustWheels(); }
     });
 
     initDcWheels();
     initNameWheels();
     initSelectWheels();
+    initJustWheels();
 
     const rebuildJustNames = () => {
       if (!dcFollowBody) return;
@@ -1795,8 +1910,23 @@ btnBack?.addEventListener('click', () => {
           </div>
         </td>
         <td class="dc-table__just">
-          <label class="dc-just"><input name="dcJust${n}" type="radio" value="si"/> Sí</label>
-          <label class="dc-just"><input name="dcJust${n}" type="radio" value="no"/> No</label>
+          <div class="dc-just-radios">
+            <label class="dc-just"><input name="dcJust${n}" type="radio" value="si"/> Sí</label>
+            <label class="dc-just"><input name="dcJust${n}" type="radio" value="no"/> No</label>
+          </div>
+          <div class="dc-just-mobile">
+            <div class="dc-just-mobile__label">Justificó</div>
+            <div class="dc-justwheel">
+              <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
+              <div class="dc-optwheel__panel is-hidden">
+                <div class="dc-optwheel__marker"></div>
+                <div class="dc-optwheel__list">
+                  <div class="dc-optwheel__option" data-idx="0">Sí</div>
+                  <div class="dc-optwheel__option" data-idx="1">No</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </td>
         <td class="dc-table__date"><input class="input" type="date"/></td>
       `;
@@ -1812,6 +1942,7 @@ btnBack?.addEventListener('click', () => {
       dcFollowBody.appendChild(makeFollowRow(n));
       rebuildJustNames();
       initNameWheels(); // conecta los .dc-namewheel de la fila recién creada (idempotente)
+      initJustWheels(); // conecta el .dc-justwheel de la fila recién creada (idempotente)
       setDcDirty(true);
     });
 

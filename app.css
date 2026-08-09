@@ -483,6 +483,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   padding:12px;
   color:var(--text);
   font-family: var(--font-sans);
+  font-size:12.5px;
   outline:none;
   transition: border-color .15s ease, box-shadow .15s ease;
 }
@@ -734,8 +735,13 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .dc-table__just{width:160px}
 .dc-table__date{width:160px}
-.dc-just{display:inline-flex; align-items:center; gap:6px; margin-right:10px; font-size:13px; color:var(--text)}
+.dc-just{display:inline-flex; align-items:center; gap:6px; margin-right:10px; font-size:12px; color:var(--text)}
 .dc-just input{accent-color: var(--accent)}
+
+/* #dcFollowTable (Seguimiento): mismo tamaño/tipo de letra compacto que
+   Dinámica Celular, en vez del tamaño grande heredado de .table/.input. */
+#dcFollowTable td, #dcFollowTable th{ font-size:12.5px; }
+#dcFollowTable td .input, #dcFollowTable td .dc-namewheel__value{ font-size:12.5px; }
 
 /* Seguimiento en móvil: la tabla se convierte en tarjetas apiladas (nunca lado a
    lado), sin scroll lateral. En PC/tablet ancho (>920px) sigue siendo la tabla
@@ -858,6 +864,14 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .dc-att__unit-row{display:flex; gap:8px}
 .dc-att__unit-row .dc-att__select{flex:1 1 0; min-width:0}
+
+/* En PC los 3 selectores (Unidad, Sección, Líder) van en una sola línea.
+   En móvil (≤920px) se mantiene el apilado original: sin cambios ahí. */
+@media (min-width: 921px){
+  .dc-att__header{ flex-direction:row; align-items:stretch; }
+  .dc-att__unit-row{ display:contents; }
+  .dc-att__leader{ width:auto; flex:1 1 0; min-width:0; }
+}
 .dc-att__select{
   padding:9px 10px;
   border-radius:10px;
@@ -865,7 +879,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   background: var(--panel2);
   color: var(--text);
   font-family: var(--font-sans);
-  font-size:14px;
+  font-size:12.5px;
   font-weight:600;
   cursor:pointer;
   text-align:center;
@@ -886,7 +900,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   color: var(--text);
   font-family: var(--font-serif);
   font-weight:600;
-  font-size:15px;
+  font-size:13px;
   text-align:center;
   cursor:pointer;
 }
@@ -903,8 +917,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   gap:10px;
   margin-bottom:10px;
 }
-.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:13px; font-weight:600; color: var(--att-accent-dark)}
-.dc-att__offering-item .input{width:100%; box-sizing:border-box}
+.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:600; color: var(--att-accent-dark)}
+.dc-att__offering-item .input{width:100%; box-sizing:border-box; font-size:12.5px}
 .dc-att__offering-total{
   text-align:center;
   font-weight:700;
@@ -922,7 +936,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   justify-content:space-between;
   align-items:center;
   font-weight:700;
-  font-size:13px;
+  font-size:12.5px;
   letter-spacing:.02em;
 }
 .dc-att__btn-add{
@@ -949,13 +963,19 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   border:1px solid transparent;
   border-radius:6px;
   padding:6px;
-  font-size:14px;
+  font-size:12.5px;
   font-family: var(--font-sans);
   background:transparent;
   color: var(--text);
 }
 .dc-att-app .in-n:focus{border-bottom:2px solid var(--att-accent); outline:none}
 .dc-att-app input[type="checkbox"]{transform:scale(1.15); cursor:pointer; accent-color: var(--att-accent)}
+
+/* En PC la línea de "Nombre del discípulo" se reduce ~30% para dar más aire
+   a las columnas de checkboxes (Célula/Red/Nuevo). En móvil sigue a 100%. */
+@media (min-width: 921px){
+  .dc-att-app .in-n{ width:70%; }
+}
 .dc-att__btn-del{
   border:none;
   background:none;
@@ -972,7 +992,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   border:1px solid var(--line);
   border-radius: var(--radius);
   padding:14px;
-  font-size:13px;
+  font-size:12.5px;
 }
 .dc-att__summary-title{
   text-align:center;

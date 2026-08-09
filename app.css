@@ -984,8 +984,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 
 .dc-att__offering{
-  background: var(--att-accent-bg);
-  border:1px solid var(--att-accent-bdr);
+  background: var(--panel);
+  border:1px solid var(--line);
   border-radius: var(--radius);
   padding:14px;
 }
@@ -995,40 +995,48 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   gap:10px;
   margin-bottom:10px;
 }
-.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:12px; font-weight:600; color: var(--att-accent-dark)}
+.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:12.5px; font-weight:600; color: var(--text)}
 .dc-att__offering-item .input{width:100%; box-sizing:border-box; font-size:12.5px}
 .dc-att__offering-total{
   text-align:center;
   font-weight:700;
-  border-top:1px dashed var(--att-accent-bdr);
+  font-size:12.5px;
+  border-top:1px dashed var(--line);
   padding-top:10px;
-  color: var(--att-accent);
+  color: var(--text);
 }
 
 .dc-att__section-title{
-  background: var(--att-accent);
-  color:#fff;
+  background: var(--panel2);
+  color: var(--text);
   padding:10px 14px;
+  border:1px solid var(--line);
+  border-bottom:2px solid var(--att-accent);
   border-radius: 10px 10px 0 0;
   display:flex;
   justify-content:space-between;
   align-items:center;
-  font-weight:700;
-  font-size:12.5px;
-  letter-spacing:.02em;
+  font-family: var(--font-serif);
+  font-weight:600;
+  font-size:15px;
+  letter-spacing:.01em;
 }
 .dc-att__btn-add{
-  background: rgba(255,255,255,.25);
-  border:1px solid rgba(255,255,255,.6);
-  color:#fff;
-  width:auto;
-  padding:2px 12px;
-  border-radius:6px;
+  width:26px;
+  height:26px;
+  background: transparent;
+  border:1px solid var(--att-accent);
+  color: var(--att-accent);
+  padding:0;
+  border-radius:50%;
   cursor:pointer;
-  font-size:1.1em;
-  line-height:1.4;
+  font-size:14px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
-.dc-att__btn-add:hover{background: rgba(255,255,255,.4)}
+.dc-att__btn-add:hover{background: var(--att-accent-bg)}
 
 .dc-att-app .table-wrap{border-top:none; border-radius: 0 0 10px 10px; margin-bottom:4px; overflow:visible}
 .dc-att-app .dc-att__table{min-width:0; width:100%; table-layout:fixed}

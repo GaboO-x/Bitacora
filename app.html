@@ -681,8 +681,23 @@
               </div>
             </td>
             <td class="dc-table__just">
-              <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
-              <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
+              <div class="dc-just-radios">
+                <label class="dc-just"><input name="dcJust1" type="radio" value="si"/> Sí</label>
+                <label class="dc-just"><input name="dcJust1" type="radio" value="no"/> No</label>
+              </div>
+              <div class="dc-just-mobile">
+                <div class="dc-just-mobile__label">Justificó</div>
+                <div class="dc-justwheel">
+                  <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
+                  <div class="dc-optwheel__panel is-hidden">
+                    <div class="dc-optwheel__marker"></div>
+                    <div class="dc-optwheel__list">
+                      <div class="dc-optwheel__option" data-idx="0">Sí</div>
+                      <div class="dc-optwheel__option" data-idx="1">No</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </td>
             <td class="dc-table__date"><input class="input" type="date"/></td>
           </tr>
@@ -706,8 +721,23 @@
               </div>
             </td>
             <td class="dc-table__just">
-              <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
-              <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
+              <div class="dc-just-radios">
+                <label class="dc-just"><input name="dcJust2" type="radio" value="si"/> Sí</label>
+                <label class="dc-just"><input name="dcJust2" type="radio" value="no"/> No</label>
+              </div>
+              <div class="dc-just-mobile">
+                <div class="dc-just-mobile__label">Justificó</div>
+                <div class="dc-justwheel">
+                  <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
+                  <div class="dc-optwheel__panel is-hidden">
+                    <div class="dc-optwheel__marker"></div>
+                    <div class="dc-optwheel__list">
+                      <div class="dc-optwheel__option" data-idx="0">Sí</div>
+                      <div class="dc-optwheel__option" data-idx="1">No</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </td>
             <td class="dc-table__date"><input class="input" type="date"/></td>
           </tr>
@@ -733,13 +763,11 @@
     </div>
   </div>
   <div class="sheet-body">
+    <div class="muted tiny" id="takersMeta"></div>
     <div class="note-head">
-      <div class="note-head__field note-head__field--fecha">
-        <div class="muted tiny" id="takersMeta"></div>
-      </div>
-      <div class="note-head__field note-head__field--tema">
-        <label class="field__label" for="takersTema">Tema:</label>
-        <input class="input input--tema" id="takersTema" type="text" placeholder=""/>
+      <div class="note-head__field">
+        <label class="field__label" for="takersTema">Tema</label>
+        <input class="input input--tema" id="takersTema" type="text" placeholder="Tema"/>
       </div>
     </div>
     <div class="rte">
@@ -757,13 +785,11 @@
     </div>
   </div>
   <div class="sheet-body">
+    <div class="muted tiny" id="cultosMeta"></div>
     <div class="note-head">
-      <div class="note-head__field note-head__field--fecha">
-        <div class="muted tiny" id="cultosMeta"></div>
-      </div>
-      <div class="note-head__field note-head__field--tema">
-        <label class="field__label" for="cultosTema">Tema:</label>
-        <input class="input input--tema" id="cultosTema" type="text" placeholder=""/>
+      <div class="note-head__field">
+        <label class="field__label" for="cultosTema">Tema</label>
+        <input class="input input--tema" id="cultosTema" type="text" placeholder="Tema"/>
       </div>
     </div>
     <div class="rte">
@@ -781,13 +807,11 @@
     </div>
   </div>
   <div class="sheet-body">
+    <div class="muted tiny" id="lideresMeta"></div>
     <div class="note-head">
-      <div class="note-head__field note-head__field--fecha">
-        <div class="muted tiny" id="lideresMeta"></div>
-      </div>
-      <div class="note-head__field note-head__field--tema">
-        <label class="field__label" for="lideresTema">Tema:</label>
-        <input class="input input--tema" id="lideresTema" type="text" placeholder=""/>
+      <div class="note-head__field">
+        <label class="field__label" for="lideresTema">Tema</label>
+        <input class="input input--tema" id="lideresTema" type="text" placeholder="Tema"/>
       </div>
     </div>
     <div class="rte">

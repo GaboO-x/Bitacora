@@ -1057,6 +1057,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   color: var(--text);
 }
 .dc-att-app .in-n:focus{border-bottom:2px solid var(--att-accent); outline:none}
+.dc-att-app .dc-att__table tbody td{border-bottom:none}
 .dc-att-app input[type="checkbox"]{transform:scale(1.15); cursor:pointer; accent-color: var(--att-accent)}
 
 /* En PC la línea de "Nombre del discípulo" se reduce ~30% para dar más aire

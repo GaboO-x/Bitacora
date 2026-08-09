@@ -493,39 +493,16 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .input--mini2{max-width:70px; text-align:center}
 .input--mini5{max-width:110px; text-align:center}
 
-/* Notas (Takers/Cultos/Líderes): cabecera con Fecha (línea 1) + Tema (línea 2) */
+/* Notas (Takers/Cultos/Líderes): cabecera con Tema + Fecha */
 .note-head{
   display:flex;
-  flex-direction:column;
-  gap:8px;
+  gap:12px;
+  flex-wrap:wrap;
+  align-items:flex-end;
   margin: 6px 0 10px;
 }
-.note-head__field{min-width:0}
-.note-head__field--fecha{white-space:nowrap}
-.note-head__field--tema{
-  display:flex;
-  flex-direction:row;
-  align-items:center;
-  gap:8px;
-}
-.note-head__field--tema .field__label{flex:0 0 auto; white-space:nowrap}
-.input--tema{
-  flex:1 1 auto;
-  min-width:0;
-  max-width:none;
-  width:100%;
-  background:transparent;
-  border:none;
-  border-bottom:1px solid var(--line);
-  border-radius:0;
-  padding:4px 0;
-  box-shadow:none;
-}
-.input--tema:focus{
-  border:none;
-  border-bottom:1px solid var(--accent2);
-  box-shadow:none;
-}
+.note-head__field{display:flex; flex-direction:column; gap:6px}
+.input--tema{max-width: 260px}
 
 .dc-top{
   display:flex;
@@ -764,6 +741,20 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-table__date{width:160px}
 .dc-just{display:inline-flex; align-items:center; gap:6px; margin-right:10px; font-size:12px; color:var(--text)}
 .dc-just input{accent-color: var(--accent)}
+
+/* Justificó (Seguimiento) en móvil: se reemplaza el checkbox Sí/No por un
+   wheel con scroll-snap (mismo patrón visual que .dc-optwheel, reutilizando
+   sus clases __value/__panel/__marker/__list/__option), ligado a los MISMOS
+   radios reales (siguen en el DOM, ocultos), así collectDcDraft/applyDcDraft
+   no cambian. En PC se mantienen los radios de siempre. Ver initJustWheels()
+   en app.js. */
+.dc-just-mobile{display:none}
+.dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--text-secondary); white-space:nowrap}
+.dc-justwheel{position:relative; width:40%}
+@media (max-width: 920px){
+  .dc-just-radios{display:none}
+  .dc-just-mobile{display:flex; align-items:center; gap:8px}
+}
 
 /* #dcFollowTable (Seguimiento): mismo tamaño/tipo de letra compacto que
    Dinámica Celular, en vez del tamaño grande heredado de .table/.input. */
@@ -1057,7 +1048,6 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   color: var(--text);
 }
 .dc-att-app .in-n:focus{border-bottom:2px solid var(--att-accent); outline:none}
-.dc-att-app .dc-att__table tbody td{border-bottom:none}
 .dc-att-app input[type="checkbox"]{transform:scale(1.15); cursor:pointer; accent-color: var(--att-accent)}
 
 /* En PC la línea de "Nombre del discípulo" se reduce ~30% para dar más aire
@@ -1111,5 +1101,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 
 @media (max-width: 640px){
-  .dc-att__offering-grid{grid-template-columns:1fr}
+  /* Sinpe/Efectivo lado a lado en móvil (monto máx. 100000 -> input angosto) */
+  .dc-att__offering-grid{grid-template-columns:1fr 1fr; gap:8px}
+  .dc-att__offering-item{font-size:11px; gap:4px}
+  .dc-att__offering-item .input{padding:8px 6px; font-size:12px; text-align:center}
 }

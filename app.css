@@ -870,15 +870,6 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-att__unit-row .dc-att__select-wrap{flex:1 1 0; min-width:0}
 .dc-att__select-wrap{position:relative; width:100%}
 .dc-att__select-wrap--leader{width:100%}
-.dc-att__select-arrow{
-  position:absolute;
-  right:10px;
-  top:50%;
-  transform:translateY(-50%);
-  font-size:10px;
-  color:var(--muted);
-  pointer-events:none;
-}
 
 /* En PC los 3 selectores (Unidad, Sección, Líder) van en una sola línea.
    En móvil (≤920px) se mantiene el apilado original: sin cambios ahí. */
@@ -887,52 +878,96 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   .dc-att__unit-row{ display:contents; }
   .dc-att__select-wrap--leader{ width:auto; flex:1 1 0; min-width:0; }
 }
-.dc-att__select{
+
+/* El <select> real sigue existiendo (attColorSelector/attSectionSelector/
+   attLeaderName) porque toda la lógica de app.js lee/escucha sobre él; solo
+   se oculta visualmente. Lo que se ve es el wheel de abajo (.dc-optwheel). */
+.dc-att__select-native{
+  position:absolute;
+  width:1px; height:1px;
+  padding:0; margin:0; border:0;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+}
+
+/* Wheel de opciones (Equipos/Sección/Líder) — mismo patrón visual y de
+   scroll-snap que .dc-namewheel (Responsable), como clase aparte para no
+   chocar con initNameWheels(). Ver initSelectWheels() en app.js. */
+.dc-optwheel{position:relative; width:100%}
+.dc-optwheel__value{
   width:100%;
   box-sizing:border-box;
-  padding:5px 26px 5px 8px;
+  padding:5px 8px;
   border-radius:8px;
-  border:1px solid var(--line);
-  background: var(--panel2);
-  color: var(--text);
-  font-family: var(--font-sans);
   font-size:12px;
-  font-weight:400;
-  cursor:pointer;
   text-align:center;
+  cursor:pointer;
+  caret-color:transparent;
+}
+.dc-optwheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-optwheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  right:0;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-optwheel__panel::before,
+.dc-optwheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-optwheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-optwheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-optwheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-optwheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-optwheel__list::-webkit-scrollbar{display:none}
+.dc-optwheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 14px;
+  scroll-snap-align:center;
+  font-size:13px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+  overflow:hidden;
   text-overflow:ellipsis;
-  outline:none;
-  appearance:none;
-  -webkit-appearance:none;
-  -moz-appearance:none;
-  transition: border-color .15s ease, box-shadow .15s ease;
 }
-.dc-att__select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
-.dc-att__select--accent{
-  border:1px solid var(--line);
+.dc-optwheel__option.is-active{
   color: var(--text);
-  background: var(--panel2);
+  font-weight:700;
 }
-.dc-att__leader{
-  width:100%;
-  box-sizing:border-box;
-  padding:5px 26px 5px 8px;
-  border-radius:8px;
-  border:1px solid var(--line);
-  background: var(--panel2);
-  color: var(--text);
-  font-family: var(--font-sans);
-  font-weight:400;
-  font-size:12px;
-  text-align:center;
-  cursor:pointer;
-  outline:none;
-  appearance:none;
-  -webkit-appearance:none;
-  -moz-appearance:none;
-  transition: border-color .15s ease, box-shadow .15s ease;
-}
-.dc-att__leader:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 
 .dc-att__offering{
   background: var(--att-accent-bg);

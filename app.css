@@ -888,7 +888,10 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   cursor:pointer;
   text-align:center;
   text-overflow:ellipsis;
+  outline:none;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
+.dc-att__select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 .dc-att__select--accent{
   border:1px solid var(--line);
   color: var(--text);
@@ -907,7 +910,10 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   font-size:12px;
   text-align:center;
   cursor:pointer;
+  outline:none;
+  transition: border-color .15s ease, box-shadow .15s ease;
 }
+.dc-att__leader:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 
 .dc-att__offering{
   background: var(--att-accent-bg);

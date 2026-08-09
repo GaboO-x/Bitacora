@@ -1449,6 +1449,7 @@ btnBack?.addEventListener('click', () => {
 
       closeAllDcWheels(panel);
       closeAllNameWheels();
+      closeAllOptWheels();
       panel.classList.remove('is-hidden');
 
       const ref = parseInt(wheelEl.dataset.ref, 10) || 0;
@@ -1565,6 +1566,7 @@ btnBack?.addEventListener('click', () => {
 
       closeAllDcWheels();
       closeAllNameWheels(panel);
+      closeAllOptWheels();
       panel.classList.remove('is-hidden');
 
       // Si el valor actual sigue en la lista, posiciona ahí; si no, "El Líder" (idx 0).
@@ -1617,19 +1619,149 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
+    // ---- Wheel de opciones (selects estáticos: Equipos/Sección/Líder en
+    // Asistencia). Mismo patrón visual y de scroll-snap que el wheel de
+    // nombres, pero como clase aparte (.dc-optwheel) para no colisionar con
+    // initNameWheels(). El <select> real (oculto) sigue siendo la fuente de
+    // verdad: se le asigna .selectedIndex y se dispara 'change' sobre él,
+    // así toda la lógica existente en el widget de Asistencia sigue intacta. ----
+    const OPT_WHEEL_ITEM_H = 36; // debe coincidir con .dc-optwheel__option { height:36px }
+
+    const closeAllOptWheels = (exceptPanel) => {
+      qsa('.dc-optwheel__panel', notesSheetScreen || document).forEach(panel => {
+        if (panel === exceptPanel) return;
+        panel.classList.add('is-hidden');
+      });
+    };
+
+    const setOptWheelActiveOption = (wheelEl, idx) => {
+      qsa('.dc-optwheel__option', wheelEl).forEach(opt => {
+        opt.classList.toggle('is-active', Number(opt.dataset.idx) === idx);
+      });
+    };
+
+    const buildOptWheelOptions = (wheelEl, selectEl) => {
+      const list = qs('.dc-optwheel__list', wheelEl);
+      if (!list) return;
+      list.innerHTML = '';
+      const frag = document.createDocumentFragment();
+      Array.from(selectEl.options).forEach((o, i) => {
+        const opt = document.createElement('div');
+        opt.className = 'dc-optwheel__option';
+        opt.dataset.idx = String(i);
+        opt.textContent = o.textContent;
+        frag.appendChild(opt);
+      });
+      list.appendChild(frag);
+    };
+
+    // Refleja en el input visible el texto de la opción actualmente
+    // seleccionada en el <select> real. Se usa tanto al inicializar el
+    // wheel como después de que app.js reconstruya las opciones del
+    // <select> por su cuenta (p.ej. attApplyColor / attUpdateLeaderDropdownSilent).
+    const syncOptWheelLabel = (wheelEl, selectEl) => {
+      const valueInput = qs('.dc-optwheel__value', wheelEl);
+      if (!valueInput || !selectEl) return;
+      const opt = selectEl.options[selectEl.selectedIndex];
+      valueInput.value = opt ? opt.textContent : '';
+    };
+
+    // Punto de entrada usado desde fuera (widget de Asistencia): busca el
+    // wheel asociado a un <select> por su id y sincroniza su texto visible.
+    const syncOptWheelLabelForSelect = (selectEl) => {
+      if (!selectEl || !selectEl.id) return;
+      const wheelEl = qs(`.dc-optwheel[data-for-select="${selectEl.id}"]`, notesSheetScreen || document);
+      if (wheelEl) syncOptWheelLabel(wheelEl, selectEl);
+    };
+
+    const openOptWheelPanel = (wheelEl, selectEl) => {
+      const panel = qs('.dc-optwheel__panel', wheelEl);
+      const list = qs('.dc-optwheel__list', wheelEl);
+      if (!panel || !list) return;
+
+      buildOptWheelOptions(wheelEl, selectEl);
+      closeAllDcWheels();
+      closeAllNameWheels();
+      closeAllOptWheels(panel);
+      panel.classList.remove('is-hidden');
+
+      const idx = Math.max(0, selectEl.selectedIndex);
+      list.scrollTop = idx * OPT_WHEEL_ITEM_H;
+      setOptWheelActiveOption(wheelEl, idx);
+    };
+
+    // Confirma la opción `idx`: mueve el <select> real y dispara 'change'
+    // (así attColorSelector/attSectionSelector/attLeaderName reaccionan
+    // exactamente igual que si el usuario hubiera usado el <select> nativo).
+    const commitOptWheelValue = (wheelEl, selectEl, idx) => {
+      const opt = selectEl.options[idx];
+      if (!opt) return;
+      const changed = selectEl.selectedIndex !== idx;
+      selectEl.selectedIndex = idx;
+      syncOptWheelLabel(wheelEl, selectEl);
+      if (changed) selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const initSelectWheels = () => {
+      qsa('.dc-optwheel', notesSheetScreen || document).forEach(wheelEl => {
+        if (wheelEl.dataset.wheelInit === '1') return;
+        wheelEl.dataset.wheelInit = '1';
+
+        const selectId = wheelEl.dataset.forSelect;
+        const selectEl = selectId ? document.getElementById(selectId) : null;
+        const valueInput = qs('.dc-optwheel__value', wheelEl);
+        const list = qs('.dc-optwheel__list', wheelEl);
+        const panel = qs('.dc-optwheel__panel', wheelEl);
+        if (!selectEl || !valueInput || !list || !panel) return;
+
+        syncOptWheelLabel(wheelEl, selectEl);
+
+        valueInput.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !panel.classList.contains('is-hidden');
+          if (isOpen) panel.classList.add('is-hidden');
+          else openOptWheelPanel(wheelEl, selectEl);
+        });
+
+        let scrollTimer = null;
+        const clampIdx = (raw) => {
+          const max = Math.max(0, selectEl.options.length - 1);
+          return Math.min(max, Math.max(0, raw));
+        };
+        list.addEventListener('scroll', () => {
+          const liveIdx = clampIdx(Math.round(list.scrollTop / OPT_WHEEL_ITEM_H));
+          setOptWheelActiveOption(wheelEl, liveIdx);
+          if (scrollTimer) clearTimeout(scrollTimer);
+          scrollTimer = setTimeout(() => {
+            const settledIdx = clampIdx(Math.round(list.scrollTop / OPT_WHEEL_ITEM_H));
+            commitOptWheelValue(wheelEl, selectEl, settledIdx);
+          }, 140);
+        });
+
+        list.addEventListener('click', (e) => {
+          const opt = e.target.closest('.dc-optwheel__option');
+          if (!opt) return;
+          commitOptWheelValue(wheelEl, selectEl, Number(opt.dataset.idx));
+          panel.classList.add('is-hidden');
+        });
+      });
+    };
+
     // Cierra cualquier panel abierto al hacer click fuera o presionar Escape.
     document.addEventListener('click', (e) => {
       if (!notesSheetScreen) return;
-      if (e.target.closest && (e.target.closest('.dc-wheel') || e.target.closest('.dc-namewheel'))) return;
+      if (e.target.closest && (e.target.closest('.dc-wheel') || e.target.closest('.dc-namewheel') || e.target.closest('.dc-optwheel'))) return;
       closeAllDcWheels();
       closeAllNameWheels();
+      closeAllOptWheels();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') { closeAllDcWheels(); closeAllNameWheels(); }
+      if (e.key === 'Escape') { closeAllDcWheels(); closeAllNameWheels(); closeAllOptWheels(); }
     });
 
     initDcWheels();
     initNameWheels();
+    initSelectWheels();
 
     const rebuildJustNames = () => {
       if (!dcFollowBody) return;
@@ -1945,6 +2077,7 @@ btnBack?.addEventListener('click', () => {
         if (isEquipos && !['takers','makers'].includes(attSectionSelector.value)) {
           attSectionSelector.value = 'takers';
         }
+        syncOptWheelLabelForSelect(attSectionSelector);
 
         if (rerender) {
           const newSection = attSectionSelector.value;
@@ -2047,6 +2180,7 @@ btnBack?.addEventListener('click', () => {
           attLeaderName.appendChild(opt);
         });
         if (color === 'purple' && names.length === 1) attLeaderName.value = names[0];
+        syncOptWheelLabelForSelect(attLeaderName);
       };
 
       const attUpdateLeaderDropdown = () => {

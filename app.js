@@ -1907,7 +1907,7 @@ btnBack?.addEventListener('click', () => {
       tr.innerHTML = `
         <td>
           <div class="dc-namewheel">
-            <input class="input dc-namewheel__value" type="text" readonly placeholder="Nombre" value=""/>
+            <input class="input dc-namewheel__value" type="text" readonly placeholder="Ausente" value=""/>
             <div class="dc-namewheel__panel is-hidden">
               <div class="dc-namewheel__marker"></div>
               <div class="dc-namewheel__list"></div>
@@ -1916,7 +1916,7 @@ btnBack?.addEventListener('click', () => {
         </td>
         <td>
           <div class="dc-namewheel">
-            <input class="input dc-namewheel__value" type="text" readonly placeholder="Encargado" value=""/>
+            <input class="input dc-namewheel__value" type="text" readonly placeholder="Seguimiento" value=""/>
             <div class="dc-namewheel__panel is-hidden">
               <div class="dc-namewheel__marker"></div>
               <div class="dc-namewheel__list"></div>
@@ -1929,6 +1929,7 @@ btnBack?.addEventListener('click', () => {
             <label class="dc-just"><input name="dcJust${n}" type="radio" value="no"/> No</label>
           </div>
           <div class="dc-just-mobile">
+            <div class="dc-just-mobile__box">
             <div class="dc-just-mobile__label">Justificó</div>
             <div class="dc-justwheel">
               <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
@@ -1939,6 +1940,7 @@ btnBack?.addEventListener('click', () => {
                   <div class="dc-optwheel__option" data-idx="1">No</div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </td>

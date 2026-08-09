@@ -781,7 +781,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
     border-radius: 12px;
     padding:10px;
     margin-bottom:10px;
-    background: var(--surface-alt);
+    background: var(--panel);
   }
   #dcFollowTable tr:last-child{ margin-bottom:0; }
   #dcFollowTable td{

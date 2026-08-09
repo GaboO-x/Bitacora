@@ -537,8 +537,8 @@
 
       <div class="dc-att__header">
         <div class="dc-att__unit-row">
-          <div class="dc-att__select-wrap">
-            <select id="attColorSelector" class="dc-att__select dc-att__select--accent">
+          <div class="dc-att__select-wrap dc-optwheel" data-for-select="attColorSelector">
+            <select id="attColorSelector" class="dc-att__select-native" tabindex="-1" aria-hidden="true">
               <option value="purple">🟣 Equipos</option>
               <option value="red">🔴 Roja</option>
               <option value="blue">🔵 Azul</option>
@@ -546,20 +546,32 @@
               <option value="orange">🟠 Naranja</option>
               <option value="green">🟢 Verde</option>
             </select>
-            <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+            <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
+            <div class="dc-optwheel__panel is-hidden">
+              <div class="dc-optwheel__marker"></div>
+              <div class="dc-optwheel__list"></div>
+            </div>
           </div>
-          <div class="dc-att__select-wrap">
-            <select id="attSectionSelector" class="dc-att__select dc-att__select--accent">
+          <div class="dc-att__select-wrap dc-optwheel" data-for-select="attSectionSelector">
+            <select id="attSectionSelector" class="dc-att__select-native" tabindex="-1" aria-hidden="true">
               <option value="rj">RJ</option>
               <option value="takers">TAKERS</option>
               <option value="makers">MAKERS</option>
             </select>
-            <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+            <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
+            <div class="dc-optwheel__panel is-hidden">
+              <div class="dc-optwheel__marker"></div>
+              <div class="dc-optwheel__list"></div>
+            </div>
           </div>
         </div>
-        <div class="dc-att__select-wrap dc-att__select-wrap--leader">
-          <select class="dc-att__leader" id="attLeaderName"></select>
-          <i class="fa-solid fa-chevron-down dc-att__select-arrow"></i>
+        <div class="dc-att__select-wrap dc-att__select-wrap--leader dc-optwheel" data-for-select="attLeaderName">
+          <select class="dc-att__select-native" id="attLeaderName" tabindex="-1" aria-hidden="true"></select>
+          <input class="input dc-optwheel__value" type="text" readonly placeholder="— Seleccionar Líder —" value=""/>
+          <div class="dc-optwheel__panel is-hidden">
+            <div class="dc-optwheel__marker"></div>
+            <div class="dc-optwheel__list"></div>
+          </div>
         </div>
       </div>
 

@@ -749,11 +749,20 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
    no cambian. En PC se mantienen los radios de siempre. Ver initJustWheels()
    en app.js. */
 .dc-just-mobile{display:none}
-.dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--text-secondary); white-space:nowrap}
-.dc-justwheel{position:relative; width:40%}
+.dc-just-mobile__box{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background: var(--panel);
+  padding:6px 10px;
+}
+.dc-just-mobile__label{font-size:9.5px; font-weight:600; color: var(--muted); text-transform:uppercase; letter-spacing:.04em; text-align:center}
+.dc-justwheel{position:relative; width:100%}
+.dc-just-mobile .dc-optwheel__value{border:none; background:transparent; padding:2px 0}
 @media (max-width: 920px){
   .dc-just-radios{display:none}
-  .dc-just-mobile{display:flex; align-items:center; gap:8px}
+  .dc-just-mobile{display:flex; align-items:stretch}
 }
 
 /* #dcFollowTable (Seguimiento): mismo tamaño/tipo de letra compacto que
@@ -795,6 +804,8 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   #dcFollowTable td.dc-table__just{ grid-area:just; align-self:center; }
   #dcFollowTable td.dc-table__date{ grid-area:date; }
   #dcFollowTable td.dc-table__date .input{ width:100%; box-sizing:border-box; }
+  #dcFollowTable td .dc-namewheel__value,
+  #dcFollowTable td.dc-table__date .input{ background: var(--panel); }
   .dc-follow-wrap{ overflow:visible; border:none; }
 }
 

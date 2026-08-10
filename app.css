@@ -764,6 +764,10 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 .dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--muted); white-space:nowrap}
 .dc-justwheel{position:relative; width:auto; min-width:56px}
 .dc-just-mobile .dc-optwheel__value{border:none; background:transparent; padding:2px 4px; text-align:center}
+.dc-justwheel .dc-optwheel__panel{height:66px}
+.dc-justwheel .dc-optwheel__marker{height:18px}
+.dc-justwheel .dc-optwheel__list{padding:24px 0}
+.dc-justwheel .dc-optwheel__option{height:18px; font-size:11px}
 @media (max-width: 920px){
   .dc-just-radios{display:none}
   .dc-just-mobile{display:flex; align-items:stretch}
@@ -790,7 +794,7 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
       "name enc"
       "just date";
     gap:8px 10px;
-    border:1px solid var(--line);
+    border:1px solid var(--border-strong);
     border-radius: 12px;
     padding:10px;
     margin-bottom:10px;

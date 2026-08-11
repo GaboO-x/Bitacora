@@ -1,0 +1,1181 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600&display=swap');
+
+/* ==========================================================
+   TOKENS — paleta Verso (claro: crema/crimson, oscuro: navy/dorado)
+   ========================================================== */
+:root{
+  --bg-main:#FAF6F1;
+  --card-bg:#FFFFFF;
+  --surface-alt:#F7F1E8;
+
+  --border-color:#E8DDD0;
+  --border-strong:#DCC9B1;
+
+  --text-primary:#34271F;
+  --text-secondary:#735A43;
+  --text-muted:#A08C76;
+
+  --accent:#A60321;
+  --accent2:#C96E5C;
+  --accent-lt:#D9A577;
+  --accent-bg:#F8E8E4;
+  --accent-hover-bg:#F2D7CF;
+  --accent-border:#E6C9AF;
+
+  --green:#3B8B67;
+  --green-bg:#EEF8F3;
+  --green-border: rgba(59,139,103,.18);
+
+  --red:#C65B4A;
+  --red-bg:#FDF0EC;
+  --red-border: rgba(198,91,74,.18);
+
+  --shadow: 0 4px 18px rgba(97,69,44,.06);
+  --shadow2: 0 10px 32px rgba(97,69,44,.10);
+
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Fraunces', serif;
+
+  /* Alias sobre los nombres que ya usa el resto del CSS/JS.
+     No renombro nada más para no tocar lógica ni HTML existente. */
+  --bg: var(--bg-main);
+  --panel: var(--card-bg);
+  --panel2: var(--surface-alt);
+  --text: var(--text-primary);
+  --muted: var(--text-muted);
+  --line: var(--border-color);
+  --danger: var(--red);
+
+  --radius: 14px;
+  --radius2: 18px;
+  --sidebarW: 260px;
+  --sidebarCollapsedW: 72px;
+  --topbarH: 60px;
+  font-synthesis-weight: none;
+}
+
+:root[data-theme="dark"]{
+  --bg-main:#1B1F2E;
+  --card-bg:#242A3D;
+  --surface-alt:#20263A;
+
+  --border-color:#333B54;
+  --border-strong:#8A7239;
+
+  --text-primary:#EDE8DC;
+  --text-secondary:#B8BFCC;
+  --text-muted:#9098AC;
+
+  --accent:#C9A24B;
+  --accent2:#E0BC6E;
+  --accent-lt:#F0D48C;
+  --accent-bg: rgba(201,162,75,0.15);
+  --accent-hover-bg: rgba(201,162,75,0.24);
+  --accent-border:#8A7239;
+
+  --green:#4CAF7D;
+  --green-bg: rgba(76,175,125,0.12);
+  --green-border: rgba(76,175,125,0.35);
+
+  --red:#E0685A;
+  --red-bg: rgba(224,104,90,0.12);
+  --red-border: rgba(224,104,90,0.35);
+
+  --shadow: 0 2px 16px rgba(0,0,0,.35);
+  --shadow2: 0 4px 32px rgba(0,0,0,.5);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color:var(--text);
+  transition: background .2s ease, color .2s ease;
+  /* Evita cortes/scroll horizontal en móviles */
+  overflow-x:hidden;
+}
+
+.app-shell{
+  display:grid;
+  grid-template-columns: var(--sidebarW) 1fr;
+  grid-template-rows: var(--topbarH) 1fr;
+  height:100%;
+  width:100%;
+}
+
+.app-shell.is-sidebar-collapsed{
+  grid-template-columns: var(--sidebarCollapsedW) 1fr;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar{
+  padding: 12px 8px;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar__label,
+.app-shell.is-sidebar-collapsed .nav-btn__text{
+  display:none;
+}
+
+.app-shell.is-sidebar-collapsed .nav-btn,
+.app-shell.is-sidebar-collapsed .sidebar-theme-btn{
+  justify-content:center;
+  padding:10px 0;
+}
+
+.app-shell.is-sidebar-collapsed .nav-btn__icon{
+  margin-right:0;
+  font-size:18px;
+}
+
+.app-shell.is-sidebar-collapsed .sidebar__footer{
+  padding: 10px 0 0;
+  margin-top: 12px;
+}
+
+
+.topbar{
+  grid-column: 1 / -1;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--line);
+  background: var(--panel);
+  position:sticky;
+  top:0;
+  z-index:20;
+}
+
+.icon-btn{
+  width:38px;height:38px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color:var(--text);
+  border-radius:10px;
+  cursor:pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.icon-btn:hover{border-color: var(--accent-border); color: var(--accent)}
+
+.topbar__title{display:flex;flex-direction:column; line-height:1.15}
+.brand{font-family: var(--font-serif); font-weight:600; font-size:1.15em; letter-spacing:-0.01em}
+.crumb{font-size:12px;color:var(--muted); font-family: var(--font-sans)}
+
+.topbar__actions{margin-left:auto; display:flex; gap:8px; align-items:center}
+
+.pill{
+  padding:8px 14px;
+  border-radius:999px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color:var(--text);
+  cursor:pointer;
+  font-family: var(--font-sans);
+  font-weight:500;
+  font-size: 13px;
+  transition: all .15s ease;
+}
+.pill:hover{border-color: var(--accent-border); color: var(--accent)}
+.pill:disabled{opacity:.5; cursor:not-allowed}
+.pill.danger{border-color: var(--red-border); color: var(--red)}
+.pill.danger:hover{background: var(--red-bg)}
+
+/* Theme toggle */
+.theme-toggle{
+  width:38px;height:38px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color:var(--accent);
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px;
+  transition: all .15s ease;
+}
+.theme-toggle:hover{border-color: var(--accent-border); background: var(--accent-bg)}
+
+.sidebar{
+  grid-row: 2;
+  grid-column: 1;
+  min-width:0;
+  border-right:1px solid var(--line);
+  background: var(--panel);
+  padding:16px 12px;
+  overflow:auto;
+}
+.sidebar__label{
+  font-family: 'Inter', sans-serif;
+  font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--muted); padding:4px 10px 12px;
+}
+.sidebar__footer{margin-top:18px; padding:12px; border-top:1px solid var(--line)}
+.tiny{font-size:12px;color:var(--muted)}
+
+.nav-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background: transparent;
+  color:var(--text-secondary);
+  cursor:pointer;
+  text-align:left;
+  font-family: var(--font-sans);
+  font-weight:500;
+  font-size: 14px;
+  transition: all .15s ease;
+}
+.nav-btn:hover{background: var(--accent-bg); color: var(--accent)}
+.nav-btn.is-active{background: var(--accent-bg); border-color: var(--accent-border); color: var(--accent)}
+.nav-btn__icon{width:22px; display:inline-flex; justify-content:center}
+.nav-btn__icon i{font-size:15px}
+
+.sidebar-theme-btn{
+  width:100%;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid transparent;
+  background: transparent;
+  color:var(--text-secondary);
+  cursor:pointer;
+  text-align:left;
+  font-family: var(--font-sans);
+  font-weight:500;
+  font-size: 14px;
+  transition: all .15s ease;
+}
+.sidebar-theme-btn:hover{background: var(--accent-bg); color: var(--accent)}
+
+.main{
+  grid-row:2;
+  grid-column: 2;
+  min-width:0;
+  padding:24px;
+  overflow:auto;
+  overflow-x:hidden;
+}
+
+.view{display:none; max-width: 1100px; width:100%; margin:0 auto}
+.view.is-visible{display:block}
+
+h1{
+  font-family: var(--font-serif);
+  font-weight:600;
+  letter-spacing:-0.01em;
+  margin:0 0 10px;
+  color: var(--text-primary);
+}
+.muted{color:var(--muted)}
+.cards{display:grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap:14px; margin-top:16px}
+.card{
+  border:1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding:16px;
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+.card:hover{box-shadow: var(--shadow2); border-color: var(--border-strong)}
+
+.card--action{cursor:pointer; text-align:left; width:100%}
+.card--action:hover{border-color: var(--accent-border)}
+.card--action:focus{outline:2px solid var(--accent-border); outline-offset:2px}
+.card__title{font-family: var(--font-serif); font-weight:600; margin-bottom:6px; color:var(--text-primary)}
+.card__title i{color: var(--accent); margin-right:6px; font-size:0.9em}
+.card__body{color:var(--muted); font-size:14px}
+
+.split{display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start}
+.panel{
+  border:1px solid var(--line);
+  background: var(--panel);
+  border-radius: var(--radius2);
+  box-shadow: var(--shadow);
+  padding:16px;
+}
+.panel__title{font-family: var(--font-serif); font-weight:600; margin-bottom:12px; color:var(--text-primary)}
+
+.weeks{
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap:8px;
+}
+.week{
+  padding:10px 8px;
+  border-radius: 10px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text-secondary);
+  cursor:pointer;
+  text-align:center;
+  font-size:13px;
+  font-weight:500;
+  transition: all .15s ease;
+}
+.week:hover{border-color: var(--accent-border); color: var(--accent)}
+.week.is-selected{border-color: var(--accent); color: var(--accent); background: var(--accent-bg); box-shadow: 0 0 0 3px var(--accent-bg) inset}
+
+.view__header{display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px}
+.view__hint{font-size:13px; color: var(--muted)}
+.view__nav{display:flex; gap:8px; align-items:center}
+
+.form{display:grid; gap:10px; margin-top:4px}
+.field{display:grid; gap:6px}
+.field__label{font-size:12px; color: var(--muted); font-weight:500}
+select{
+  width:100%;
+  padding:10px 12px;
+  border-radius: 10px;
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  font-family: var(--font-sans);
+  outline:none;
+  transition: border-color .15s ease;
+}
+select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
+.actions{display:flex; gap:8px; flex-wrap:wrap}
+
+.placeholder{
+  margin-top:16px;
+  border:1px dashed var(--border-strong);
+  border-radius: var(--radius2);
+  padding:16px;
+  background: var(--surface-alt);
+}
+.placeholder__title{font-family: var(--font-serif); font-weight:600; margin-bottom:6px}
+.placeholder__body{color:var(--muted); font-size:14px}
+
+.grid{display:grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap:10px}
+.tile{
+  height:90px;
+  border-radius: 12px;
+  border:1px solid var(--line);
+  background: var(--panel);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color: var(--muted);
+}
+
+
+/* Notas - sub-vistas */
+.is-hidden{display:none !important}
+.panel__title-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+.weeks--wide{grid-template-columns: repeat(6, 1fr)}
+.week-activities{display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-top:12px}
+.activity{
+  border:1px solid var(--line);
+  background: var(--surface-alt);
+  border-radius: var(--radius2);
+  padding:14px;
+}
+.activity__title{font-family: var(--font-serif); font-weight:600; margin-bottom:10px}
+
+
+/* Notas - botones por actividad + semana completada */
+.week.is-done{
+  background: var(--green-bg);
+  border-color: var(--green-border);
+  color: var(--green);
+}
+.week.is-done:hover{border-color: var(--green)}
+.week-tools{display:flex; align-items:center; justify-content:flex-start; margin:6px 0 12px}
+.check{display:flex; gap:10px; align-items:center; user-select:none; color: var(--text)}
+.check input{width:18px; height:18px; accent-color: var(--accent)}
+
+.week-actions{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap:12px;
+  margin-top:6px;
+}
+.big-btn{
+  padding:14px 16px;
+  border-radius: var(--radius2);
+  border:1px solid var(--line);
+  background: var(--panel2);
+  color: var(--text);
+  cursor:pointer;
+  text-align:left;
+  font-family: var(--font-sans);
+  font-weight:600;
+  transition: all .15s ease;
+}
+.big-btn:hover{border-color: var(--accent-border); background: var(--accent-bg); color: var(--accent)}
+
+@media (max-width: 920px){
+  /* Fuerza layout 1-col en móviles (evita que quede "pegado" al ancho del sidebar) */
+  .app-shell{grid-template-columns: 1fr !important}
+  .app-shell.is-sidebar-collapsed{grid-template-columns: 1fr !important}
+  .sidebar{
+    position:fixed;
+    top: var(--topbarH);
+    left:0;
+    height: calc(100% - var(--topbarH));
+    width: min(86vw, var(--sidebarW));
+    transform: translateX(-110%);
+    transition: transform .18s ease;
+    z-index:30;
+    box-shadow: var(--shadow2);
+  }
+  .app-shell.is-sidebar-open .sidebar{transform: translateX(0)}
+  .main{padding:16px; grid-column: 1 !important}
+  .split{grid-template-columns: 1fr}
+  .weeks{grid-template-columns: repeat(6,1fr)}
+  .app-shell.is-sidebar-open .sidebar__label,
+  .app-shell.is-sidebar-open .sidebar__footer,
+  .app-shell.is-sidebar-open .nav-btn__text{
+    display: block !important;
+  }
+  .app-shell.is-sidebar-open .nav-btn,
+  .app-shell.is-sidebar-open .sidebar-theme-btn{
+    justify-content: flex-start !important;
+    padding: 10px 12px !important;
+  }
+  .app-shell.is-sidebar-open .nav-btn__icon{
+    margin-right: 10px !important;
+    font-size: 15px !important;
+  }
+}
+.panel__sub{margin-top:16px; padding-top:14px; border-top:1px solid var(--line)}
+.panel__subtitle{font-family: var(--font-serif); font-weight:600; margin:0 0 10px 0}
+.panel__subtitle--tight{margin:0}
+.panel__subtitle-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+.pill--icon{display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:0; font-size:14px}
+
+.sheet-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.sheet-title{font-family: var(--font-serif); font-weight:600; font-size:20px}
+.sheet-actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+
+.input{
+  width:100%;
+  background: var(--panel2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 12px;
+  color:var(--text);
+  font-family: var(--font-sans);
+  outline:none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.input:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
+.textarea{
+  width:100%;
+  min-height:160px;
+  resize:vertical;
+  background: var(--panel2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px;
+  color:var(--text);
+  font-family: var(--font-sans);
+  font-size:12.5px;
+  outline:none;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.textarea:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
+
+.input--mini{max-width:64px; text-align:center}
+.input--mini2{max-width:70px; text-align:center}
+.input--mini5{max-width:110px; text-align:center}
+
+/* Notas (Takers/Cultos/Líderes): cabecera con Tema + Fecha */
+.note-head{
+  display:flex;
+  gap:32px;
+  flex-wrap:wrap;
+  align-items:center;
+  margin: 6px 0 10px;
+}
+.note-head__field{display:flex; flex-direction:row; align-items:center; gap:8px}
+.input--tema{max-width: 220px}
+.note-head__field--date{align-items:center}
+.note-head__date{
+  color: var(--muted);
+  font-size:12.5px;
+  white-space:nowrap;
+}
+
+.dc-top{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 12px;
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+.dc-top__label{font-family: var(--font-serif); font-weight:600; font-size:20px}
+.dc-top__name{font-style:italic; color: var(--text-secondary)}
+.dc-top__date{display:flex; flex-direction:column; gap:4px; min-width:180px}
+
+.dc-grid{
+  display:grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap:2px 20px;
+}
+.dc-item{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 0;
+  border-bottom:1px solid var(--line);
+}
+.dc-item__main{flex:1 1 auto; min-width:0}
+.dc-item__title{font-weight:600; font-size:12.5px; color:var(--text); line-height:1.3}
+.dc-item__note{margin-top:1px; font-size:10.5px; font-style:italic; color: var(--muted)}
+.dc-item__time{display:flex; align-items:center; gap:3px; flex:0 0 auto}
+.dc-item__ref{font-size:12px; font-weight:600; min-width:14px; text-align:right; color: var(--accent)}
+.dc-item__slash{font-size:11px; color:var(--muted)}
+.dc-item__resp{flex:0 0 100px; max-width:100px}
+.dc-item__resp .dc-namewheel__value{padding:5px 8px; font-size:12px; border-radius:8px}
+
+/* Wheel de tiempo (selector 0-60 tipo temporizador móvil) */
+.dc-wheel{position:relative; display:inline-block}
+.dc-wheel__value{
+  width:34px;
+  padding:5px 2px;
+  font-size:12px;
+  border-radius:8px;
+  text-align:center;
+  cursor:pointer;
+  caret-color: transparent;
+}
+.dc-wheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-wheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:50%;
+  transform:translateX(-50%);
+  width:80px;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-wheel__panel::before,
+.dc-wheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-wheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-wheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-wheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-wheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-wheel__list::-webkit-scrollbar{display:none}
+.dc-wheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  scroll-snap-align:center;
+  font-size:15px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+}
+.dc-wheel__option.is-active{
+  color: var(--text);
+  font-weight:700;
+  font-size:17px;
+}
+
+.dc-summary{
+  display:grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr));
+  gap:10px;
+  align-items:end;
+}
+.dc-summary__item{display:flex; flex-direction:column; gap:4px}
+
+/* Wheel de nombres (Responsable) — mismo patrón que .dc-wheel (tiempo),
+   pero ancho completo y opciones de texto en vez de números. La lista se
+   reconstruye cada vez que se abre, leyendo en vivo los nombres actuales
+   de la tabla de discípulos (#attMainBody) + visitas (#attVisitBody). */
+.dc-namewheel{position:relative; width:100%}
+.dc-namewheel__value{width:100%; box-sizing:border-box; cursor:pointer; caret-color:transparent}
+.dc-namewheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-namewheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  right:0;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-namewheel__panel::before,
+.dc-namewheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-namewheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-namewheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-namewheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-namewheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-namewheel__list::-webkit-scrollbar{display:none}
+.dc-namewheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  padding:0 14px;
+  scroll-snap-align:center;
+  font-size:14px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.dc-namewheel__option.is-active{
+  color: var(--text);
+  font-weight:700;
+}
+
+.dc-followup__head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-top:8px;
+  margin-bottom:8px;
+}
+.dc-followup__buttons{display:flex; gap:8px}
+
+.table-wrap{overflow:auto; border:1px solid var(--line); border-radius: 12px}
+/* Seguimiento: overflow visible siempre (no solo en móvil) para que el panel
+   del wheel de tiempo/responsable no quede recortado ni genere scroll interno
+   al abrirse dentro de esta sección. */
+.dc-follow-wrap{overflow:visible}
+.table{
+  width:100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  background: var(--panel);
+}
+.table th, .table td{
+  border-bottom: 1px solid var(--line);
+  padding:10px;
+  vertical-align:middle;
+}
+.table thead th{
+  text-align:left;
+  font-size:11px;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-weight:600;
+}
+
+/* Calendario (tabla tipo "Excel") */
+.cal-table{
+  min-width: 920px;
+}
+.cal-table thead th{
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--panel2);
+}
+.cal-actions{
+  white-space: nowrap;
+}
+.dc-table__just{width:160px}
+.dc-table__date{width:160px}
+.dc-just{display:inline-flex; align-items:center; gap:6px; margin-right:10px; font-size:12px; color:var(--text)}
+.dc-just input{accent-color: var(--accent)}
+
+/* Justificó (Seguimiento) en móvil: se reemplaza el checkbox Sí/No por un
+   wheel con scroll-snap (mismo patrón visual que .dc-optwheel, reutilizando
+   sus clases __value/__panel/__marker/__list/__option), ligado a los MISMOS
+   radios reales (siguen en el DOM, ocultos), así collectDcDraft/applyDcDraft
+   no cambian. En PC se mantienen los radios de siempre. Ver initJustWheels()
+   en app.js. */
+.dc-just-mobile{display:none}
+.dc-just-mobile__box{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background: var(--panel);
+  padding:6px 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.dc-just-mobile__label{font-size:11px; font-weight:600; color: var(--muted); white-space:nowrap}
+.dc-justwheel{position:relative; width:28px}
+.dc-just-mobile .dc-optwheel__value{border:none; background:transparent; padding:2px 4px; text-align:center}
+.dc-justwheel .dc-optwheel__panel{width:90px; left:50%; right:auto; transform:translateX(-50%)}
+@media (max-width: 920px){
+  .dc-just-radios{display:none}
+  .dc-just-mobile{display:flex; align-items:stretch}
+}
+
+/* #dcFollowTable (Seguimiento): mismo tamaño/tipo de letra compacto que
+   Dinámica Celular, en vez del tamaño grande heredado de .table/.input. */
+#dcFollowTable td, #dcFollowTable th{ font-size:12.5px; }
+#dcFollowTable td .input, #dcFollowTable td .dc-namewheel__value{ font-size:12.5px; }
+
+/* Seguimiento en móvil: la tabla se convierte en tarjetas apiladas (nunca lado a
+   lado), sin scroll lateral. En PC/tablet ancho (>920px) sigue siendo la tabla
+   normal, sin cambios. Es el MISMO <table> y los MISMOS <tr>/<td> — solo se
+   les cambia el modo de layout con CSS Grid, así que toda la lógica de
+   JS (collectDcDraft, makeFollowRow, etc.) sigue funcionando sin tocarla. */
+@media (max-width: 920px){
+  #dcFollowTable{ min-width:0; width:100%; display:block; }
+  #dcFollowTable thead{ display:none; }
+  #dcFollowTable tbody{ display:block; }
+  #dcFollowTable tr{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name enc"
+      "just date";
+    gap:8px 10px;
+    border:1px solid var(--border-strong);
+    border-radius: 12px;
+    padding:10px;
+    margin-bottom:10px;
+    background: var(--panel);
+  }
+  #dcFollowTable tr:last-child{ margin-bottom:0; }
+  #dcFollowTable td{
+    display:block;
+    border-bottom:none;
+    padding:0;
+    width:auto;
+  }
+  #dcFollowTable td:nth-child(1){ grid-area:name; }
+  #dcFollowTable td:nth-child(2){ grid-area:enc; }
+  #dcFollowTable td.dc-table__just{ grid-area:just; align-self:center; }
+  #dcFollowTable td.dc-table__date{ grid-area:date; }
+  #dcFollowTable td.dc-table__date .input{ width:100%; box-sizing:border-box; }
+  #dcFollowTable td .dc-namewheel__value,
+  #dcFollowTable td.dc-table__date .input{ background: var(--panel); text-align:center; }
+  .dc-follow-wrap{ overflow:visible; border:none; }
+}
+
+@media (max-width: 920px){
+  .dc-summary{grid-template-columns: repeat(2, minmax(160px, 1fr))}
+}
+
+/* Dinámica Celular en móvil: misma lista compacta que PC, solo baja a 1
+   columna — sin tarjetas, sin recuadros. */
+@media (max-width: 920px){
+  #dcBlocks{ grid-template-columns: 1fr; }
+}
+
+
+/* -----------------------------
+   Editor de texto (RTE)
+   ----------------------------- */
+.rte{margin-top:12px}
+.rte__editor{
+  min-height:280px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background: var(--panel2);
+  outline:none;
+  line-height:1.6;
+}
+.rte__editor:empty:before{
+  content:"Escribe aquí…";
+  color: var(--muted);
+}
+.rte__editor:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
+
+/* Hojas de texto libre (Takers/Cultos/Líderes) a pantalla completa: el editor ocupa
+   todo el alto disponible y solo él genera scroll interno; la página no se desplaza. */
+body.notes-fullheight .main{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body.notes-fullheight #view-notas.is-visible{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight #view-notas.is-visible > .panel{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .sheet-body{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .rte{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .rte__editor{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+}
+@media (max-width:920px){
+  body.notes-fullheight .main{padding-bottom:0}
+}
+
+
+/* -----------------------------
+   Mis Doce (tabla tipo excel)
+   ----------------------------- */
+.md-table{min-width: 980px}
+#btnMdAddRow, #btnMdRemoveRow{border-color: var(--border-strong)}
+.md-bday-wrap{display:flex; align-items:center; justify-content:center; gap:6px}
+.md-bday-sep{color: var(--muted)}
+.md-zona{max-width: 140px}
+.md-zona:disabled{opacity:.45; cursor:not-allowed}
+.md-plan{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  align-items:center;
+}
+.md-plan label{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  font-size:13px;
+  color: var(--text);
+  white-space:nowrap;
+  user-select:none;
+}
+.md-plan input{accent-color: var(--accent)}
+.md-drc{min-width: 140px}
+.md-note{margin-top:10px; line-height:1.5; color: var(--text-secondary)}
+
+
+/* -----------------------------
+   Asistencia (app externa integrada)
+   Todo scoped bajo .dc-att-app: nunca toca --accent global del :root,
+   usa variables propias (--att-*) que por defecto heredan el tema activo
+   (Verso claro/oscuro) y que el selector de "Unidad" solo sobreescribe
+   localmente en este contenedor, no en toda la interfaz.
+   ----------------------------- */
+.dc-att-app{
+  --att-accent: var(--accent);
+  --att-accent-dark: var(--accent2);
+  --att-accent-bg: var(--accent-bg);
+  --att-accent-bdr: var(--accent-border);
+
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  font-family: var(--font-sans);
+  color: var(--text);
+}
+
+.dc-att__header{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.dc-att__unit-row{display:flex; gap:8px}
+.dc-att__unit-row .dc-att__select-wrap{flex:1 1 0; min-width:0}
+.dc-att__select-wrap{position:relative; width:100%}
+.dc-att__select-wrap--leader{width:100%}
+
+/* En PC los 3 selectores (Unidad, Sección, Líder) van en una sola línea.
+   En móvil (≤920px) se mantiene el apilado original: sin cambios ahí. */
+@media (min-width: 921px){
+  .dc-att__header{ flex-direction:row; align-items:stretch; }
+  .dc-att__unit-row{ display:contents; }
+  .dc-att__select-wrap--leader{ width:auto; flex:1 1 0; min-width:0; }
+}
+
+/* El <select> real sigue existiendo (attColorSelector/attSectionSelector/
+   attLeaderName) porque toda la lógica de app.js lee/escucha sobre él; solo
+   se oculta visualmente. Lo que se ve es el wheel de abajo (.dc-optwheel). */
+.dc-att__select-native{
+  position:absolute;
+  width:1px; height:1px;
+  padding:0; margin:0; border:0;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+}
+
+/* Wheel de opciones (Equipos/Sección/Líder) — mismo patrón visual y de
+   scroll-snap que .dc-namewheel (Responsable), como clase aparte para no
+   chocar con initNameWheels(). Ver initSelectWheels() en app.js. */
+.dc-optwheel{position:relative; width:100%}
+.dc-optwheel__value{
+  width:100%;
+  box-sizing:border-box;
+  padding:5px 8px;
+  border-radius:8px;
+  font-size:12px;
+  text-align:center;
+  cursor:pointer;
+  caret-color:transparent;
+}
+.dc-optwheel__value:focus{outline:2px solid var(--accent); outline-offset:1px}
+.dc-optwheel__panel{
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  right:0;
+  height:132px;
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow2);
+  z-index:30;
+  overflow:hidden;
+}
+.dc-optwheel__panel::before,
+.dc-optwheel__panel::after{
+  content:"";
+  position:absolute;
+  left:0; right:0;
+  height:48px;
+  pointer-events:none;
+  z-index:2;
+}
+.dc-optwheel__panel::before{top:0; background:linear-gradient(to bottom, var(--panel), transparent)}
+.dc-optwheel__panel::after{bottom:0; background:linear-gradient(to top, var(--panel), transparent)}
+.dc-optwheel__marker{
+  position:absolute;
+  top:50%;
+  left:0; right:0;
+  height:36px;
+  transform:translateY(-50%);
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  pointer-events:none;
+  z-index:1;
+}
+.dc-optwheel__list{
+  height:100%;
+  overflow-y:auto;
+  scroll-snap-type: y mandatory;
+  padding:48px 0;
+  scrollbar-width:none;
+}
+.dc-optwheel__list::-webkit-scrollbar{display:none}
+.dc-optwheel__option{
+  height:36px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0 14px;
+  scroll-snap-align:center;
+  font-size:13px;
+  color: var(--muted);
+  cursor:pointer;
+  user-select:none;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.dc-optwheel__option.is-active{
+  color: var(--text);
+  font-weight:700;
+}
+
+.dc-att__offering{
+  background: var(--panel);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:14px;
+}
+.dc-att__offering-grid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  margin-bottom:10px;
+}
+.dc-att__offering-item{display:flex; flex-direction:column; gap:6px; font-size:12.5px; font-weight:600; color: var(--text)}
+.dc-att__offering-item .input{width:100%; box-sizing:border-box; font-size:12.5px}
+.dc-att__offering-total{
+  text-align:center;
+  font-weight:700;
+  font-size:12.5px;
+  border-top:1px dashed var(--line);
+  padding-top:10px;
+  color: var(--text);
+}
+
+.dc-att__section-title{
+  background: var(--panel2);
+  color: var(--text);
+  padding:10px 14px;
+  border:1px solid var(--line);
+  border-bottom:2px solid var(--att-accent);
+  border-radius: 10px 10px 0 0;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-family: var(--font-serif);
+  font-weight:600;
+  font-size:15px;
+  letter-spacing:.01em;
+}
+.dc-att__btn-add{
+  width:26px;
+  height:26px;
+  background: transparent;
+  border:1px solid var(--att-accent);
+  color: var(--att-accent);
+  padding:0;
+  border-radius:50%;
+  cursor:pointer;
+  font-size:14px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.dc-att__btn-add:hover{background: var(--att-accent-bg)}
+
+.dc-att-app .table-wrap{border-top:none; border-radius: 0 0 10px 10px; margin-bottom:4px; overflow:visible}
+.dc-att-app .dc-att__table{min-width:0; width:100%; table-layout:fixed}
+.dc-att-app .dc-att__table th:first-child,
+.dc-att-app .dc-att__table td:first-child{width:26px; padding-left:2px; padding-right:0}
+.dc-att-app .check-col{text-align:center; width:44px; padding-left:2px; padding-right:2px; white-space:nowrap}
+.dc-att-app .check-col--wide{width:62px}
+.dc-att-app .in-n{
+  width:100%;
+  box-sizing:border-box;
+  border:1px solid transparent;
+  border-radius:6px;
+  padding:6px;
+  font-size:12.5px;
+  font-family: var(--font-sans);
+  background:transparent;
+  color: var(--text);
+}
+.dc-att-app .in-n:focus{border-bottom:2px solid var(--att-accent); outline:none}
+.dc-att-app input[type="checkbox"]{transform:scale(1.15); cursor:pointer; accent-color: var(--att-accent)}
+
+/* En PC la línea de "Nombre del discípulo" se reduce ~30% para dar más aire
+   a las columnas de checkboxes (Célula/Red/Nuevo). En móvil sigue a 100%. */
+@media (min-width: 921px){
+  .dc-att-app .in-n{ width:70%; }
+}
+.dc-att__btn-del{
+  border:none;
+  background:none;
+  width:auto;
+  color: var(--att-accent);
+  cursor:pointer;
+  font-weight:700;
+  font-size:1em;
+  padding:4px 6px;
+}
+
+.dc-att__summary{
+  background: var(--panel2);
+  border:1px solid var(--line);
+  border-radius: var(--radius);
+  padding:14px;
+  font-size:12.5px;
+}
+.dc-att__summary-title{
+  text-align:center;
+  font-weight:700;
+  margin-bottom:8px;
+  border-bottom:1px solid var(--line);
+  padding-bottom:8px;
+  color: var(--att-accent);
+}
+.dc-att__summary-row{display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--line)}
+.dc-att__summary-row:last-child{border-bottom:none}
+.dc-att__summary-row span:first-child{color: var(--text-secondary)}
+.dc-att__summary-row span:last-child{font-weight:700}
+.dc-att__summary-nuevos{text-align:center; margin-top:8px; font-size:.85em; color: var(--accent2); font-weight:700}
+
+.dc-att__actions{display:flex; gap:8px; flex-wrap:nowrap}
+.dc-att__actions .pill{
+  width:auto;
+  flex:1 1 0;
+  min-width:0;
+  margin-top:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  white-space:nowrap;
+}
+
+@media (max-width: 640px){
+  /* Sinpe/Efectivo lado a lado en móvil (monto máx. 100000 -> input angosto) */
+  .dc-att__offering-grid{grid-template-columns:1fr 1fr; gap:8px}
+  .dc-att__offering-item{font-size:11px; gap:4px}
+  .dc-att__offering-item .input{padding:8px 6px; font-size:12px; text-align:center}
+}

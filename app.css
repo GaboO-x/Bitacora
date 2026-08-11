@@ -496,13 +496,19 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 /* Notas (Takers/Cultos/Líderes): cabecera con Tema + Fecha */
 .note-head{
   display:flex;
-  gap:12px;
+  gap:32px;
   flex-wrap:wrap;
-  align-items:flex-end;
+  align-items:center;
   margin: 6px 0 10px;
 }
-.note-head__field{display:flex; flex-direction:column; gap:6px}
-.input--tema{max-width: 260px}
+.note-head__field{display:flex; flex-direction:row; align-items:center; gap:8px}
+.input--tema{max-width: 220px}
+.note-head__field--date{align-items:center}
+.note-head__date{
+  color: var(--muted);
+  font-size:12.5px;
+  white-space:nowrap;
+}
 
 .dc-top{
   display:flex;
@@ -844,13 +850,56 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .rte__editor:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 
+/* Hojas de texto libre (Takers/Cultos/Líderes) a pantalla completa: el editor ocupa
+   todo el alto disponible y solo él genera scroll interno; la página no se desplaza. */
+body.notes-fullheight .main{
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body.notes-fullheight #view-notas.is-visible{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight #view-notas.is-visible > .panel{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .sheet-body{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .rte{
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-height:0;
+}
+body.notes-fullheight .rte__editor{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+}
+@media (max-width:920px){
+  body.notes-fullheight .main{padding-bottom:0}
+}
+
 
 /* -----------------------------
    Mis Doce (tabla tipo excel)
    ----------------------------- */
 .md-table{min-width: 980px}
-.md-bday{max-width: 110px}
-.md-phone{max-width: 130px}
+#btnMdAddRow, #btnMdRemoveRow{border-color: var(--border-strong)}
+.md-bday-wrap{display:flex; align-items:center; justify-content:center; gap:6px}
+.md-bday-sep{color: var(--muted)}
+.md-zona{max-width: 140px}
+.md-zona:disabled{opacity:.45; cursor:not-allowed}
 .md-plan{
   display:flex;
   flex-wrap:wrap;

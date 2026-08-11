@@ -212,6 +212,18 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return (v ?? "").toString();
   }
 
+  // Ordena por cercanía a la fecha actual (la más próxima primero),
+  // sin importar si el evento ya pasó o está por venir.
+  function sortCalByProximity(rows) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return [...(rows || [])].sort((a, b) => {
+      const da = a.event_date ? Math.abs(new Date(a.event_date + "T00:00:00") - today) : Infinity;
+      const db = b.event_date ? Math.abs(new Date(b.event_date + "T00:00:00") - today) : Infinity;
+      return da - db;
+    });
+  }
+
   function fmtMoney(v) {
     if (v === null || v === undefined || v === "") return "";
     const num = Number(v);
@@ -332,7 +344,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         return;
       }
 
-      calRows = Array.isArray(data) ? data : [];
+      calRows = sortCalByProximity(Array.isArray(data) ? data : []);
       renderCalTable();
       setCalMsg("", false);
     } finally {

@@ -1,0 +1,1644 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seguimiento de Lectura Bíblica</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Incluye Tailwind CSS para un diseño limpio y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* ==========================================================
+           SHARED TOKEN SET (app madre) — mismos nombres de variable
+           que Verso/Biblia360. Claro = default.
+           ========================================================== */
+        :root{
+            --ink: #FAF6F1;
+            --ink-soft: #FFFFFF;
+            --ink-row: #F7F1E8;
+            --ink-line: #E8DDD0;
+            --gold: #A60321;
+            --gold-dim: #E6C9AF;
+            --text: #34271F;
+            --text-muted: #A08C76;
+            --success: #10b981;
+            --success-soft: #d1fae5;
+        }
+        :root[data-theme="dark"]{
+            --ink: #1B1F2E;
+            --ink-soft: #242A3D;
+            --ink-row: #20263A;
+            --ink-line: #333B54;
+            --gold: #C9A24B;
+            --gold-dim: #8A7239;
+            --text: #EDE8DC;
+            --text-muted: #9098AC;
+            --success: #10b981;
+            --success-soft: rgba(16, 185, 129, 0.18);
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--ink);
+            color: var(--text);
+        }
+        .month-card {
+            background: var(--ink-soft);
+        }
+        /* ── App header (calcado de Verso/biblia360: mismo padding, tipografia y borde) ── */
+        .app-header {
+            padding: 40px 24px 28px;
+            text-align: center;
+            border-bottom: 1px solid var(--ink-line);
+        }
+        .app-header h1 {
+            font-family: 'Fraunces', serif;
+            font-weight: 600;
+            font-size: clamp(28px, 6vw, 40px);
+            letter-spacing: -0.01em;
+            color: var(--text);
+        }
+        .chapter {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            border-radius: 9999px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 2px;
+            background-color: var(--ink-line);
+            color: var(--text);
+            border: 1px solid var(--ink-line);
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            /* Tamaño fijo para todos los cuadros */
+            width: 65px; 
+            height: 32px;
+        }
+        .chapter:hover {
+            border-color: var(--gold-dim);
+        }
+        .chapter.read {
+            background-color: var(--success);
+            color: #fff;
+            text-decoration: line-through;
+        }
+        .day-row {
+            display: grid;
+            grid-template-columns: 20px 1fr;
+            gap: 8px;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid var(--ink-line);
+        }
+        .day-row:last-child {
+            border-bottom: none;
+        }
+        .day-row.completed {
+            background-color: var(--success-soft);
+        }
+/* Título del mes */
+.month-title {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 8px 16px;
+  border-radius: 10px;
+  background-color: var(--gold);
+  color: var(--ink-soft);
+  font-weight: bold;
+  margin: 0 0 15px 0;
+}
+
+/* Contenedor del mes */
+.month-container {
+  max-width: 700px;          /* <-- ajusta este valor para que quede como el cuadro rojo */
+  margin: 0 auto 30px auto;  /* centra todo el bloque */
+}
+        .day-number {
+            font-weight: 700;
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+        .chapter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+    
+/* === Progreso del plan (barra) === */
+.progress-wrap { margin-bottom: 1.25rem; }
+.progress {
+  width: 100%;
+  height: 12px;
+  background: var(--ink-line);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.progress__fill {
+  height: 100%;
+  width: 0;
+  background: var(--success);
+  transition: width .4s ease;
+}
+.progress__label {
+  text-align: center;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+/* === Checkboxes de día y capítulo === */
+.day-check { margin-right: 6px; transform: translateY(1px); }
+.chap-wrap { display: inline-flex; align-items: center; gap: 6px; }
+.chap-check { transform: translateY(1px); }
+
+/* === Alineación del checkbox de día === */
+.day-wrap { display: inline-flex; align-items: center; gap: 6px; }
+
+/* === Separación fija entre número de día y capítulos === */
+.day-row { align-items: center; }
+.day-number { display: inline-flex; align-items: center; gap: 6px; }
+/* Empuja todo el bloque de capítulos a la derecha del número de día */
+.day-row .chapter-container { margin-left: 3rem; } /* ~48px */
+
+/* === Dropdown de versión bíblica === */
+.version-wrap { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; }
+.version-label { font-size: 14px; color: var(--text-muted); }
+.version-select { padding: 4px 8px; border: 1px solid var(--ink-line); border-radius: 6px; background: var(--ink-soft); color: var(--text); }
+
+
+/* === Ajustes de ancho solicitados (solo anchos) === */
+/* Título de mes: se ajusta al contenido (no ocupa todo el ancho) */
+.month-title {
+  display: inline-block;
+  text-align: left;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* Título de mes fijo al hacer scroll: se mantiene visible mientras ese
+   mes esté en pantalla, y el siguiente título lo reemplaza al llegar. */
+.month-title {
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+}
+
+/* === Selector de ritmo de lectura (4 vs 2 versiculos/dia) === */
+.plan-mode-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 0.75rem; }
+.plan-mode-label { font-size: 14px; color: var(--text-muted); }
+.plan-mode-toggle { display: inline-flex; border: 1px solid var(--ink-line); border-radius: 8px; overflow: hidden; }
+.plan-mode-btn {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--ink-soft);
+  color: var(--text);
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.plan-mode-btn + .plan-mode-btn { border-left: 1px solid var(--ink-line); }
+.plan-mode-btn:hover { background: var(--ink-row); }
+.plan-mode-btn.active { background: var(--gold); color: var(--ink-soft); }
+
+/* Caja principal (contenedor del mes): reduce el ancho total */
+.month {
+  max-width: 680px;   /* ancho de la caja roja aprox; ajustable */
+  width: 100%;
+  margin-left: 0;     /* alineado a la izquierda del contenedor padre */
+  margin-right: auto;
+}
+
+</style>
+</head>
+<body>
+
+    <!-- App header (mismo tratamiento que Verso/Biblia360: Fraunces centrado + linea inferior a todo el ancho) -->
+
+    <div id="app" class="container mx-auto max-w-4xl p-4 sm:p-8">
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════
+        // TEMA: controlado 100% por la app madre via postMessage
+        // (sin botón/control local; ver listener 'message' abajo)
+        // ═══════════════════════════════════════════
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            try { localStorage.setItem('lectura_theme', theme); } catch(e) {}
+        }
+        (function initTheme() {
+            let saved = 'light';
+            try { saved = localStorage.getItem('lectura_theme') || 'light'; } catch(e) {}
+            applyTheme(saved);
+        })();
+        // Tema controlado 100% desde la app madre (sidebar):
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data && data.action === 'setTheme' && (data.theme === 'light' || data.theme === 'dark')) {
+                applyTheme(data.theme);
+            }
+        });
+
+        // Objeto para mapear nombres completos de libros a acronimos
+        const acronyms = {
+            "Genesis": "Gn", "Exodo": "Ex", "Levitico": "Lv", "Numeros": "Num", "Deuteronomio": "Dt",
+            "Josue": "Jos", "Jueces": "Jue", "Rut": "Rt", "1 Samuel": "1 Sam", "2 Samuel": "2 Sam",
+            "1 Reyes": "1 Re", "2 Reyes": "2 Re", "1 Cronicas": "1 Cr", "2 Cronicas": "2 Cr",
+            "Esdras": "Esd", "Nehemias": "Ne", "Ester": "Est", "Job": "Job", "Salmos": "Sal",
+            "Proverbios": "Pr", "Eclesiastes": "Ecl", "Cantares": "Cant", "Isaias": "Is",
+            "Jeremias": "Jer", "Lamentaciones": "Lam", "Ezequiel": "Ez", "Daniel": "Dan",
+            "Oseas": "Os", "Joel": "Jl", "Amos": "Am", "Abdias": "Abd", "Jonas": "Jon",
+            "Miqueas": "Mi", "Nahum": "Nah", "Habacuc": "Hab", "Sofonias": "Sof",
+            "Hageo": "Ag", "Zacarias": "Zac", "Malaquias": "Mal",
+            "Mateo": "Mt", "Marcos": "Mc", "Lucas": "Lc", "Juan": "Jn", "Hechos": "Hch",
+            "Romanos": "Rom", "1 Corintios": "1 Co", "2 Corintios": "2 Co", "Galatas": "Gal",
+            "Efesios": "Ef", "Filipenses": "Fil", "Colosenses": "Col",
+            "1 Tesalonicenses": "1 Ts", "2 Tesalonicenses": "2 Ts",
+            "1 Timoteo": "1 Ti", "2 Timoteo": "2 Ti", "Tito": "Tit", "Filemon": "Flm",
+            "Hebreos": "Heb", "Santiago": "Stg", "1 Pedro": "1 P", "2 Pedro": "2 P",
+            "1 Juan": "1 Jn", "2 Juan": "2 Jn", "3 Juan": "3 Jn", "Judas": "Jud",
+            "Apocalipsis": "Ap"
+        };
+        
+        // Función para obtener el acrónimo de un libro y su capítulo
+        function getAcronym(chapterString) {
+            const parts = chapterString.trim().split(' ');
+            if (parts.length > 1) {
+                const chapterNumber = parts.pop();
+                let bookName = parts.join(' ').trim();
+                
+                // Mapeo especial para los libros con números
+                if (bookName.startsWith('1 ') || bookName.startsWith('2 ')) {
+                    const firstPart = parts[0];
+                    const secondPart = parts.slice(1).join(' ');
+                    const acronym = acronyms[firstPart + secondPart] || acronyms[bookName];
+                    return `${acronym} ${chapterNumber}`;
+                }
+                
+                // Intenta encontrar el acrónimo para el nombre del libro
+                const acronym = acronyms[bookName] || bookName;
+                return `${acronym} ${chapterNumber}`;
+            }
+            return chapterString;
+        }
+
+
+        // Datos del plan de lectura, se pueden expandir para todo el año
+        const readingPlanData4v = {
+            "ENERO": [
+                ["Genesis 1", "Job 1", "Isaias 1", "Mateo 1"],
+                ["Genesis 2", "Job 2", "Isaias 2", "Mateo 2"],
+                ["Genesis 3", "Job 3", "Isaias 3", "Mateo 3"],
+                ["Genesis 4", "Job 4", "Isaias 4", "Mateo 4"],
+                ["Genesis 5", "Job 5", "Isaias 5", "Mateo 5"],
+                ["Genesis 6", "Job 6", "Isaias 6", "Mateo 6"],
+                ["Genesis 7", "Job 7", "Isaias 7", "Mateo 7"],
+                ["Genesis 8", "Job 8", "Isaias 8", "Mateo 8"],
+                ["Genesis 9", "Job 9", "Isaias 9", "Mateo 9"],
+                ["Genesis 10", "Job 10", "Isaias 10", "Mateo 10"],
+                ["Genesis 11", "Job 11", "Isaias 11", "Mateo 11"],
+                ["Genesis 12", "Job 12", "Isaias 12", "Mateo 12"],
+                ["Genesis 13", "Job 13", "Isaias 13", "Mateo 13"],
+                ["Genesis 14", "Job 14", "Isaias 14", "Mateo 14"],
+                ["Genesis 15", "Job 15", "Isaias 15", "Mateo 15"],
+                ["Genesis 16", "Job 16", "Isaias 16", "Mateo 16"],
+                ["Genesis 17", "Job 17", "Isaias 17", "Mateo 17"],
+                ["Genesis 18", "Job 18", "Isaias 18", "Mateo 18"],
+                ["Genesis 19", "Job 19", "Isaias 19", "Mateo 19"],
+                ["Genesis 20", "Job 20", "Isaias 20", "Mateo 20"],
+                ["Genesis 21", "Job 21", "Isaias 21", "Mateo 21"],
+                ["Genesis 22", "Job 22", "Isaias 22", "Mateo 22"],
+                ["Genesis 23", "Job 23", "Isaias 23", "Mateo 23"],
+                ["Genesis 24", "Job 24", "Isaias 24", "Mateo 24"],
+                ["Genesis 25", "Job 25", "Isaias 25", "Mateo 25"],
+                ["Genesis 26", "Job 26", "Isaias 26", "Mateo 26"],
+                ["Genesis 27", "Job 27", "Isaias 27", "Mateo 27"],
+                ["Genesis 28", "Job 28", "Isaias 28", "Mateo 28"],
+                ["Genesis 29", "Job 29", "Isaias 29", "Marcos 1"],
+                ["Genesis 30", "Job 30", "Isaias 30", "Marcos 2"],
+                ["Genesis 31", "Job 31", "Isaias 31", "Marcos 3"]
+            ],
+            "Febrero": [
+                ["Genesis 32", "Job 32", "Isaias 32", "Marcos 4"],
+                ["Genesis 33", "Job 33", "Isaias 33", "Marcos 5"],
+                ["Genesis 34", "Job 34", "Isaias 34", "Marcos 6"],
+                ["Genesis 35", "Job 35", "Isaias 35", "Marcos 7"],
+                ["Genesis 36", "Job 36", "Isaias 36", "Marcos 8"],
+                ["Genesis 37", "Job 37", "Isaias 37", "Marcos 9"],
+                ["Genesis 38", "Job 38", "Isaias 38", "Marcos 10"],
+                ["Genesis 39", "Job 39", "Isaias 39", "Marcos 11"],
+                ["Genesis 40", "Job 40", "Isaias 40", "Marcos 12"],
+                ["Genesis 41", "Job 41", "Isaias 41", "Marcos 13"],
+                ["Genesis 42", "Job 42", "Isaias 42", "Marcos 14"],
+                ["Genesis 43", "Salmos 1", "Isaias 43", "Marcos 15"],
+                ["Genesis 44", "Salmos 2", "Isaias 44", "Marcos 16"],
+                ["Genesis 45", "Salmos 3", "Isaias 45", "Lucas 1"],
+                ["Genesis 46", "Salmos 4", "Isaias 46", "Lucas 2"],
+                ["Genesis 47", "Salmos 5", "Isaias 47", "Lucas 3"],
+                ["Genesis 48", "Salmos 6", "Isaias 48", "Lucas 4"],
+                ["Genesis 49", "Salmos 7", "Isaias 49", "Lucas 5"],
+                ["Genesis 50", "Salmos 8", "Isaias 50", "Lucas 6"],
+                ["Exodo 1", "Salmos 9", "Isaias 51", "Lucas 7"],
+                ["Exodo 2", "Salmos 10", "Isaias 52", "Lucas 8"],
+                ["Exodo 3", "Salmos 11", "Isaias 53", "Lucas 9"],
+                ["Exodo 4", "Salmos 12", "Isaias 54", "Lucas 10"],
+                ["Exodo 5", "Salmos 13", "Isaias 55", "Lucas 11"],
+                ["Exodo 6", "Salmos 14", "Isaias 56", "Lucas 12"],
+                ["Exodo 7", "Salmos 15", "Isaias 57", "Lucas 13"],
+                ["Exodo 8", "Salmos 16", "Isaias 58", "Lucas 14"],
+                ["Exodo 9", "Salmos 17", "Isaias 59", "Lucas 15"]
+            ],
+            "Marzo": [
+                ["Exodo 10", "Salmos 18", "Isaias 60", "Lucas 16"],
+                ["Exodo 11", "Salmos 19", "Isaias 61", "Lucas 17"],
+                ["Exodo 12", "Salmos 20", "Isaias 62", "Lucas 18"],
+                ["Exodo 13", "Salmos 21", "Isaias 63", "Lucas 19"],
+                ["Exodo 14", "Salmos 22", "Isaias 64", "Lucas 20"],
+                ["Exodo 15", "Salmos 23", "Isaias 65", "Lucas 21"],
+                ["Exodo 16", "Salmos 24", "Isaias 66", "Lucas 22"],
+                ["Exodo 17", "Salmos 25", "Jeremias 1", "Lucas 23"],
+                ["Exodo 18", "Salmos 26", "Jeremias 2", "Lucas 24"],
+                ["Exodo 19", "Salmos 27", "Jeremias 3", "Juan 1"],
+                ["Exodo 20", "Salmos 28", "Jeremias 4", "Juan 2"],
+                ["Exodo 21", "Salmos 29", "Jeremias 5", "Juan 3"],
+                ["Exodo 22", "Salmos 30", "Jeremias 6", "Juan 4"],
+                ["Exodo 23", "Salmos 31", "Jeremias 7", "Juan 5"],
+                ["Exodo 24", "Salmos 32", "Jeremias 8", "Juan 6"],
+                ["Exodo 25", "Salmos 33", "Jeremias 9", "Juan 7"],
+                ["Exodo 26", "Salmos 34", "Jeremias 10", "Juan 8"],
+                ["Exodo 27", "Salmos 35", "Jeremias 11", "Juan 9"],
+                ["Exodo 28", "Salmos 36", "Jeremias 12", "Juan 10"],
+                ["Exodo 29", "Salmos 37", "Jeremias 13", "Juan 11"],
+                ["Exodo 30", "Salmos 38", "Jeremias 14", "Juan 12"],
+                ["Exodo 31", "Salmos 39", "Jeremias 15", "Juan 13"],
+                ["Exodo 32", "Salmos 40", "Jeremias 16", "Juan 14"],
+                ["Exodo 33", "Salmos 41", "Jeremias 17", "Juan 15"],
+                ["Exodo 34", "Salmos 42", "Jeremias 18", "Juan 16"],
+                ["Exodo 35", "Salmos 43", "Jeremias 19", "Juan 17"],
+                ["Exodo 36", "Salmos 44", "Jeremias 20", "Juan 18"],
+                ["Exodo 37", "Salmos 45", "Jeremias 21", "Juan 19"],
+                ["Exodo 38", "Salmos 46", "Jeremias 22", "Juan 20"],
+                ["Exodo 39", "Salmos 47", "Jeremias 23", "Juan 21"],
+                ["Exodo 40", "Salmos 48", "Jeremias 24", "Hechos 1"]
+            ],
+            "Abril": [
+                ["Levitico 1", "Salmos 49", "Jeremias 25", "Hechos 2"],
+                ["Levitico 2", "Salmos 50", "Jeremias 26", "Hechos 3"],
+                ["Levitico 3", "Salmos 51", "Jeremias 27", "Hechos 4"],
+                ["Levitico 4", "Salmos 52", "Jeremias 28", "Hechos 5"],
+                ["Levitico 5", "Salmos 53", "Jeremias 29", "Hechos 6"],
+                ["Levitico 6", "Salmos 54", "Jeremias 30", "Hechos 7"],
+                ["Levitico 7", "Salmos 55", "Jeremias 31", "Hechos 8"],
+                ["Levitico 8", "Salmos 56", "Jeremias 32", "Hechos 9"],
+                ["Levitico 9", "Salmos 57", "Jeremias 33", "Hechos 10"],
+                ["Levitico 10", "Salmos 58", "Jeremias 34", "Hechos 11"],
+                ["Levitico 11", "Salmos 59", "Jeremias 35", "Hechos 12"],
+                ["Levitico 12", "Salmos 60", "Jeremias 36", "Hechos 13"],
+                ["Levitico 13", "Salmos 61", "Jeremias 37", "Hechos 14"],
+                ["Levitico 14", "Salmos 62", "Jeremias 38", "Hechos 15"],
+                ["Levitico 15", "Salmos 63", "Jeremias 39", "Hechos 16"],
+                ["Levitico 16", "Salmos 64", "Jeremias 40", "Hechos 17"],
+                ["Levitico 17", "Salmos 65", "Jeremias 41", "Hechos 18"],
+                ["Levitico 18", "Salmos 66", "Jeremias 42", "Hechos 19"],
+                ["Levitico 19", "Salmos 67", "Jeremias 43", "Hechos 20"],
+                ["Levitico 20", "Salmos 68", "Jeremias 44", "Hechos 21"],
+                ["Levitico 21", "Salmos 69", "Jeremias 45", "Hechos 22"],
+                ["Levitico 22", "Salmos 70", "Jeremias 46", "Hechos 23"],
+                ["Levitico 23", "Salmos 71", "Jeremias 47", "Hechos 24"],
+                ["Levitico 24", "Salmos 72", "Jeremias 48", "Hechos 25"],
+                ["Levitico 25", "Salmos 73", "Jeremias 49", "Hechos 26"],
+                ["Levitico 26", "Salmos 74", "Jeremias 50", "Hechos 27"],
+                ["Levitico 27", "Salmos 75", "Jeremias 51", "Hechos 28"],
+                ["Numeros 1", "Salmos 76", "Jeremias 52", "Romanos 1"],
+                ["Numeros 2", "Salmos 77", "Lamentaciones 1", "Romanos 2"],
+                ["Numeros 3", "Salmos 78", "Lamentaciones 2", "Romanos 3"]
+            ],
+            "Mayo": [
+                ["Numeros 4", "Salmos 79", "Lamentaciones 3", "Romanos 4"],
+                ["Numeros 5", "Salmos 80", "Lamentaciones 4", "Romanos 5"],
+                ["Numeros 6", "Salmos 81", "Lamentaciones 5", "Romanos 6"],
+                ["Numeros 7", "Salmos 82", "Ezequiel 1", "Romanos 7"],
+                ["Numeros 8", "Salmos 83", "Ezequiel 2", "Romanos 8"],
+                ["Numeros 9", "Salmos 84", "Ezequiel 3", "Romanos 9"],
+                ["Numeros 10", "Salmos 85", "Ezequiel 4", "Romanos 10"],
+                ["Numeros 11", "Salmos 86", "Ezequiel 5", "Romanos 11"],
+                ["Numeros 12", "Salmos 87", "Ezequiel 6", "Romanos 12"],
+                ["Numeros 13", "Salmos 88", "Ezequiel 7", "Romanos 13"],
+                ["Numeros 14", "Salmos 89", "Ezequiel 8", "Romanos 14"],
+                ["Numeros 15", "Salmos 90", "Ezequiel 9", "Romanos 15"],
+                ["Numeros 16", "Salmos 91", "Ezequiel 10", "Romanos 16"],
+                ["Numeros 17", "Salmos 92", "Ezequiel 11", "1 Corintios 1"],
+                ["Numeros 18", "Salmos 93", "Ezequiel 12", "1 Corintios 2"],
+                ["Numeros 19", "Salmos 94", "Ezequiel 13", "1 Corintios 3"],
+                ["Numeros 20", "Salmos 95", "Ezequiel 14", "1 Corintios 4"],
+                ["Numeros 21", "Salmos 96", "Ezequiel 15", "1 Corintios 5"],
+                ["Numeros 22", "Salmos 97", "Ezequiel 16", "1 Corintios 6"],
+                ["Numeros 23", "Salmos 98", "Ezequiel 17", "1 Corintios 7"],
+                ["Numeros 24", "Salmos 99", "Ezequiel 18", "1 Corintios 8"],
+                ["Numeros 25", "Salmos 100", "Ezequiel 19", "1 Corintios 9"],
+                ["Numeros 26", "Salmos 101", "Ezequiel 20", "1 Corintios 10"],
+                ["Numeros 27", "Salmos 102", "Ezequiel 21", "1 Corintios 11"],
+                ["Numeros 28", "Salmos 103", "Ezequiel 22", "1 Corintios 12"],
+                ["Numeros 29", "Salmos 104", "Ezequiel 23", "1 Corintios 13"],
+                ["Numeros 30", "Salmos 105", "Ezequiel 24", "1 Corintios 14"],
+                ["Numeros 31", "Salmos 106", "Ezequiel 25", "1 Corintios 15"],
+                ["Numeros 32", "Salmos 107", "Ezequiel 26", "1 Corintios 16"],
+                ["Numeros 33", "Salmos 108", "Ezequiel 27", "2 Corintios 1"],
+                ["Numeros 34", "Salmos 109", "Ezequiel 28", "2 Corintios 2"]
+            ],
+            "Junio": [
+                ["Numeros 35", "Salmos 110", "Ezequiel 29", "2 Corintios 3"],
+                ["Numeros 36", "Salmos 111", "Ezequiel 30", "2 Corintios 4"],
+                ["Deuteronomio 1", "Salmos 112", "Ezequiel 31", "2 Corintios 5"],
+                ["Deuteronomio 2", "Salmos 113", "Ezequiel 32", "2 Corintios 6"],
+                ["Deuteronomio 3", "Salmos 114", "Ezequiel 33", "2 Corintios 7"],
+                ["Deuteronomio 4", "Salmos 115", "Ezequiel 34", "2 Corintios 8"],
+                ["Deuteronomio 5", "Salmos 116", "Ezequiel 35", "2 Corintios 9"],
+                ["Deuteronomio 6", "Salmos 117", "Ezequiel 36", "2 Corintios 10"],
+                ["Deuteronomio 7", "Salmos 118", "Ezequiel 37", "2 Corintios 11"],
+                ["Deuteronomio 8", "Salmos 119", "Ezequiel 38", "2 Corintios 12"],
+                ["Deuteronomio 9", "Salmos 120", "Ezequiel 39", "2 Corintios 13"],
+                ["Deuteronomio 10", "Salmos 121", "Ezequiel 40", "Galatas 1"],
+                ["Deuteronomio 11", "Salmos 122", "Ezequiel 41", "Galatas 2"],
+                ["Deuteronomio 12", "Salmos 123", "Ezequiel 42", "Galatas 3"],
+                ["Deuteronomio 13", "Salmos 124", "Ezequiel 43", "Galatas 4"],
+                ["Deuteronomio 14", "Salmos 125", "Ezequiel 44", "Galatas 5"],
+                ["Deuteronomio 15", "Salmos 126", "Ezequiel 45", "Galatas 6"],
+                ["Deuteronomio 16", "Salmos 127", "Ezequiel 46", "Efesios 1"],
+                ["Deuteronomio 17", "Salmos 128", "Ezequiel 47", "Efesios 2"],
+                ["Deuteronomio 18", "Salmos 129", "Ezequiel 48", "Efesios 3"],
+                ["Deuteronomio 19", "Salmos 130", "Daniel 1", "Efesios 4"],
+                ["Deuteronomio 20", "Salmos 131", "Daniel 2", "Efesios 5"],
+                ["Deuteronomio 21", "Salmos 132", "Daniel 3", "Efesios 6"],
+                ["Deuteronomio 22", "Salmos 133", "Daniel 4", "Filipenses 1"],
+                ["Deuteronomio 23", "Salmos 134", "Daniel 5", "Filipenses 2"],
+                ["Deuteronomio 24", "Salmos 135", "Daniel 6", "Filipenses 3"],
+                ["Deuteronomio 25", "Salmos 136", "Daniel 7", "Filipenses 4"],
+                ["Deuteronomio 26", "Salmos 137", "Daniel 8", "Colosenses 1"],
+                ["Deuteronomio 27", "Salmos 138", "Daniel 9", "Colosenses 2"],
+                ["Deuteronomio 28", "Salmos 139", "Daniel 10", "Colosenses 3"]
+            ],
+            "Julio": [
+                ["Deuteronomio 29", "Salmos 140", "Daniel 11", "Colosenses 4"],
+                ["Deuteronomio 30", "Salmos 141", "Daniel 12", "1 Tesalonicenses 1"],
+                ["Deuteronomio 31", "Salmos 142", "Oseas 1", "1 Tesalonicenses 2"],
+                ["Deuteronomio 32", "Salmos 143", "Oseas 2", "1 Tesalonicenses 3"],
+                ["Deuteronomio 33", "Salmos 144", "Oseas 3", "1 Tesalonicenses 4"],
+                ["Deuteronomio 34", "Salmos 145", "Oseas 4", "1 Tesalonicenses 5"],
+                ["Josue 1", "Salmos 146", "Oseas 5", "2 Tesalonicenses 1"],
+                ["Josue 2", "Salmos 147", "Oseas 6", "2 Tesalonicenses 2"],
+                ["Josue 3", "Salmos 148", "Oseas 7", "2 Tesalonicenses 3"],
+                ["Josue 4", "Salmos 149", "Oseas 8", "1 Timoteo 1"],
+                ["Josue 5", "Salmos 150", "Oseas 9", "1 Timoteo 2"],
+                ["Josue 6", "Proverbios 1", "Oseas 10", "1 Timoteo 3"],
+                ["Josue 7", "Proverbios 2", "Oseas 11", "1 Timoteo 4"],
+                ["Josue 8", "Proverbios 3", "Oseas 12", "1 Timoteo 5"],
+                ["Josue 9", "Proverbios 4", "Oseas 13", "1 Timoteo 6"],
+                ["Josue 10", "Proverbios 5", "Oseas 14", "2 Timoteo 1"],
+                ["Josue 11", "Proverbios 6", "Joel 1", "2 Timoteo 2"],
+                ["Josue 12", "Proverbios 7", "Joel 2", "2 Timoteo 3"],
+                ["Josue 13", "Proverbios 8", "Joel 3", "2 Timoteo 4"],
+                ["Josue 14", "Proverbios 9", "Amos 1", "Tito 1"],
+                ["Josue 15", "Proverbios 10", "Amos 2", "Tito 2"],
+                ["Josue 16", "Proverbios 11", "Amos 3", "Tito 3"],
+                ["Josue 17", "Proverbios 12", "Amos 4", "Filemon 1"],
+                ["Josue 18", "Proverbios 13", "Amos 5", "Hebreos 1"],
+                ["Josue 19", "Proverbios 14", "Amos 6", "Hebreos 2"],
+                ["Josue 20", "Proverbios 15", "Amos 7", "Hebreos 3"],
+                ["Josue 21", "Proverbios 16", "Amos 8", "Hebreos 4"],
+                ["Josue 22", "Proverbios 17", "Amos 9", "Hebreos 5"],
+                ["Josue 23", "Proverbios 18", "Abdias 1", "Hebreos 6"],
+                ["Josue 24", "Proverbios 19", "Jonas 1", "Hebreos 7"],
+                ["Jueces 1", "Proverbios 20", "Jonas 2", "Hebreos 8"]
+            ],
+            "Agosto": [
+                ["Jueces 2", "Proverbios 21", "Jonas 3", "Hebreos 9"],
+                ["Jueces 3", "Proverbios 22", "Jonas 4", "Hebreos 10"],
+                ["Jueces 4", "Proverbios 23", "Miqueas 1", "Hebreos 11"],
+                ["Jueces 5", "Proverbios 24", "Miqueas 2", "Hebreos 12"],
+                ["Jueces 6", "Proverbios 25", "Miqueas 3", "Hebreos 13"],
+                ["Jueces 7", "Proverbios 26", "Miqueas 4", "Santiago 1"],
+                ["Jueces 8", "Proverbios 27", "Miqueas 5", "Santiago 2"],
+                ["Jueces 9", "Proverbios 28", "Miqueas 6", "Santiago 3"],
+                ["Jueces 10", "Proverbios 29", "Miqueas 7", "Santiago 4"],
+                ["Jueces 11", "Proverbios 30", "Nahum 1", "Santiago 5"],
+                ["Jueces 12", "Proverbios 31", "Nahum 2", "1 Pedro 1"],
+                ["Jueces 13", "Eclesiastes 1", "Nahum 3", "1 Pedro 2"],
+                ["Jueces 14", "Eclesiastes 2", "Habacuc 1", "1 Pedro 3"],
+                ["Jueces 15", "Eclesiastes 3", "Habacuc 2", "1 Pedro 4"],
+                ["Jueces 16", "Eclesiastes 4", "Habacuc 3", "1 Pedro 5"],
+                ["Jueces 17", "Eclesiastes 5", "Sofonias 1", "2 Pedro 1"],
+                ["Jueces 18", "Eclesiastes 6", "Sofonias 2", "2 Pedro 2"],
+                ["Jueces 19", "Eclesiastes 7", "Sofonias 3", "2 Pedro 3"],
+                ["Jueces 20", "Eclesiastes 8", "Hageo 1", "1 Juan 1"],
+                ["Jueces 21", "Eclesiastes 9", "Hageo 2", "1 Juan 2"],
+                ["Rut 1", "Eclesiastes 10", "Zacarias 1", "1 Juan 3"],
+                ["Rut 2", "Eclesiastes 11", "Zacarias 2", "1 Juan 4"],
+                ["Rut 3", "Eclesiastes 12", "Zacarias 3", "1 Juan 5"],
+                ["Rut 4", "Cantares 1", "Zacarias 4", "2 Juan 1"],
+                ["1 Samuel 1", "Cantares 2", "Zacarias 5", "3 Juan 1"],
+                ["1 Samuel 2", "Cantares 3", "Zacarias 6", "Judas 1"],
+                ["1 Samuel 3", "Cantares 4", "Zacarias 7", "Apocalipsis 1"],
+                ["1 Samuel 4", "Cantares 5", "Zacarias 8", "Apocalipsis 2"],
+                ["1 Samuel 5", "Cantares 6", "Zacarias 9", "Apocalipsis 3"],
+                ["1 Samuel 6", "Cantares 7", "Zacarias 10", "Apocalipsis 4"],
+                ["1 Samuel 7", "Cantares 8", "Zacarias 11", "Apocalipsis 5"]
+            ],
+            "Setiembre": [
+                ["1 Samuel 8", "1 Samuel 9", "Zacarias 12", "Apocalipsis 6"],
+                ["1 Samuel 10", "1 Samuel 11", "Zacarias 13", "Apocalipsis 7"],
+                ["1 Samuel 12", "1 Samuel 13", "Zacarias 14", "Apocalipsis 8"],
+                ["1 Samuel 14", "1 Samuel 15", "Malaquias 1", "Apocalipsis 9"],
+                ["1 Samuel 16", "1 Samuel 17", "Malaquias 2", "Apocalipsis 10"],
+                ["1 Samuel 18", "1 Samuel 19", "Malaquias 3", "Apocalipsis 11"],
+                ["1 Samuel 20", "1 Samuel 21", "Malaquias 4", "Apocalipsis 12"],
+                ["1 Samuel 22", "1 Samuel 23", "1 Samuel 24", "Apocalipsis 13"],
+                ["1 Samuel 25", "1 Samuel 26", "1 Samuel 27", "Apocalipsis 14"],
+                ["1 Samuel 28", "1 Samuel 29", "1 Samuel 30", "Apocalipsis 15"],
+                ["1 Samuel 31", "2 Samuel 1", "2 Samuel 2", "Apocalipsis 16"],
+                ["2 Samuel 3", "2 Samuel 4", "2 Samuel 5", "Apocalipsis 17"],
+                ["2 Samuel 6", "2 Samuel 7", "2 Samuel 8", "Apocalipsis 18"],
+                ["2 Samuel 9", "2 Samuel 10", "2 Samuel 11", "Apocalipsis 19"],
+                ["2 Samuel 12", "2 Samuel 13", "2 Samuel 14", "Apocalipsis 20"],
+                ["2 Samuel 15", "2 Samuel 16", "2 Samuel 17", "Apocalipsis 21"],
+                ["2 Samuel 18", "2 Samuel 19", "2 Samuel 20", "Apocalipsis 22"],
+                ["2 Samuel 21", "2 Samuel 22", "2 Samuel 23", "2 Samuel 24"],
+                ["1 Reyes 1", "1 Reyes 2", "1 Reyes 3", "1 Reyes 4"],
+                ["1 Reyes 5", "1 Reyes 6", "1 Reyes 7", "1 Reyes 8"],
+                ["1 Reyes 9", "1 Reyes 10", "1 Reyes 11", "1 Reyes 12"],
+                ["1 Reyes 13", "1 Reyes 14", "1 Reyes 15", "1 Reyes 16"],
+                ["1 Reyes 17", "1 Reyes 18", "1 Reyes 19", "1 Reyes 20"],
+                ["1 Reyes 21", "1 Reyes 22", "2 Reyes 1", "2 Reyes 2"],
+                ["2 Reyes 3", "2 Reyes 4", "2 Reyes 5", "2 Reyes 6"],
+                ["2 Reyes 7", "2 Reyes 8", "2 Reyes 9", "2 Reyes 10"],
+                ["2 Reyes 11", "2 Reyes 12", "2 Reyes 13", "2 Reyes 14"],
+                ["2 Reyes 15", "2 Reyes 16", "2 Reyes 17", "2 Reyes 18"],
+                ["2 Reyes 19", "2 Reyes 20", "2 Reyes 21", "2 Reyes 22"],
+                ["2 Reyes 23", "2 Reyes 24", "2 Reyes 25", "1 Cronicas 1"]
+            ],
+            "Octubre": [
+                ["1 Cronicas 2", "1 Cronicas 3", "1 Cronicas 4", "1 Cronicas 5"],
+                ["1 Cronicas 6", "1 Cronicas 7", "1 Cronicas 8", "1 Cronicas 9"],
+                ["1 Cronicas 10", "1 Cronicas 11", "1 Cronicas 12", "1 Cronicas 13"],
+                ["1 Cronicas 14", "1 Cronicas 15", "1 Cronicas 16", "1 Cronicas 17"],
+                ["1 Cronicas 18", "1 Cronicas 19", "1 Cronicas 20", "1 Cronicas 21"],
+                ["1 Cronicas 22", "1 Cronicas 23", "1 Cronicas 24", "1 Cronicas 25"],
+                ["1 Cronicas 26", "1 Cronicas 27", "1 Cronicas 28", "1 Cronicas 29"],
+                ["2 Cronicas 1", "2 Cronicas 2", "2 Cronicas 3", "2 Cronicas 4"],
+                ["2 Cronicas 5", "2 Cronicas 6", "2 Cronicas 7", "2 Cronicas 8"],
+                ["2 Cronicas 9", "2 Cronicas 10", "2 Cronicas 11", "2 Cronicas 12"],
+                ["2 Cronicas 13", "2 Cronicas 14", "2 Cronicas 15", "2 Cronicas 16"],
+                ["2 Cronicas 17", "2 Cronicas 18", "2 Cronicas 19", "2 Cronicas 20"],
+                ["2 Cronicas 21", "2 Cronicas 22", "2 Cronicas 23", "2 Cronicas 24"],
+                ["2 Cronicas 25", "2 Cronicas 26", "2 Cronicas 27", "2 Cronicas 28"],
+                ["2 Cronicas 29", "2 Cronicas 30", "2 Cronicas 31", "2 Cronicas 32"],
+                ["2 Cronicas 33", "2 Cronicas 34", "2 Cronicas 35", "2 Cronicas 36"],
+                ["Esdras 1", "Esdras 2", "Esdras 3", "Esdras 4"],
+                ["Esdras 5", "Esdras 6", "Esdras 7", "Esdras 8"],
+                ["Esdras 9", "Esdras 10", "Nehemias 1", "Nehemias 2"],
+                ["Nehemias 3", "Nehemias 4", "Nehemias 5", "Nehemias 6"],
+                ["Nehemias 7", "Nehemias 8", "Nehemias 9", "Nehemias 10"],
+                ["Nehemias 11", "Nehemias 12", "Nehemias 13", "Ester 1"],
+                ["Ester 2", "Ester 3", "Ester 4", "Ester 5"],
+                ["Ester 6", "Ester 7", "Ester 8", "Ester 9"],
+                ["Ester 10"],
+                [],
+                [],
+                [],
+                [],
+                [],
+                []
+            ]
+        };
+
+        const readingPlanData2v = {
+            "Mes 1": [
+                ["Genesis 1", "Job 1"],
+                ["Genesis 2", "Job 2"],
+                ["Genesis 3", "Job 3"],
+                ["Genesis 4", "Job 4"],
+                ["Genesis 5", "Job 5"],
+                ["Genesis 6", "Job 6"],
+                ["Genesis 7", "Job 7"],
+                ["Genesis 8", "Job 8"],
+                ["Genesis 9", "Job 9"],
+                ["Genesis 10", "Job 10"],
+                ["Genesis 11", "Job 11"],
+                ["Genesis 12", "Job 12"],
+                ["Genesis 13", "Job 13"],
+                ["Genesis 14", "Job 14"],
+                ["Genesis 15", "Job 15"],
+                ["Genesis 16", "Job 16"],
+                ["Genesis 17", "Job 17"],
+                ["Genesis 18", "Job 18"],
+                ["Genesis 19", "Job 19"],
+                ["Genesis 20", "Job 20"],
+                ["Genesis 21", "Job 21"],
+                ["Genesis 22", "Job 22"],
+                ["Genesis 23", "Job 23"],
+                ["Genesis 24", "Job 24"],
+                ["Genesis 25", "Job 25"],
+                ["Genesis 26", "Job 26"],
+                ["Genesis 27", "Job 27"],
+                ["Genesis 28", "Job 28"],
+                ["Genesis 29", "Job 29"],
+                ["Genesis 30", "Job 30"]
+            ],
+            "Mes 2": [
+                ["Genesis 31", "Job 31"],
+                ["Genesis 32", "Job 32"],
+                ["Genesis 33", "Job 33"],
+                ["Genesis 34", "Job 34"],
+                ["Genesis 35", "Job 35"],
+                ["Genesis 36", "Job 36"],
+                ["Genesis 37", "Job 37"],
+                ["Genesis 38", "Job 38"],
+                ["Genesis 39", "Job 39"],
+                ["Genesis 40", "Job 40"],
+                ["Genesis 41", "Job 41"],
+                ["Genesis 42", "Job 42"],
+                ["Genesis 43", "Salmos 1"],
+                ["Genesis 44", "Salmos 2"],
+                ["Genesis 45", "Salmos 3"],
+                ["Genesis 46", "Salmos 4"],
+                ["Genesis 47", "Salmos 5"],
+                ["Genesis 48", "Salmos 6"],
+                ["Genesis 49", "Salmos 7"],
+                ["Genesis 50", "Salmos 8"],
+                ["Exodo 1", "Salmos 9"],
+                ["Exodo 2", "Salmos 10"],
+                ["Exodo 3", "Salmos 11"],
+                ["Exodo 4", "Salmos 12"],
+                ["Exodo 5", "Salmos 13"],
+                ["Exodo 6", "Salmos 14"],
+                ["Exodo 7", "Salmos 15"],
+                ["Exodo 8", "Salmos 16"],
+                ["Exodo 9", "Salmos 17"],
+                ["Exodo 10", "Salmos 18"]
+            ],
+            "Mes 3": [
+                ["Exodo 11", "Salmos 19"],
+                ["Exodo 12", "Salmos 20"],
+                ["Exodo 13", "Salmos 21"],
+                ["Exodo 14", "Salmos 22"],
+                ["Exodo 15", "Salmos 23"],
+                ["Exodo 16", "Salmos 24"],
+                ["Exodo 17", "Salmos 25"],
+                ["Exodo 18", "Salmos 26"],
+                ["Exodo 19", "Salmos 27"],
+                ["Exodo 20", "Salmos 28"],
+                ["Exodo 21", "Salmos 29"],
+                ["Exodo 22", "Salmos 30"],
+                ["Exodo 23", "Salmos 31"],
+                ["Exodo 24", "Salmos 32"],
+                ["Exodo 25", "Salmos 33"],
+                ["Exodo 26", "Salmos 34"],
+                ["Exodo 27", "Salmos 35"],
+                ["Exodo 28", "Salmos 36"],
+                ["Exodo 29", "Salmos 37"],
+                ["Exodo 30", "Salmos 38"],
+                ["Exodo 31", "Salmos 39"],
+                ["Exodo 32", "Salmos 40"],
+                ["Exodo 33", "Salmos 41"],
+                ["Exodo 34", "Salmos 42"],
+                ["Exodo 35", "Salmos 43"],
+                ["Exodo 36", "Salmos 44"],
+                ["Exodo 37", "Salmos 45"],
+                ["Exodo 38", "Salmos 46"],
+                ["Exodo 39", "Salmos 47"],
+                ["Exodo 40", "Salmos 48"]
+            ],
+            "Mes 4": [
+                ["Levitico 1", "Salmos 49"],
+                ["Levitico 2", "Salmos 50"],
+                ["Levitico 3", "Salmos 51"],
+                ["Levitico 4", "Salmos 52"],
+                ["Levitico 5", "Salmos 53"],
+                ["Levitico 6", "Salmos 54"],
+                ["Levitico 7", "Salmos 55"],
+                ["Levitico 8", "Salmos 56"],
+                ["Levitico 9", "Salmos 57"],
+                ["Levitico 10", "Salmos 58"],
+                ["Levitico 11", "Salmos 59"],
+                ["Levitico 12", "Salmos 60"],
+                ["Levitico 13", "Salmos 61"],
+                ["Levitico 14", "Salmos 62"],
+                ["Levitico 15", "Salmos 63"],
+                ["Levitico 16", "Salmos 64"],
+                ["Levitico 17", "Salmos 65"],
+                ["Levitico 18", "Salmos 66"],
+                ["Levitico 19", "Salmos 67"],
+                ["Levitico 20", "Salmos 68"],
+                ["Levitico 21", "Salmos 69"],
+                ["Levitico 22", "Salmos 70"],
+                ["Levitico 23", "Salmos 71"],
+                ["Levitico 24", "Salmos 72"],
+                ["Levitico 25", "Salmos 73"],
+                ["Levitico 26", "Salmos 74"],
+                ["Levitico 27", "Salmos 75"],
+                ["Numeros 1", "Salmos 76"],
+                ["Numeros 2", "Salmos 77"],
+                ["Numeros 3", "Salmos 78"]
+            ],
+            "Mes 5": [
+                ["Numeros 4", "Salmos 79"],
+                ["Numeros 5", "Salmos 80"],
+                ["Numeros 6", "Salmos 81"],
+                ["Numeros 7", "Salmos 82"],
+                ["Numeros 8", "Salmos 83"],
+                ["Numeros 9", "Salmos 84"],
+                ["Numeros 10", "Salmos 85"],
+                ["Numeros 11", "Salmos 86"],
+                ["Numeros 12", "Salmos 87"],
+                ["Numeros 13", "Salmos 88"],
+                ["Numeros 14", "Salmos 89"],
+                ["Numeros 15", "Salmos 90"],
+                ["Numeros 16", "Salmos 91"],
+                ["Numeros 17", "Salmos 92"],
+                ["Numeros 18", "Salmos 93"],
+                ["Numeros 19", "Salmos 94"],
+                ["Numeros 20", "Salmos 95"],
+                ["Numeros 21", "Salmos 96"],
+                ["Numeros 22", "Salmos 97"],
+                ["Numeros 23", "Salmos 98"],
+                ["Numeros 24", "Salmos 99"],
+                ["Numeros 25", "Salmos 100"],
+                ["Numeros 26", "Salmos 101"],
+                ["Numeros 27", "Salmos 102"],
+                ["Numeros 28", "Salmos 103"],
+                ["Numeros 29", "Salmos 104"],
+                ["Numeros 30", "Salmos 105"],
+                ["Numeros 31", "Salmos 106"],
+                ["Numeros 32", "Salmos 107"],
+                ["Numeros 33", "Salmos 108"]
+            ],
+            "Mes 6": [
+                ["Numeros 34", "Salmos 109"],
+                ["Numeros 35", "Salmos 110"],
+                ["Numeros 36", "Salmos 111"],
+                ["Deuteronomio 1", "Salmos 112"],
+                ["Deuteronomio 2", "Salmos 113"],
+                ["Deuteronomio 3", "Salmos 114"],
+                ["Deuteronomio 4", "Salmos 115"],
+                ["Deuteronomio 5", "Salmos 116"],
+                ["Deuteronomio 6", "Salmos 117"],
+                ["Deuteronomio 7", "Salmos 118"],
+                ["Deuteronomio 8", "Salmos 119"],
+                ["Deuteronomio 9", "Salmos 120"],
+                ["Deuteronomio 10", "Salmos 121"],
+                ["Deuteronomio 11", "Salmos 122"],
+                ["Deuteronomio 12", "Salmos 123"],
+                ["Deuteronomio 13", "Salmos 124"],
+                ["Deuteronomio 14", "Salmos 125"],
+                ["Deuteronomio 15", "Salmos 126"],
+                ["Deuteronomio 16", "Salmos 127"],
+                ["Deuteronomio 17", "Salmos 128"],
+                ["Deuteronomio 18", "Salmos 129"],
+                ["Deuteronomio 19", "Salmos 130"],
+                ["Deuteronomio 20", "Salmos 131"],
+                ["Deuteronomio 21", "Salmos 132"],
+                ["Deuteronomio 22", "Salmos 133"],
+                ["Deuteronomio 23", "Salmos 134"],
+                ["Deuteronomio 24", "Salmos 135"],
+                ["Deuteronomio 25", "Salmos 136"],
+                ["Deuteronomio 26", "Salmos 137"],
+                ["Deuteronomio 27", "Salmos 138"]
+            ],
+            "Mes 7": [
+                ["Deuteronomio 28", "Salmos 139"],
+                ["Deuteronomio 29", "Salmos 140"],
+                ["Deuteronomio 30", "Salmos 141"],
+                ["Deuteronomio 31", "Salmos 142"],
+                ["Deuteronomio 32", "Salmos 143"],
+                ["Deuteronomio 33", "Salmos 144"],
+                ["Deuteronomio 34", "Salmos 145"],
+                ["Josue 1", "Salmos 146"],
+                ["Josue 2", "Salmos 147"],
+                ["Josue 3", "Salmos 148"],
+                ["Josue 4", "Salmos 149"],
+                ["Josue 5", "Salmos 150"],
+                ["Josue 6", "Proverbios 1"],
+                ["Josue 7", "Proverbios 2"],
+                ["Josue 8", "Proverbios 3"],
+                ["Josue 9", "Proverbios 4"],
+                ["Josue 10", "Proverbios 5"],
+                ["Josue 11", "Proverbios 6"],
+                ["Josue 12", "Proverbios 7"],
+                ["Josue 13", "Proverbios 8"],
+                ["Josue 14", "Proverbios 9"],
+                ["Josue 15", "Proverbios 10"],
+                ["Josue 16", "Proverbios 11"],
+                ["Josue 17", "Proverbios 12"],
+                ["Josue 18", "Proverbios 13"],
+                ["Josue 19", "Proverbios 14"],
+                ["Josue 20", "Proverbios 15"],
+                ["Josue 21", "Proverbios 16"],
+                ["Josue 22", "Proverbios 17"],
+                ["Josue 23", "Proverbios 18"]
+            ],
+            "Mes 8": [
+                ["Josue 24", "Proverbios 19"],
+                ["Jueces 1", "Proverbios 20"],
+                ["Jueces 2", "Proverbios 21"],
+                ["Jueces 3", "Proverbios 22"],
+                ["Jueces 4", "Proverbios 23"],
+                ["Jueces 5", "Proverbios 24"],
+                ["Jueces 6", "Proverbios 25"],
+                ["Jueces 7", "Proverbios 26"],
+                ["Jueces 8", "Proverbios 27"],
+                ["Jueces 9", "Proverbios 28"],
+                ["Jueces 10", "Proverbios 29"],
+                ["Jueces 11", "Proverbios 30"],
+                ["Jueces 12", "Proverbios 31"],
+                ["Jueces 13", "Eclesiastes 1"],
+                ["Jueces 14", "Eclesiastes 2"],
+                ["Jueces 15", "Eclesiastes 3"],
+                ["Jueces 16", "Eclesiastes 4"],
+                ["Jueces 17", "Eclesiastes 5"],
+                ["Jueces 18", "Eclesiastes 6"],
+                ["Jueces 19", "Eclesiastes 7"],
+                ["Jueces 20", "Eclesiastes 8"],
+                ["Jueces 21", "Eclesiastes 9"],
+                ["Rut 1", "Eclesiastes 10"],
+                ["Rut 2", "Eclesiastes 11"],
+                ["Rut 3", "Eclesiastes 12"],
+                ["Rut 4", "Cantares 1"],
+                ["1 Samuel 1", "Cantares 2"],
+                ["1 Samuel 2", "Cantares 3"],
+                ["1 Samuel 3", "Cantares 4"],
+                ["1 Samuel 4", "Cantares 5"]
+            ],
+            "Mes 9": [
+                ["1 Samuel 5", "Cantares 6"],
+                ["1 Samuel 6", "Cantares 7"],
+                ["1 Samuel 7", "Cantares 8"],
+                ["1 Samuel 8", "1 Samuel 9"],
+                ["1 Samuel 10", "1 Samuel 11"],
+                ["1 Samuel 12", "1 Samuel 13"],
+                ["1 Samuel 14", "1 Samuel 15"],
+                ["1 Samuel 16", "1 Samuel 17"],
+                ["1 Samuel 18", "1 Samuel 19"],
+                ["1 Samuel 20", "1 Samuel 21"],
+                ["1 Samuel 22", "1 Samuel 23"],
+                ["1 Samuel 25", "1 Samuel 26"],
+                ["1 Samuel 28", "1 Samuel 29"],
+                ["1 Samuel 31", "2 Samuel 1"],
+                ["2 Samuel 3", "2 Samuel 4"],
+                ["2 Samuel 6", "2 Samuel 7"],
+                ["2 Samuel 9", "2 Samuel 10"],
+                ["2 Samuel 12", "2 Samuel 13"],
+                ["2 Samuel 15", "2 Samuel 16"],
+                ["2 Samuel 18", "2 Samuel 19"],
+                ["2 Samuel 21", "2 Samuel 22"],
+                ["1 Reyes 1", "1 Reyes 2"],
+                ["1 Reyes 5", "1 Reyes 6"],
+                ["1 Reyes 9", "1 Reyes 10"],
+                ["1 Reyes 13", "1 Reyes 14"],
+                ["1 Reyes 17", "1 Reyes 18"],
+                ["1 Reyes 21", "1 Reyes 22"],
+                ["2 Reyes 3", "2 Reyes 4"],
+                ["2 Reyes 7", "2 Reyes 8"],
+                ["2 Reyes 11", "2 Reyes 12"]
+            ],
+            "Mes 10": [
+                ["2 Reyes 15", "2 Reyes 16"],
+                ["2 Reyes 19", "2 Reyes 20"],
+                ["2 Reyes 23", "2 Reyes 24"],
+                ["1 Cronicas 2", "1 Cronicas 3"],
+                ["1 Cronicas 6", "1 Cronicas 7"],
+                ["1 Cronicas 10", "1 Cronicas 11"],
+                ["1 Cronicas 14", "1 Cronicas 15"],
+                ["1 Cronicas 18", "1 Cronicas 19"],
+                ["1 Cronicas 22", "1 Cronicas 23"],
+                ["1 Cronicas 26", "1 Cronicas 27"],
+                ["2 Cronicas 1", "2 Cronicas 2"],
+                ["2 Cronicas 5", "2 Cronicas 6"],
+                ["2 Cronicas 9", "2 Cronicas 10"],
+                ["2 Cronicas 13", "2 Cronicas 14"],
+                ["2 Cronicas 17", "2 Cronicas 18"],
+                ["2 Cronicas 21", "2 Cronicas 22"],
+                ["2 Cronicas 25", "2 Cronicas 26"],
+                ["2 Cronicas 29", "2 Cronicas 30"],
+                ["2 Cronicas 33", "2 Cronicas 34"],
+                ["Esdras 1", "Esdras 2"],
+                ["Esdras 5", "Esdras 6"],
+                ["Esdras 9", "Esdras 10"],
+                ["Nehemias 3", "Nehemias 4"],
+                ["Nehemias 7", "Nehemias 8"],
+                ["Nehemias 11", "Nehemias 12"],
+                ["Ester 2", "Ester 3"],
+                ["Ester 6", "Ester 7"],
+                ["Ester 10"],
+                ["Isaias 1", "Mateo 1"],
+                ["Isaias 2", "Mateo 2"]
+            ],
+            "Mes 11": [
+                ["Isaias 3", "Mateo 3"],
+                ["Isaias 4", "Mateo 4"],
+                ["Isaias 5", "Mateo 5"],
+                ["Isaias 6", "Mateo 6"],
+                ["Isaias 7", "Mateo 7"],
+                ["Isaias 8", "Mateo 8"],
+                ["Isaias 9", "Mateo 9"],
+                ["Isaias 10", "Mateo 10"],
+                ["Isaias 11", "Mateo 11"],
+                ["Isaias 12", "Mateo 12"],
+                ["Isaias 13", "Mateo 13"],
+                ["Isaias 14", "Mateo 14"],
+                ["Isaias 15", "Mateo 15"],
+                ["Isaias 16", "Mateo 16"],
+                ["Isaias 17", "Mateo 17"],
+                ["Isaias 18", "Mateo 18"],
+                ["Isaias 19", "Mateo 19"],
+                ["Isaias 20", "Mateo 20"],
+                ["Isaias 21", "Mateo 21"],
+                ["Isaias 22", "Mateo 22"],
+                ["Isaias 23", "Mateo 23"],
+                ["Isaias 24", "Mateo 24"],
+                ["Isaias 25", "Mateo 25"],
+                ["Isaias 26", "Mateo 26"],
+                ["Isaias 27", "Mateo 27"],
+                ["Isaias 28", "Mateo 28"],
+                ["Isaias 29", "Marcos 1"],
+                ["Isaias 30", "Marcos 2"],
+                ["Isaias 31", "Marcos 3"],
+                ["Isaias 32", "Marcos 4"]
+            ],
+            "Mes 12": [
+                ["Isaias 33", "Marcos 5"],
+                ["Isaias 34", "Marcos 6"],
+                ["Isaias 35", "Marcos 7"],
+                ["Isaias 36", "Marcos 8"],
+                ["Isaias 37", "Marcos 9"],
+                ["Isaias 38", "Marcos 10"],
+                ["Isaias 39", "Marcos 11"],
+                ["Isaias 40", "Marcos 12"],
+                ["Isaias 41", "Marcos 13"],
+                ["Isaias 42", "Marcos 14"],
+                ["Isaias 43", "Marcos 15"],
+                ["Isaias 44", "Marcos 16"],
+                ["Isaias 45", "Lucas 1"],
+                ["Isaias 46", "Lucas 2"],
+                ["Isaias 47", "Lucas 3"],
+                ["Isaias 48", "Lucas 4"],
+                ["Isaias 49", "Lucas 5"],
+                ["Isaias 50", "Lucas 6"],
+                ["Isaias 51", "Lucas 7"],
+                ["Isaias 52", "Lucas 8"],
+                ["Isaias 53", "Lucas 9"],
+                ["Isaias 54", "Lucas 10"],
+                ["Isaias 55", "Lucas 11"],
+                ["Isaias 56", "Lucas 12"],
+                ["Isaias 57", "Lucas 13"],
+                ["Isaias 58", "Lucas 14"],
+                ["Isaias 59", "Lucas 15"],
+                ["Isaias 60", "Lucas 16"],
+                ["Isaias 61", "Lucas 17"],
+                ["Isaias 62", "Lucas 18"]
+            ],
+            "Mes 13": [
+                ["Isaias 63", "Lucas 19"],
+                ["Isaias 64", "Lucas 20"],
+                ["Isaias 65", "Lucas 21"],
+                ["Isaias 66", "Lucas 22"],
+                ["Jeremias 1", "Lucas 23"],
+                ["Jeremias 2", "Lucas 24"],
+                ["Jeremias 3", "Juan 1"],
+                ["Jeremias 4", "Juan 2"],
+                ["Jeremias 5", "Juan 3"],
+                ["Jeremias 6", "Juan 4"],
+                ["Jeremias 7", "Juan 5"],
+                ["Jeremias 8", "Juan 6"],
+                ["Jeremias 9", "Juan 7"],
+                ["Jeremias 10", "Juan 8"],
+                ["Jeremias 11", "Juan 9"],
+                ["Jeremias 12", "Juan 10"],
+                ["Jeremias 13", "Juan 11"],
+                ["Jeremias 14", "Juan 12"],
+                ["Jeremias 15", "Juan 13"],
+                ["Jeremias 16", "Juan 14"],
+                ["Jeremias 17", "Juan 15"],
+                ["Jeremias 18", "Juan 16"],
+                ["Jeremias 19", "Juan 17"],
+                ["Jeremias 20", "Juan 18"],
+                ["Jeremias 21", "Juan 19"],
+                ["Jeremias 22", "Juan 20"],
+                ["Jeremias 23", "Juan 21"],
+                ["Jeremias 24", "Hechos 1"],
+                ["Jeremias 25", "Hechos 2"],
+                ["Jeremias 26", "Hechos 3"]
+            ],
+            "Mes 14": [
+                ["Jeremias 27", "Hechos 4"],
+                ["Jeremias 28", "Hechos 5"],
+                ["Jeremias 29", "Hechos 6"],
+                ["Jeremias 30", "Hechos 7"],
+                ["Jeremias 31", "Hechos 8"],
+                ["Jeremias 32", "Hechos 9"],
+                ["Jeremias 33", "Hechos 10"],
+                ["Jeremias 34", "Hechos 11"],
+                ["Jeremias 35", "Hechos 12"],
+                ["Jeremias 36", "Hechos 13"],
+                ["Jeremias 37", "Hechos 14"],
+                ["Jeremias 38", "Hechos 15"],
+                ["Jeremias 39", "Hechos 16"],
+                ["Jeremias 40", "Hechos 17"],
+                ["Jeremias 41", "Hechos 18"],
+                ["Jeremias 42", "Hechos 19"],
+                ["Jeremias 43", "Hechos 20"],
+                ["Jeremias 44", "Hechos 21"],
+                ["Jeremias 45", "Hechos 22"],
+                ["Jeremias 46", "Hechos 23"],
+                ["Jeremias 47", "Hechos 24"],
+                ["Jeremias 48", "Hechos 25"],
+                ["Jeremias 49", "Hechos 26"],
+                ["Jeremias 50", "Hechos 27"],
+                ["Jeremias 51", "Hechos 28"],
+                ["Jeremias 52", "Romanos 1"],
+                ["Lamentaciones 1", "Romanos 2"],
+                ["Lamentaciones 2", "Romanos 3"],
+                ["Lamentaciones 3", "Romanos 4"],
+                ["Lamentaciones 4", "Romanos 5"]
+            ],
+            "Mes 15": [
+                ["Lamentaciones 5", "Romanos 6"],
+                ["Ezequiel 1", "Romanos 7"],
+                ["Ezequiel 2", "Romanos 8"],
+                ["Ezequiel 3", "Romanos 9"],
+                ["Ezequiel 4", "Romanos 10"],
+                ["Ezequiel 5", "Romanos 11"],
+                ["Ezequiel 6", "Romanos 12"],
+                ["Ezequiel 7", "Romanos 13"],
+                ["Ezequiel 8", "Romanos 14"],
+                ["Ezequiel 9", "Romanos 15"],
+                ["Ezequiel 10", "Romanos 16"],
+                ["Ezequiel 11", "1 Corintios 1"],
+                ["Ezequiel 12", "1 Corintios 2"],
+                ["Ezequiel 13", "1 Corintios 3"],
+                ["Ezequiel 14", "1 Corintios 4"],
+                ["Ezequiel 15", "1 Corintios 5"],
+                ["Ezequiel 16", "1 Corintios 6"],
+                ["Ezequiel 17", "1 Corintios 7"],
+                ["Ezequiel 18", "1 Corintios 8"],
+                ["Ezequiel 19", "1 Corintios 9"],
+                ["Ezequiel 20", "1 Corintios 10"],
+                ["Ezequiel 21", "1 Corintios 11"],
+                ["Ezequiel 22", "1 Corintios 12"],
+                ["Ezequiel 23", "1 Corintios 13"],
+                ["Ezequiel 24", "1 Corintios 14"],
+                ["Ezequiel 25", "1 Corintios 15"],
+                ["Ezequiel 26", "1 Corintios 16"],
+                ["Ezequiel 27", "2 Corintios 1"],
+                ["Ezequiel 28", "2 Corintios 2"],
+                ["Ezequiel 29", "2 Corintios 3"]
+            ],
+            "Mes 16": [
+                ["Ezequiel 30", "2 Corintios 4"],
+                ["Ezequiel 31", "2 Corintios 5"],
+                ["Ezequiel 32", "2 Corintios 6"],
+                ["Ezequiel 33", "2 Corintios 7"],
+                ["Ezequiel 34", "2 Corintios 8"],
+                ["Ezequiel 35", "2 Corintios 9"],
+                ["Ezequiel 36", "2 Corintios 10"],
+                ["Ezequiel 37", "2 Corintios 11"],
+                ["Ezequiel 38", "2 Corintios 12"],
+                ["Ezequiel 39", "2 Corintios 13"],
+                ["Ezequiel 40", "Galatas 1"],
+                ["Ezequiel 41", "Galatas 2"],
+                ["Ezequiel 42", "Galatas 3"],
+                ["Ezequiel 43", "Galatas 4"],
+                ["Ezequiel 44", "Galatas 5"],
+                ["Ezequiel 45", "Galatas 6"],
+                ["Ezequiel 46", "Efesios 1"],
+                ["Ezequiel 47", "Efesios 2"],
+                ["Ezequiel 48", "Efesios 3"],
+                ["Daniel 1", "Efesios 4"],
+                ["Daniel 2", "Efesios 5"],
+                ["Daniel 3", "Efesios 6"],
+                ["Daniel 4", "Filipenses 1"],
+                ["Daniel 5", "Filipenses 2"],
+                ["Daniel 6", "Filipenses 3"],
+                ["Daniel 7", "Filipenses 4"],
+                ["Daniel 8", "Colosenses 1"],
+                ["Daniel 9", "Colosenses 2"],
+                ["Daniel 10", "Colosenses 3"],
+                ["Daniel 11", "Colosenses 4"]
+            ],
+            "Mes 17": [
+                ["Daniel 12", "1 Tesalonicenses 1"],
+                ["Oseas 1", "1 Tesalonicenses 2"],
+                ["Oseas 2", "1 Tesalonicenses 3"],
+                ["Oseas 3", "1 Tesalonicenses 4"],
+                ["Oseas 4", "1 Tesalonicenses 5"],
+                ["Oseas 5", "2 Tesalonicenses 1"],
+                ["Oseas 6", "2 Tesalonicenses 2"],
+                ["Oseas 7", "2 Tesalonicenses 3"],
+                ["Oseas 8", "1 Timoteo 1"],
+                ["Oseas 9", "1 Timoteo 2"],
+                ["Oseas 10", "1 Timoteo 3"],
+                ["Oseas 11", "1 Timoteo 4"],
+                ["Oseas 12", "1 Timoteo 5"],
+                ["Oseas 13", "1 Timoteo 6"],
+                ["Oseas 14", "2 Timoteo 1"],
+                ["Joel 1", "2 Timoteo 2"],
+                ["Joel 2", "2 Timoteo 3"],
+                ["Joel 3", "2 Timoteo 4"],
+                ["Amos 1", "Tito 1"],
+                ["Amos 2", "Tito 2"],
+                ["Amos 3", "Tito 3"],
+                ["Amos 4", "Filemon 1"],
+                ["Amos 5", "Hebreos 1"],
+                ["Amos 6", "Hebreos 2"],
+                ["Amos 7", "Hebreos 3"],
+                ["Amos 8", "Hebreos 4"],
+                ["Amos 9", "Hebreos 5"],
+                ["Abdias 1", "Hebreos 6"],
+                ["Jonas 1", "Hebreos 7"],
+                ["Jonas 2", "Hebreos 8"]
+            ],
+            "Mes 18": [
+                ["Jonas 3", "Hebreos 9"],
+                ["Jonas 4", "Hebreos 10"],
+                ["Miqueas 1", "Hebreos 11"],
+                ["Miqueas 2", "Hebreos 12"],
+                ["Miqueas 3", "Hebreos 13"],
+                ["Miqueas 4", "Santiago 1"],
+                ["Miqueas 5", "Santiago 2"],
+                ["Miqueas 6", "Santiago 3"],
+                ["Miqueas 7", "Santiago 4"],
+                ["Nahum 1", "Santiago 5"],
+                ["Nahum 2", "1 Pedro 1"],
+                ["Nahum 3", "1 Pedro 2"],
+                ["Habacuc 1", "1 Pedro 3"],
+                ["Habacuc 2", "1 Pedro 4"],
+                ["Habacuc 3", "1 Pedro 5"],
+                ["Sofonias 1", "2 Pedro 1"],
+                ["Sofonias 2", "2 Pedro 2"],
+                ["Sofonias 3", "2 Pedro 3"],
+                ["Hageo 1", "1 Juan 1"],
+                ["Hageo 2", "1 Juan 2"],
+                ["Zacarias 1", "1 Juan 3"],
+                ["Zacarias 2", "1 Juan 4"],
+                ["Zacarias 3", "1 Juan 5"],
+                ["Zacarias 4", "2 Juan 1"],
+                ["Zacarias 5", "3 Juan 1"],
+                ["Zacarias 6", "Judas 1"],
+                ["Zacarias 7", "Apocalipsis 1"],
+                ["Zacarias 8", "Apocalipsis 2"],
+                ["Zacarias 9", "Apocalipsis 3"],
+                ["Zacarias 10", "Apocalipsis 4"]
+            ],
+            "Mes 19": [
+                ["Zacarias 11", "Apocalipsis 5"],
+                ["Zacarias 12", "Apocalipsis 6"],
+                ["Zacarias 13", "Apocalipsis 7"],
+                ["Zacarias 14", "Apocalipsis 8"],
+                ["Malaquias 1", "Apocalipsis 9"],
+                ["Malaquias 2", "Apocalipsis 10"],
+                ["Malaquias 3", "Apocalipsis 11"],
+                ["Malaquias 4", "Apocalipsis 12"],
+                ["1 Samuel 24", "Apocalipsis 13"],
+                ["1 Samuel 27", "Apocalipsis 14"],
+                ["1 Samuel 30", "Apocalipsis 15"],
+                ["2 Samuel 2", "Apocalipsis 16"],
+                ["2 Samuel 5", "Apocalipsis 17"],
+                ["2 Samuel 8", "Apocalipsis 18"],
+                ["2 Samuel 11", "Apocalipsis 19"],
+                ["2 Samuel 14", "Apocalipsis 20"],
+                ["2 Samuel 17", "Apocalipsis 21"],
+                ["2 Samuel 20", "Apocalipsis 22"],
+                ["2 Samuel 23", "2 Samuel 24"],
+                ["1 Reyes 3", "1 Reyes 4"],
+                ["1 Reyes 7", "1 Reyes 8"],
+                ["1 Reyes 11", "1 Reyes 12"],
+                ["1 Reyes 15", "1 Reyes 16"],
+                ["1 Reyes 19", "1 Reyes 20"],
+                ["2 Reyes 1", "2 Reyes 2"],
+                ["2 Reyes 5", "2 Reyes 6"],
+                ["2 Reyes 9", "2 Reyes 10"],
+                ["2 Reyes 13", "2 Reyes 14"],
+                ["2 Reyes 17", "2 Reyes 18"],
+                ["2 Reyes 21", "2 Reyes 22"]
+            ],
+            "Mes 20": [
+                ["2 Reyes 25", "1 Cronicas 1"],
+                ["1 Cronicas 4", "1 Cronicas 5"],
+                ["1 Cronicas 8", "1 Cronicas 9"],
+                ["1 Cronicas 12", "1 Cronicas 13"],
+                ["1 Cronicas 16", "1 Cronicas 17"],
+                ["1 Cronicas 20", "1 Cronicas 21"],
+                ["1 Cronicas 24", "1 Cronicas 25"],
+                ["1 Cronicas 28", "1 Cronicas 29"],
+                ["2 Cronicas 3", "2 Cronicas 4"],
+                ["2 Cronicas 7", "2 Cronicas 8"],
+                ["2 Cronicas 11", "2 Cronicas 12"],
+                ["2 Cronicas 15", "2 Cronicas 16"],
+                ["2 Cronicas 19", "2 Cronicas 20"],
+                ["2 Cronicas 23", "2 Cronicas 24"],
+                ["2 Cronicas 27", "2 Cronicas 28"],
+                ["2 Cronicas 31", "2 Cronicas 32"],
+                ["2 Cronicas 35", "2 Cronicas 36"],
+                ["Esdras 3", "Esdras 4"],
+                ["Esdras 7", "Esdras 8"],
+                ["Nehemias 1", "Nehemias 2"],
+                ["Nehemias 5", "Nehemias 6"],
+                ["Nehemias 9", "Nehemias 10"],
+                ["Nehemias 13", "Ester 1"],
+                ["Ester 4", "Ester 5"],
+                ["Ester 8", "Ester 9"]
+            ]
+        };
+
+        const appDiv = document.getElementById('app');
+
+// === Modo de plan: 4 versiculos/dia o 2 versiculos/dia ===
+function getSelectedPlanMode() {
+  try { return localStorage.getItem('planMode') || '4v'; } catch (e) { return '4v'; }
+}
+function getActivePlanData() {
+  return getSelectedPlanMode() === '2v' ? readingPlanData2v : readingPlanData4v;
+}
+
+// === Progreso: cálculo y persistencia ===
+function computePlanCoverage() {
+  // total = casillas no vacías (capítulos definidos) en el plan activo
+  const plan = getActivePlanData();
+  let total = 0;
+  for (const month in plan) {
+    const days = plan[month] || [];
+    days.forEach(daily => (daily || []).forEach(ch => {
+      if (typeof ch === 'string' && ch.trim() !== '') total++;
+    }));
+  }
+  // filled = solo para la versión + modo de plan activos (no se mezclan entre si)
+  const ver = getSelectedVersion();
+  const mode = getSelectedPlanMode();
+  let filled = 0;
+  try {
+    for (const k of Object.keys(localStorage)) {
+      if (k.startsWith(`rp:${ver}:${mode}:`) && localStorage.getItem(k) === '1') filled++;
+    }
+  } catch (e) {}
+  const pct = total ? Math.round((filled / total) * 100) : 0;
+  return { total, filled, pct };
+}
+function keyFor(month, day, slot) {
+  const ver = getSelectedVersion();
+  const mode = getSelectedPlanMode();
+  return `rp:${ver}:${mode}:${month}:${day}:${slot}`;
+}
+function getMark(key) { try { return localStorage.getItem(key) === '1'; } catch (e) { return false; } }
+function setMark(key, val) { try { val ? localStorage.setItem(key, '1') : localStorage.removeItem(key); } catch (e) {} }
+function updateProgressBar() {
+  const cov = computePlanCoverage();
+  const fill = document.getElementById('plan-progress-fill');
+  const label = document.getElementById('plan-progress-text');
+  if (fill) fill.style.width = cov.pct + '%';
+  if (label) label.textContent = `${cov.pct}% completado (${cov.filled} de ${cov.total})`;
+}
+// === Fin progreso ===
+
+
+
+        
+
+// === OSIS & Version mappings para URLs de Bible.com ===
+function normalizeName(s){
+  return s
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'') // sin acentos
+    .replace(/\./g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+}
+const bookToOsis = {
+  "genesis":"GEN","exodo":"EXO","levitico":"LEV","numeros":"NUM","deuteronomio":"DEU",
+  "josue":"JOS","jueces":"JDG","rut":"RUT","1 samuel":"1SA","2 samuel":"2SA",
+  "1 reyes":"1KI","2 reyes":"2KI","1 cronicas":"1CH","2 cronicas":"2CH",
+  "esdras":"EZR","nehemias":"NEH","ester":"EST","job":"JOB","salmos":"PSA",
+  "proverbios":"PRO","eclesiastes":"ECC","cantares":"SNG","isaias":"ISA",
+  "jeremias":"JER","lamentaciones":"LAM","ezequiel":"EZK","daniel":"DAN",
+  "oseas":"HOS","joel":"JOL","amos":"AMO","abdias":"OBA","jonas":"JON","miqueas":"MIC",
+  "nahum":"NAM","habacuc":"HAB","sofonias":"ZEP","hageo":"HAG","zacarias":"ZEC","malaquias":"MAL",
+  "mateo":"MAT","marcos":"MRK","lucas":"LUK","juan":"JHN","hechos":"ACT","romanos":"ROM",
+  "1 corintios":"1CO","2 corintios":"2CO","galatas":"GAL","efesios":"EPH","filipenses":"PHP",
+  "colosenses":"COL","1 tesalonicenses":"1TH","2 tesalonicenses":"2TH","1 timoteo":"1TI",
+  "2 timoteo":"2TI","tito":"TIT","filemon":"PHM","hebreos":"HEB","santiago":"JAS",
+  "1 pedro":"1PE","2 pedro":"2PE","1 juan":"1JN","2 juan":"2JN","3 juan":"3JN","judas":"JUD",
+  "apocalipsis":"REV"
+};
+
+const versionToBase = {
+  "RV60": { id: "149", code: "RVR1960" },
+  "NTV" : { id: "127", code: "NTV" },
+  "TLA" : { id: "176", code: "TLA" },
+  "DHH" : { id: "411", code: "DHH94I" },
+  "LBLA": { id: "89",  code: "LBLA" }
+};
+
+function getSelectedVersion() {
+  const sel = document.getElementById('versionSelect');
+  return (sel && sel.value) || localStorage.getItem('bibleVersion') || 'RV60';
+}
+
+
+function openYouVersionFromSpan(span){
+  const sel = document.getElementById('versionSelect');
+  const ver = (sel && sel.value) || 'RV60';
+  const base = versionToBase[ver] || versionToBase['RV60'];
+
+  let osis = span.dataset.osis;
+  let chap = span.dataset.chapter;
+  if (!osis || !chap){
+    const txt = span.textContent || "";
+    const m = txt.trim().match(/(\d+)\s*$/);
+    if (m){
+      chap = m[1];
+      const name = txt.slice(0, m.index).trim();
+      const nname = normalizeName(name);
+      osis = bookToOsis[nname];
+    }
+  }
+  if (!osis || !chap) return;
+
+  const url = `https://www.bible.com/bible/${base.id}/${osis}.${chap}.${base.code}`;
+  window.open(url, "_blank");
+}
+
+// Función para renderizar el plan de lectura
+        function renderPlan() {
+            
+appDiv.innerHTML = `
+  <div class="version-wrap">
+    <label for="versionSelect" class="version-label">Versión:</label>
+    <select id="versionSelect" class="version-select">
+      <option value="RV60">RV60</option>
+      <option value="NTV">NTV</option>
+      <option value="TLA">TLA</option>
+      <option value="DHH">DHH</option>
+      <option value="LBLA">LBLA</option>
+    </select>
+  </div>
+
+  <div class="plan-mode-wrap">
+    <span class="plan-mode-label">Ritmo de lectura:</span>
+    <div class="plan-mode-toggle">
+      <button type="button" class="plan-mode-btn" data-mode="4v">4 versículos / día</button>
+      <button type="button" class="plan-mode-btn" data-mode="2v">2 versículos / día</button>
+    </div>
+  </div>
+
+  <div id="plan-progress" class="progress-wrap">
+    <div class="progress">
+      <div id="plan-progress-fill" class="progress__fill"></div>
+    </div>
+    <div id="plan-progress-text" class="progress__label"></div>
+  </div>
+`;
+updateProgressBar();
+
+// Inicializar dropdown de versión (persistencia)
+(function(){
+  const select = document.getElementById('versionSelect');
+  if (select) {
+    const saved = localStorage.getItem('bibleVersion') || 'RV60';
+    select.value = saved;
+    select.addEventListener('change', () => {
+      localStorage.setItem('bibleVersion', select.value);
+      renderPlan();
+      updateProgressBar();
+    });
+  }
+})();
+
+// Inicializar selector de ritmo de lectura (4v / 2v), con persistencia propia
+(function(){
+  const btns = document.querySelectorAll('.plan-mode-btn');
+  const current = getSelectedPlanMode();
+  btns.forEach(b => {
+    b.classList.toggle('active', b.dataset.mode === current);
+    b.addEventListener('click', () => {
+      if (b.dataset.mode === getSelectedPlanMode()) return;
+      try { localStorage.setItem('planMode', b.dataset.mode); } catch (e) {}
+      renderPlan();
+      updateProgressBar();
+    });
+  });
+})();
+
+
+            // Recorre cada mes del plan activo (4 o 2 versiculos/dia)
+            const activePlan = getActivePlanData();
+            for (const month in activePlan) {
+                const monthDiv = document.createElement('div');
+                monthDiv.classList.add('month', 'month-card', 'p-6', 'rounded-2xl', 'shadow-md', 'mb-8');
+
+                const monthTitle = document.createElement('h2');
+                monthTitle.classList.add('month-title');
+                monthTitle.textContent = month.toUpperCase();
+                monthDiv.appendChild(monthTitle);
+
+                const daysList = document.createElement('div');
+
+                // Recorre la lista de lecturas diarias
+                activePlan[month].forEach((dailyReadings, index) => {
+                    if (dailyReadings.some(chapter => chapter.trim() !== '')) {
+                        const dayRow = document.createElement('div');
+                        dayRow.classList.add('day-row');
+                        dayRow.dataset.month = month;
+                        dayRow.dataset.day = index + 1;
+
+                        const dayNumber = document.createElement('label');
+                        dayNumber.classList.add('day-wrap', 'day-number');
+                        // Checkbox de día
+                        const dayCheck = document.createElement('input');
+                        dayCheck.type = 'checkbox';
+                        dayCheck.className = 'day-check';
+                        dayCheck.dataset.month = month;
+                        dayCheck.dataset.day = (index + 1).toString();
+                        dayNumber.appendChild(dayCheck);
+                        // Número del día
+                        const dayNumText = document.createElement('span');
+                        dayNumText.textContent = `${index + 1}`;
+                        dayNumber.appendChild(dayNumText);
+                        dayRow.appendChild(dayNumber);
+
+                        const chaptersContainer = document.createElement('div');
+                        chaptersContainer.classList.add('chapter-container');
+
+                        dailyReadings.forEach((chapter, slotIndex) => {
+                            if (chapter.trim() !== '') {
+                                const chapWrap = document.createElement('label');
+                                chapWrap.className = 'chap-wrap';
+                                const chapCheck = document.createElement('input');
+                                chapCheck.type = 'checkbox';
+                                chapCheck.className = 'chap-check';
+                                const chapterSpan = document.createElement('span');
+                                // Usa la función getAcronym para mostrar el acrónimo
+                                chapterSpan.textContent = getAcronym(chapter);
+                                
+                                // Guardar OSIS y capítulo en dataset para navegación (a partir de 'chapter' original)
+                                (function(){
+                                  try {
+                                    const raw = (chapter || '').toString().trim();
+                                    const m = raw.match(/(.*)[\s]+(\d+)$/);
+                                    if (m){
+                                      const rawName = normalizeName(m[1] || '');
+                                      const chNum = m[2];
+                                      const osis = bookToOsis[rawName];
+                                      if (osis){
+                                        chapterSpan.dataset.osis = osis;
+                                        chapterSpan.dataset.chapter = chNum;
+                                      }
+                                    }
+                                  } catch(_) {}
+                                })();
+chapterSpan.classList.add('chapter');
+                                // Identificador persistente para progreso
+                                const monthName = month;
+                                const dayNumberVal = index + 1;
+                                const slotNumber = slotIndex + 1;
+                                const progKey = keyFor(monthName, dayNumberVal, slotNumber);
+                                chapterSpan.dataset.key = progKey;
+                                // Restaurar estado desde localStorage
+                                const isDone = getMark(progKey);
+                                chapterSpan.dataset.read = isDone ? "true" : "false";
+                                if (isDone) { chapterSpan.classList.add('read'); chapCheck.checked = true; }
+                                chapWrap.appendChild(chapCheck);
+                                chapWrap.appendChild(chapterSpan);
+                                chaptersContainer.appendChild(chapWrap);
+                            }
+                        });
+
+                        dayRow.appendChild(chaptersContainer);
+                        // Revisar estado inicial del día
+                        checkDayCompletion(dayRow);
+                        daysList.appendChild(dayRow);
+                    }
+                });
+
+                monthDiv.appendChild(daysList);
+                appDiv.appendChild(monthDiv);
+            }
+        }
+
+        // Desplaza la vista hasta el capítulo marcado más avanzado (el último
+        // 'read' en el orden del DOM, que sigue el orden cronológico del plan).
+        // Si no hay nada marcado, no hace nada (se queda al inicio, en enero).
+        function scrollToFurthestProgress() {
+            const marked = appDiv.querySelectorAll('.chapter[data-read="true"]');
+            if (marked.length === 0) return;
+            const last = marked[marked.length - 1];
+            last.scrollIntoView({ block: 'center' });
+        }
+
+        // Función para verificar si un día está completo
+        function checkDayCompletion(dayRow) {
+            const chapters = dayRow.querySelectorAll('.chapter');
+            let completedCount = 0;
+            chapters.forEach(chapter => {
+                if (chapter.dataset.read === "true") {
+                    completedCount++;
+                }
+            });
+
+            const dayBox = dayRow.querySelector('.day-check');
+            if (dayBox) dayBox.checked = (completedCount === chapters.length && chapters.length > 0);
+            if (completedCount === chapters.length && chapters.length > 0) {
+                dayRow.classList.add('completed');
+            } else {
+                dayRow.classList.remove('completed');
+            }
+        }
+
+        // Agrega un escuchador de eventos al contenedor principal de la aplicación
+        
+// Manejo de cambios en checkboxes (capítulos y días)
+appDiv.addEventListener('change', (event) => {
+    const target = event.target;
+    // Toggle capítulo via checkbox
+    if (target.classList.contains('chap-check')) {
+        const wrap = target.closest('.chap-wrap');
+        const chapterSpan = wrap ? wrap.querySelector('.chapter') : null;
+        if (chapterSpan) {
+            if (target.checked) {
+                chapterSpan.classList.add('read');
+                chapterSpan.dataset.read = "true";
+                if (chapterSpan.dataset.key) setMark(chapterSpan.dataset.key, true);
+            } else {
+                chapterSpan.classList.remove('read');
+                chapterSpan.dataset.read = "false";
+                if (chapterSpan.dataset.key) setMark(chapterSpan.dataset.key, false);
+            }
+            updateProgressBar();
+            const dayRow = target.closest('.day-row');
+            if (dayRow) checkDayCompletion(dayRow);
+        }
+    }
+    // Toggle de día: marca/desmarca los 4 capítulos
+    if (target.classList.contains('day-check')) {
+        const dayRow = target.closest('.day-row');
+        if (dayRow) {
+            const labels = dayRow.querySelectorAll('.chap-wrap');
+            labels.forEach((labelEl) => {
+                const cbox = labelEl.querySelector('.chap-check');
+                const span = labelEl.querySelector('.chapter');
+                if (cbox && span) {
+                    cbox.checked = target.checked;
+                    if (target.checked) {
+                        span.classList.add('read');
+                        span.dataset.read = "true";
+                        if (span.dataset.key) setMark(span.dataset.key, true);
+                    } else {
+                        span.classList.remove('read');
+                        span.dataset.read = "false";
+                        if (span.dataset.key) setMark(span.dataset.key, false);
+                    }
+                }
+            });
+            updateProgressBar();
+            checkDayCompletion(dayRow);
+        }
+    }
+});
+
+        appDiv.addEventListener('click', (event) => {
+            const target = event.target;
+            if (target.classList.contains('chapter')) {
+                // Alterna la clase 'read' y el atributo dataset
+                target.classList.toggle('read');
+                if (target.classList.contains('read')) {
+                    target.dataset.read = "true";
+                } else {
+                    target.dataset.read = "false";
+                }
+                
+                // Obtiene la fila del día padre y verifica su estado de completado
+                const dayRow = target.closest('.day-row');
+                if (dayRow) {
+                    checkDayCompletion(dayRow);
+                }
+            }
+        
+            // Navegar a Bible.com según versión
+            openYouVersionFromSpan(target);
+        });
+
+        // Renderizado inicial
+        renderPlan();
+        // Al abrir la app, saltar directamente al capítulo más avanzado que ya
+        // se marcó (evita tener que hacer scroll manual desde enero).
+        // El setTimeout deja que el navegador termine de pintar el layout
+        // antes de calcular la posición del scroll.
+        setTimeout(scrollToFurthestProgress, 50);
+    </script>
+</body>
+</html>

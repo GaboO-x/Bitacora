@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biblia360 — Pentateuco (Tabla de estudio)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<style>
+  /* ==========================================================
+     SHARED TOKEN SET (app madre) — misma paleta que Verso.
+     Claro = default. Mismos nombres de variable que el original
+     (--ink, --gold, etc.) para no tocar el resto del CSS.
+     ========================================================== */
+  :root{
+    --ink: #FAF6F1;
+    --ink-soft: #FFFFFF;
+    --ink-row: #F7F1E8;
+    --ink-line: #E8DDD0;
+    --parchment: #735A43;
+    --gold: #A60321;
+    --gold-dim: #E6C9AF;
+    --text: #34271F;
+    --text-muted: #A08C76;
+    --map-overlay-bg: rgba(255,255,255,0.85);
+  }
+
+  :root[data-theme="dark"]{
+    --ink: #1B1F2E;
+    --ink-soft: #242A3D;
+    --ink-row: #20263A;
+    --ink-line: #333B54;
+    --parchment: #E8DFC8;
+    --gold: #C9A24B;
+    --gold-dim: #8A7239;
+    --text: #EDE8DC;
+    --text-muted: #9098AC;
+    --map-overlay-bg: rgba(27, 31, 46, 0.8);
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  html, body{
+    height: 100%;
+    overflow: hidden;
+  }
+
+  body{
+    background: var(--ink);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header{
+    padding: 16px 24px 14px;
+    text-align: center;
+    border-bottom: 1px solid var(--ink-line);
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .eyebrow{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 10px;
+  }
+
+  h1{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: clamp(28px, 6vw, 40px);
+    letter-spacing: -0.01em;
+  }
+
+  .subtitle{
+    color: var(--text-muted);
+    font-size: 13.5px;
+    margin-top: 10px;
+  }
+
+  .view-toggle{
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    padding: 14px 24px 0;
+    flex-shrink: 0;
+  }
+
+  .view-toggle button{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--ink-line);
+    border-radius: 3px;
+    padding: 7px 16px;
+    cursor: pointer;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .view-toggle button:hover{
+    color: var(--text);
+    border-color: var(--gold-dim);
+  }
+
+  .view-toggle button.active{
+    color: var(--gold);
+    border-color: var(--gold);
+    background: rgba(201, 162, 75, 0.08);
+  }
+
+  .map-wrap{
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 20px 24px 24px;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: none;
+    gap: 24px;
+  }
+
+  .map-wrap.active{
+    display: flex;
+  }
+
+  .table-wrap.hidden{
+    display: none;
+  }
+
+  #leaflet-map{
+    flex: 1 1 auto;
+    min-width: 320px;
+    min-height: 420px;
+    background: var(--ink-soft);
+    border: 1px solid var(--ink-line);
+    border-radius: 6px;
+  }
+
+  .geo-marker-icon{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 700;
+    font-size: 9.5px;
+    color: var(--ink);
+    background: var(--gold);
+    border: 1.5px solid var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(201, 162, 75, 0.15);
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  .geo-marker-icon.uncertain{
+    color: var(--gold);
+    background: var(--ink-soft);
+    border-style: dashed;
+  }
+
+  .geo-marker-icon.selected{
+    box-shadow: 0 0 0 5px rgba(201, 162, 75, 0.35);
+  }
+
+  /* Tema oscuro para los controles y popups de Leaflet */
+  .leaflet-popup-content-wrapper{
+    background: var(--ink-soft);
+    color: var(--text);
+    border: 1px solid var(--gold-dim);
+    border-radius: 4px;
+  }
+
+  .leaflet-popup-tip{
+    background: var(--ink-soft);
+  }
+
+  .leaflet-popup-content{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    margin: 10px 12px;
+  }
+
+  .leaflet-popup-content strong{
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+  }
+
+  .leaflet-container a.leaflet-popup-close-button{
+    color: var(--text-muted);
+  }
+
+  .leaflet-control-zoom a{
+    background: var(--ink-soft) !important;
+    color: var(--text) !important;
+    border-color: var(--ink-line) !important;
+  }
+
+  .leaflet-control-attribution{
+    background: var(--map-overlay-bg) !important;
+    color: var(--text-muted) !important;
+  }
+
+  .leaflet-control-attribution a{
+    color: var(--text-muted) !important;
+  }
+
+  .leaflet-tooltip{
+    background: var(--ink-soft) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--gold-dim) !important;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    box-shadow: none !important;
+  }
+
+  .leaflet-tooltip-top:before{
+    border-top-color: var(--gold-dim) !important;
+  }
+
+  .route-endpoint-icon{
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    font-size: 14px;
+    line-height: 1;
+    background: var(--ink-soft);
+    border: 1.5px solid var(--gold);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px rgba(201, 162, 75, 0.15);
+  }
+
+  .geo-distance-label{
+    background: var(--ink-soft) !important;
+    color: var(--gold) !important;
+    border: 1px solid var(--gold-dim) !important;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    box-shadow: none !important;
+  }
+
+  .geo-panel{
+    flex: 0 0 250px;
+    min-width: 220px;
+    max-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+  }
+
+  .geo-panel-section{
+    flex-shrink: 0;
+  }
+
+  .geo-panel-section-title{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    margin-bottom: 8px;
+  }
+
+  .geo-chip-list{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .geo-chip{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11.5px;
+    color: var(--text);
+    background: var(--ink-soft);
+    border: 1px solid var(--ink-line);
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+  }
+
+  .geo-chip:hover{
+    border-color: var(--gold-dim);
+  }
+
+  .geo-chip.active{
+    border-color: var(--gold);
+    color: var(--gold);
+    background: rgba(201, 162, 75, 0.08);
+  }
+
+  .geo-route-chip{
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .geo-route-swatch{
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .mobile-list-toggle{
+    display: none;
+    width: 100%;
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: var(--gold);
+    background: var(--ink-soft);
+    border: 1px solid var(--gold-dim);
+    border-radius: 6px;
+    padding: 10px 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  .mobile-list-toggle:hover{
+    border-color: var(--gold);
+  }
+
+  .geo-panel-detail{
+    flex: 0 0 340px;
+    min-width: 280px;
+    max-width: 380px;
+    overflow-y: auto;
+    padding: 4px 2px;
+  }
+
+  .geo-route-distance{
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--gold);
+    background: rgba(201, 162, 75, 0.08);
+    border: 1px solid var(--gold-dim);
+    border-radius: 3px;
+    padding: 3px 9px;
+    margin: 6px 0 10px;
+  }
+
+  .geo-route-desc{
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  .geo-waypoint-item{
+    display: flex;
+    gap: 10px;
+    padding: 7px 0;
+    border-top: 1px solid var(--ink-line);
+    font-size: 13px;
+  }
+
+  .geo-waypoint-item:first-child{
+    border-top: none;
+  }
+
+  .geo-waypoint-num{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--gold);
+    flex-shrink: 0;
+    width: 16px;
+  }
+
+  .geo-waypoint-note{
+    color: var(--text-muted);
+    font-size: 12px;
+    display: block;
+  }
+
+  .geo-clear-btn{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--ink-line);
+    border-radius: 3px;
+    padding: 4px 10px;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+
+  .geo-clear-btn:hover{
+    color: var(--text);
+    border-color: var(--gold-dim);
+  }
+
+  .geo-panel-header{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+
+  .geo-panel-country{
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-bottom: 14px;
+  }
+
+  .geo-panel h3{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 22px;
+    margin-bottom: 2px;
+  }
+
+  .geo-book-item{
+    border-top: 1px solid var(--ink-line);
+    padding: 10px 0;
+  }
+
+  .geo-book-item:first-child{
+    border-top: none;
+  }
+
+  .geo-book-item .geo-book-title{
+    font-family: 'Fraunces', serif;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
+
+  .geo-book-item .geo-book-meta{
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .geo-uncertain-tag{
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    border: 1px dashed var(--gold-dim);
+    border-radius: 3px;
+    padding: 1px 5px;
+    margin-left: 6px;
+  }
+
+  .geo-legend{
+    font-size: 12.5px;
+    color: var(--text-muted);
+    line-height: 1.8;
+  }
+
+  .geo-legend-dot{
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .geo-legend-dot.solid{
+    background: var(--gold);
+  }
+
+  .geo-legend-dot.dashed{
+    background: transparent;
+    border: 1.5px dashed var(--gold);
+  }
+
+  .geo-unresolved{
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--ink-line);
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .geo-unresolved strong{
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  @media (max-width: 900px){
+    .map-wrap.active{ flex-direction: column; }
+    .geo-panel, .geo-panel-detail{
+      max-width: none;
+      flex: 0 0 auto;
+    }
+
+    /* Estado por defecto: solo lista + "cómo leer el mapa".
+       El mapa Leaflet se oculta para ahorrar espacio hasta
+       que el usuario selecciona un lugar o recorrido. */
+    #leaflet-map{
+      display: none;
+    }
+
+    /* Estado colapsado (activado desde JS al elegir un lugar
+       o recorrido): lista minimizada, mapa + info al 50/50. */
+    #map-wrap.mobile-collapsed .geo-col-lists{
+      display: none;
+    }
+
+    #map-wrap.mobile-collapsed .mobile-list-toggle{
+      display: block;
+    }
+
+    #map-wrap.mobile-collapsed #leaflet-map{
+      display: block;
+      flex: 1 1 0;
+      min-height: 0;
+    }
+
+    #map-wrap.mobile-collapsed .geo-col-detail{
+      flex: 1 1 0;
+      min-height: 0;
+      overflow-y: auto;
+    }
+  }
+
+  .table-wrap{
+    max-width: 1600px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0 24px 24px;
+    overflow: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    border-top: 1px solid var(--ink-line);
+  }
+
+  table{
+    width: 100%;
+    min-width: 1180px;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13.5px;
+  }
+
+  thead th{
+    text-align: left;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    font-weight: 500;
+    padding: 24px 14px 12px;
+    border-bottom: 1px solid var(--gold-dim);
+    position: sticky;
+    top: 0;
+    background: var(--ink);
+    white-space: nowrap;
+    z-index: 5;
+  }
+
+  thead th.col-book{
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    background: var(--ink);
+  }
+
+  tbody td{
+    padding: 16px 14px;
+    border-bottom: 1px solid var(--ink-line);
+    vertical-align: top;
+    color: var(--text);
+  }
+
+  tbody tr:nth-child(even){
+    background: var(--ink-row);
+  }
+
+  tbody tr:nth-child(even) td.col-book{
+    background: var(--ink-row);
+  }
+
+  tbody tr:nth-child(odd) td.col-book{
+    background: var(--ink);
+  }
+
+  td.col-book{
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 190px;
+    border-right: 1px solid var(--ink-line);
+  }
+
+  .book-num{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .book-num strong{
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 16px;
+    color: var(--text);
+    font-style: normal;
+    letter-spacing: normal;
+  }
+
+  .book-chapters{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .book-tag{
+    font-size: 12px;
+    font-style: italic;
+    color: var(--parchment);
+  }
+
+  .book-date{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  .col-connect{
+    min-width: 240px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 12.5px;
+    line-height: 1.55;
+    border-left: 2px solid var(--gold);
+  }
+
+  .col-connect strong{
+    display:block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-style: normal;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+
+  .col-theme{
+    min-width: 200px;
+  }
+
+  .col-summary{
+    min-width: 140px;
+  }
+
+  .video-pill{
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--gold);
+    background: rgba(201, 162, 75, 0.08);
+    border: 1px solid var(--gold-dim);
+    border-radius: 3px;
+    padding: 4px 9px;
+    margin: 2px 4px 2px 0;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .video-pill:hover{
+    background: rgba(201, 162, 75, 0.18);
+    border-color: var(--gold);
+  }
+
+  .video-pending{
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .place-link{
+    cursor: pointer;
+    text-decoration: underline dotted;
+    text-decoration-color: var(--gold-dim);
+    text-underline-offset: 3px;
+    transition: color 0.15s ease;
+  }
+
+  .place-link:hover{
+    color: var(--gold);
+  }
+
+  .col-characters{
+    min-width: 200px;
+  }
+
+  .block-row td{
+    background: var(--ink-soft) !important;
+    border-bottom: 1px solid var(--gold-dim);
+    border-top: 1px solid var(--ink-line);
+    padding: 14px;
+  }
+
+  .block-row .block-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+  }
+
+  .block-row .block-label span{
+    color: var(--text-muted);
+    letter-spacing: normal;
+    text-transform: none;
+    font-style: italic;
+  }
+
+  footer{
+    text-align: center;
+    padding: 14px 20px;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    border-top: 1px solid var(--ink-line);
+    flex-shrink: 0;
+  }
+
+  .scroll-hint{
+    text-align: center;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 8px 24px 0;
+    display: none;
+    flex-shrink: 0;
+  }
+
+  @media (max-width: 900px){
+    .scroll-hint{ display: block; }
+  }
+
+  /* ==========================================================
+     VISTA MÓVIL: tarjetas en vez de tabla horizontal.
+     Usa los mismos datos (array `blocks`) — no hay contenido
+     duplicado a mano, solo un segundo render en JS.
+     ========================================================== */
+  .book-cards{
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+    max-width: 640px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 16px 16px 24px;
+    overflow-y: auto;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .book-cards.hidden{
+    display: none;
+  }
+
+  .card-block-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    padding: 6px 2px;
+  }
+
+  .card-block-label span{
+    color: var(--text-muted);
+    letter-spacing: normal;
+    text-transform: none;
+    font-style: italic;
+  }
+
+  .book-card{
+    background: var(--ink-soft);
+    border: 1px solid var(--ink-line);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .book-card-head{
+    padding-bottom: 12px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--gold-dim);
+  }
+
+  .book-card-row{
+    padding: 9px 0;
+    border-bottom: 1px solid var(--ink-line);
+  }
+
+  .book-card-row:last-child{
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .book-card-label{
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    margin-bottom: 3px;
+  }
+
+  .book-card-value{
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+
+  .book-card-row.connect{
+    border-left: 2px solid var(--gold);
+    padding-left: 10px;
+    background: transparent;
+  }
+
+  .book-card-row.connect .book-card-value{
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 12.5px;
+  }
+
+  @media (max-width: 700px){
+    .table-wrap, .scroll-hint{
+      display: none !important;
+    }
+    .book-cards:not(.hidden){
+      display: flex;
+    }
+    header{ padding: 12px 18px 10px; }
+    .view-toggle{ padding: 12px 18px 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="view-toggle">
+  <button id="btn-view-table" class="active" onclick="setView('table')">Tabla</button>
+  <button id="btn-view-map" onclick="setView('map')">Mapa</button>
+</div>
+
+<p class="scroll-hint">← desliza para ver todas las columnas →</p>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th class="col-book">Libro</th>
+        <th>Lugar de escritura</th>
+        <th>País actual</th>
+        <th>Período bíblico</th>
+        <th class="col-characters">Personajes principales</th>
+        <th class="col-theme">Tema principal</th>
+        <th class="col-summary">Resumen</th>
+        <th class="col-connect">Siguiente libro:</th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<div class="book-cards" id="book-cards"></div>
+
+<div class="map-wrap" id="map-wrap">
+  <button type="button" class="mobile-list-toggle" id="mobile-list-toggle" onclick="expandMobileList()">☰ Lugares y recorridos</button>
+  <div class="geo-panel geo-col-lists" id="geo-panel-lists"></div>
+  <div id="leaflet-map"></div>
+  <div class="geo-panel-detail geo-col-detail" id="geo-panel-detail"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// TEMA: controlado 100% por la app madre via postMessage
+// (sin botón/control local; ver listener 'message' abajo)
+// ═══════════════════════════════════════════
+function tileUrlForTheme(theme) {
+    return theme === 'dark'
+        ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+        : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+}
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('biblia360_theme', theme); } catch(e) {}
+    // El mapa se crea de forma diferida (solo al abrir la vista "Mapa"),
+    // por eso 'leafletMap'/'mapTileLayer' pueden no existir todavia en el
+    // primer applyTheme() del arranque; el try/catch cubre ese caso.
+    try {
+        if (leafletMap && mapTileLayer) mapTileLayer.setUrl(tileUrlForTheme(theme));
+    } catch(e) {}
+}
+(function initTheme() {
+    let saved = 'light';
+    try { saved = localStorage.getItem('biblia360_theme') || 'light'; } catch(e) {}
+    applyTheme(saved);
+})();
+// Tema controlado 100% desde la app madre (sidebar):
+window.addEventListener('message', (event) => {
+    const data = event.data;
+    if (data && data.action === 'setTheme' && (data.theme === 'light' || data.theme === 'dark')) {
+        applyTheme(data.theme);
+    }
+});
+
+const blocks = [
+  {
+    id: 1,
+    name: "Pentateuco",
+    books: [
+      {
+        order: 1, title: "Génesis", chapters: 50,
+        writing: { date: "c. 1446–1406 a.C.", place: "Desierto del Sinaí", countryToday: "Egipto (Península del Sinaí)" },
+        history: { period: "Creación / Patriarcas", transitionNote: "No conecta con un libro anterior. Es el punto de partida de toda la historia bíblica y concluye con Israel viviendo en Egipto, preparando el escenario para Éxodo." },
+        summary: { tag: "Todo comienza." },
+        mainCharacters: ["Adán", "Eva", "Noé", "Abraham", "Isaac", "Jacob", "José"],
+        theme: "Los orígenes del mundo, del pecado y del pueblo de Dios.",
+      },
+      {
+        order: 2, title: "Éxodo", chapters: 40,
+        writing: { date: "c. 1446–1406 a.C.", place: "Desierto del Sinaí", countryToday: "Egipto (Península del Sinaí)" },
+        history: { period: "Éxodo", transitionNote: "Continúa exactamente donde termina Génesis. Tras ser liberado, Israel necesita aprender cómo vivir como pueblo santo; ese proceso comienza en Levítico." },
+        summary: { tag: "Israel sale de Egipto." },
+        mainCharacters: ["Moisés", "Aarón", "Faraón", "Josué"],
+        theme: "La redención de Israel y el establecimiento del pacto con Dios.",
+      },
+      {
+        order: 3, title: "Levítico", chapters: 27,
+        writing: { date: "c. 1445–1444 a.C.", place: "Monte Sinaí", countryToday: "Egipto (Península del Sinaí)" },
+        history: { period: "Éxodo", transitionNote: "Mientras Israel permanece acampado en el Sinaí, Dios lo prepara espiritualmente antes de reanudar el viaje. Ese viaje continúa en Números." },
+        summary: { tag: "Dios enseña a un pueblo redimido cómo vivir santo." },
+        mainCharacters: ["Moisés", "Aarón", "Sacerdotes levitas"],
+        theme: "La santidad de Dios y la correcta relación entre Dios y su pueblo.",
+      },
+      {
+        order: 4, title: "Números", chapters: 36,
+        writing: { date: "c. 1445–1406 a.C.", place: "Desierto y llanuras de Moab", countryToday: "Egipto / Jordania" },
+        history: { period: "Peregrinación", transitionNote: "Después de cuarenta años de peregrinación, la nueva generación está lista para entrar en Canaán. Antes de hacerlo, Moisés pronuncia sus últimos discursos en Deuteronomio." },
+        summary: { tag: "Israel fracasa en el desierto." },
+        mainCharacters: ["Moisés", "Aarón", "Miriam", "Josué", "Caleb"],
+        theme: "La obediencia trae bendición; la incredulidad retrasa el cumplimiento de las promesas de Dios.",
+      },
+      {
+        order: 5, title: "Deuteronomio", chapters: 34,
+        writing: { date: "c. 1406 a.C.", place: "Llanuras de Moab", countryToday: "Jordania" },
+        history: { period: "Peregrinación", transitionNote: "Con la muerte de Moisés concluye el Pentateuco. Josué asume el liderazgo y comienza la conquista de Canaán en el siguiente libro." },
+        summary: { tag: "Moisés prepara a la nueva generación." },
+        mainCharacters: ["Moisés", "Josué"],
+        theme: "Renovar el pacto y llamar al pueblo a permanecer fiel a Dios.",
+      }
+    ]
+  },
+  {
+    id: 2,
+    name: "Históricos",
+    books: [
+      {
+        order: 6, title: "Josué", chapters: 24,
+        writing: { date: "c. 1400–1370 a.C.", place: "Canaán", countryToday: "Israel / Palestina" },
+        history: { period: "Conquista", transitionNote: "Con la muerte de Josué termina la conquista organizada. Sin un líder central, Israel entra en un ciclo de desobediencia y opresión que se relata en Jueces." },
+        summary: { tag: "Israel conquista la tierra prometida." },
+        mainCharacters: ["Josué", "Rahab", "Acán", "Caleb"],
+        theme: "La fidelidad de Dios al cumplir su promesa de dar la tierra a Israel.",
+      },
+      {
+        order: 7, title: "Jueces", chapters: 21,
+        writing: { date: "c. 1050–1000 a.C.", place: "Israel (probablemente Ramá)", countryToday: "Israel / Palestina" },
+        history: { period: "Época de los Jueces", transitionNote: "En medio del caos y el ciclo de pecado de los jueces, la historia de una familia moabita muestra la fidelidad de Dios a nivel personal — contada en Rut." },
+        summary: { tag: "Israel cae en un ciclo de pecado y liberación." },
+        mainCharacters: ["Débora", "Gedeón", "Sansón", "Jefté"],
+        theme: "Sin un rey fiel a Dios, cada uno hace lo que le parece bien; Dios levanta libertadores.",
+      },
+      {
+        order: 8, title: "Rut", chapters: 4,
+        writing: { date: "c. 1000–950 a.C.", place: "Israel (Belén)", countryToday: "Israel / Palestina" },
+        history: { period: "Época de los Jueces", transitionNote: "Rut se convierte en bisabuela de David, cuya historia como pastor elegido por Dios y futuro rey comienza a narrarse en 1 Samuel." },
+        summary: { tag: "La fidelidad de una extranjera prepara el camino a un rey." },
+        mainCharacters: ["Rut", "Noemí", "Booz"],
+        theme: "La lealtad (hesed) y la redención dentro del plan de Dios, que culmina en el linaje de David.",
+      },
+      {
+        order: 9, title: "1 Samuel", chapters: 31,
+        writing: { date: "c. 930 a.C. (compilación de fuentes anteriores)", place: "Israel", countryToday: "Israel / Palestina" },
+        history: { period: "Monarquía unida (inicio)", transitionNote: "El reinado de David, iniciado bajo la sombra de Saúl, se consolida y enfrenta sus mayores pruebas — personales y políticas — en 2 Samuel." },
+        summary: { tag: "Israel pide un rey; Dios elige a David." },
+        mainCharacters: ["Samuel", "Saúl", "David", "Jonatán"],
+        theme: "La transición del liderazgo de los jueces a la monarquía, y el rechazo de Saúl frente a la elección de David.",
+      },
+      {
+        order: 10, title: "2 Samuel", chapters: 24,
+        writing: { date: "c. 930 a.C. (compilación de fuentes anteriores)", place: "Israel", countryToday: "Israel / Palestina" },
+        history: { period: "Monarquía unida (David)", transitionNote: "Tras la muerte de David, la sucesión al trono y el reinado de su hijo Salomón — incluyendo la construcción del templo — se narran en 1 Reyes." },
+        summary: { tag: "David reina, cae y es restaurado." },
+        mainCharacters: ["David", "Betsabé", "Natán", "Absalón"],
+        theme: "El pacto davídico y las consecuencias del pecado incluso en el rey elegido por Dios.",
+      },
+      {
+        order: 11, title: "1 Reyes", chapters: 22,
+        writing: { date: "c. 560–540 a.C. (usando fuentes anteriores)", place: "Judá o Babilonia", countryToday: "Israel / Palestina" },
+        history: { period: "Monarquía unida y dividida", transitionNote: "La división del reino continúa profundizándose; las dinastías de Israel y Judá se narran en paralelo hasta la caída de ambos reinos, en 2 Reyes." },
+        summary: { tag: "El reino se divide tras Salomón." },
+        mainCharacters: ["Salomón", "Roboam", "Jeroboam", "Elías"],
+        theme: "La sabiduría y caída de Salomón, y la división del reino en Israel (norte) y Judá (sur).",
+      },
+      {
+        order: 12, title: "2 Reyes", chapters: 25,
+        writing: { date: "c. 560–540 a.C. (usando fuentes anteriores)", place: "Judá o Babilonia", countryToday: "Israel / Palestina, Irak" },
+        history: { period: "Monarquía dividida y exilio", transitionNote: "Desde una perspectiva sacerdotal y genealógica, 1 Crónicas retoma la misma historia de la monarquía, resaltando el linaje davídico y la adoración en el templo." },
+        summary: { tag: "Ambos reinos caen en manos extranjeras." },
+        mainCharacters: ["Eliseo", "Ezequías", "Josías", "Nabucodonosor"],
+        theme: "El juicio de Dios sobre la infidelidad persistente de Israel y Judá, culminando en la caída de Samaria y Jerusalén.",
+      },
+      {
+        order: 13, title: "1 Crónicas", chapters: 29,
+        writing: { date: "c. 450–425 a.C.", place: "Jerusalén (post-exilio)", countryToday: "Israel / Palestina" },
+        history: { period: "Post-exilio (relato retrospectivo de la monarquía)", transitionNote: "1 Crónicas termina con la preparación del templo por parte de David; su construcción y el reinado de Salomón se detallan en 2 Crónicas." },
+        summary: { tag: "La historia de David, contada para un pueblo que vuelve del exilio." },
+        mainCharacters: ["David", "Sacerdotes levitas"],
+        theme: "La centralidad del templo, el sacerdocio y el linaje davídico para la identidad de Israel restaurado.",
+      },
+      {
+        order: 14, title: "2 Crónicas", chapters: 36,
+        writing: { date: "c. 450–425 a.C.", place: "Jerusalén (post-exilio)", countryToday: "Israel / Palestina" },
+        history: { period: "Post-exilio (relato retrospectivo del reino de Judá)", transitionNote: "2 Crónicas termina con el decreto de Ciro que permite el regreso del exilio; ese regreso y la reconstrucción del templo se narran en Esdras." },
+        summary: { tag: "El templo se construye, y el reino de Judá cae y es restaurado." },
+        mainCharacters: ["Salomón", "Ezequías", "Josías"],
+        theme: "La fidelidad al templo y a la Ley determina la bendición o el juicio sobre Judá.",
+      },
+      {
+        order: 15, title: "Esdras", chapters: 10,
+        writing: { date: "c. 460–440 a.C.", place: "Jerusalén / Babilonia", countryToday: "Israel / Palestina, Irak" },
+        history: { period: "Restauración post-exílica", transitionNote: "Mientras el templo ya está reconstruido, las murallas de Jerusalén siguen destruidas; su reconstrucción bajo Nehemías completa la restauración física de la ciudad." },
+        summary: { tag: "El pueblo regresa y reconstruye el templo." },
+        mainCharacters: ["Ciro", "Zorobabel", "Esdras"],
+        theme: "La fidelidad de Dios al restaurar a su pueblo y la importancia de la Ley en la reconstrucción espiritual.",
+      },
+      {
+        order: 16, title: "Nehemías", chapters: 13,
+        writing: { date: "c. 430–400 a.C.", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Restauración post-exílica", transitionNote: "En otro momento de la historia persa, mientras los judíos permanecen dispersos en el imperio, Dios protege a su pueblo de un exterminio planeado — la historia se narra en Ester." },
+        summary: { tag: "Las murallas de Jerusalén se reconstruyen." },
+        mainCharacters: ["Nehemías", "Esdras", "Sanbalat"],
+        theme: "La reconstrucción física y espiritual de Jerusalén a pesar de la oposición.",
+      },
+      {
+        order: 17, title: "Ester", chapters: 10,
+        writing: { date: "c. 460–350 a.C.", place: "Susa, Persia", countryToday: "Irán" },
+        history: { period: "Diáspora persa", transitionNote: "Con Ester concluye el bloque histórico. El siguiente bloque, los libros poéticos, se aleja de la narrativa para explorar la sabiduría y el sufrimiento humano ante Dios, comenzando con Job." },
+        summary: { tag: "Dios protege a su pueblo, aunque su nombre nunca se menciona." },
+        mainCharacters: ["Ester", "Mardoqueo", "Amán", "Asuero"],
+        theme: "La providencia oculta de Dios que preserva a su pueblo incluso en el exilio.",
+      }
+    ]
+  },
+  {
+    id: 3,
+    name: "Poéticos",
+    books: [
+      {
+        order: 18, title: "Job", chapters: 42,
+        writing: { date: "Incierta — posiblemente c. 950–600 a.C. (autoría y fecha debatidas)", place: "Desconocido", countryToday: "No determinado" },
+        history: { period: "Sabiduría (ambientado en la era patriarcal)", transitionNote: "Job explora el sufrimiento de un hombre justo fuera de la narrativa nacional de Israel. Los Salmos amplían esa conversación con Dios a través de la oración y la alabanza de todo un pueblo." },
+        summary: { tag: "¿Por qué sufren los justos?" },
+        mainCharacters: ["Job", "Elifaz", "Bildad", "Zofar", "Eliú"],
+        theme: "La soberanía de Dios frente al sufrimiento humano, más allá de explicaciones simples.",
+      },
+      {
+        order: 19, title: "Salmos", chapters: 150,
+        writing: { date: "c. 1400–400 a.C. (compilación de múltiples autores y épocas)", place: "Israel", countryToday: "Israel / Palestina" },
+        history: { period: "Sabiduría / Adoración (multi-época)", transitionNote: "Los Salmos son la respuesta del corazón humano a Dios en oración; Proverbios ofrece la respuesta práctica: cómo vivir sabiamente día a día." },
+        summary: { tag: "El himnario de Israel." },
+        mainCharacters: ["David", "Asaf", "Hijos de Coré", "Salomón"],
+        theme: "La adoración, el lamento y la confianza en Dios expresados en toda circunstancia humana.",
+      },
+      {
+        order: 20, title: "Proverbios", chapters: 31,
+        writing: { date: "c. 970–700 a.C. (compilación; incluye material recopilado bajo Ezequías)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Sabiduría", transitionNote: "Proverbios enseña cómo vivir sabiamente en general; Eclesiastés cuestiona si esa sabiduría basta para dar sentido a la vida \"bajo el sol\"." },
+        summary: { tag: "Sabiduría práctica para la vida diaria." },
+        mainCharacters: ["Salomón", "Agur", "Lemuel"],
+        theme: "El temor de Jehová como principio de la sabiduría y guía para la vida cotidiana.",
+      },
+      {
+        order: 21, title: "Eclesiastés", chapters: 12,
+        writing: { date: "c. 935 a.C. (tradicional; parte de la erudición moderna propone fecha post-exílica)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Sabiduría", transitionNote: "Tras cuestionar el sentido de la vida \"bajo el sol\", Cantares ofrece un contraste: la celebración del amor humano como un don bueno de Dios." },
+        summary: { tag: "Todo es vanidad... excepto temer a Dios." },
+        mainCharacters: ["El Predicador (Cohélet)"],
+        theme: "La búsqueda de sentido en la vida, que solo se resuelve temiendo a Dios y guardando sus mandamientos.",
+      },
+      {
+        order: 22, title: "Cantares", chapters: 8,
+        writing: { date: "c. 970–931 a.C. (tradicional; autoría debatida)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Sabiduría", transitionNote: "Con Cantares concluyen los libros poéticos. El siguiente bloque, los Profetas Mayores, cambia de tono: de la reflexión sapiencial a la proclamación profética, comenzando con Isaías." },
+        summary: { tag: "Un canto al amor humano." },
+        mainCharacters: ["El amado", "La amada (sulamita)"],
+        theme: "La belleza y el valor del amor y la intimidad dentro del diseño de Dios.",
+      }
+    ]
+  },
+  {
+    id: 4,
+    name: "Profetas Mayores",
+    books: [
+      {
+        order: 23, title: "Isaías", chapters: 66,
+        writing: { date: "c. 700–681 a.C. (tradicional; la erudición crítica distingue múltiples autores hasta el s. VI a.C.)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (Reino de Judá)", transitionNote: "Isaías profetiza el juicio y la esperanza mesiánica en términos amplios; Jeremías, viviendo la caída de Jerusalén en carne propia, profundiza en el lamento y anuncia el nuevo pacto." },
+        summary: { tag: "El Mesías prometido en medio del juicio." },
+        mainCharacters: ["Isaías", "Reyes de Judá (Uzías a Ezequías)"],
+        theme: "El juicio de Dios sobre la infidelidad y la esperanza de un Mesías redentor y sufriente.",
+      },
+      {
+        order: 24, title: "Jeremías", chapters: 52,
+        writing: { date: "c. 627–580 a.C.", place: "Jerusalén y luego Egipto", countryToday: "Israel / Palestina, Egipto" },
+        history: { period: "Profecía preexílica y caída de Jerusalén", transitionNote: "El profundo dolor de Jeremías por la caída de Jerusalén se condensa en un poema formal de duelo: Lamentaciones, tradicionalmente atribuido al mismo profeta." },
+        summary: { tag: "El profeta llorón anuncia la caída de Jerusalén." },
+        mainCharacters: ["Jeremías", "Baruc", "Nabucodonosor", "Sedequías"],
+        theme: "El juicio inminente sobre Judá por su infidelidad, y la promesa de un nuevo pacto.",
+      },
+      {
+        order: 25, title: "Lamentaciones", chapters: 5,
+        writing: { date: "c. 586 a.C. (poco después de la caída de Jerusalén)", place: "Jerusalén o alrededores", countryToday: "Israel / Palestina" },
+        history: { period: "Caída de Jerusalén y exilio", transitionNote: "Del duelo por Jerusalén, la narrativa profética se traslada a Babilonia, donde Ezequiel ministra a los exiliados con visiones de juicio y restauración." },
+        summary: { tag: "Un duelo poético por la ciudad destruida." },
+        mainCharacters: ["El poeta (voz de Jerusalén)"],
+        theme: "El lamento por el juicio de Dios, junto con la esperanza en su fidelidad inagotable.",
+      },
+      {
+        order: 26, title: "Ezequiel", chapters: 48,
+        writing: { date: "c. 593–571 a.C.", place: "Babilonia (junto al río Quebar)", countryToday: "Irak" },
+        history: { period: "Exilio babilónico", transitionNote: "Mientras Ezequiel ministra a los exiliados en Babilonia, Daniel —otro joven exiliado— sirve en la corte del mismo imperio, y su libro documenta esa experiencia con visiones apocalípticas." },
+        summary: { tag: "Visiones de juicio y restauración desde el exilio." },
+        mainCharacters: ["Ezequiel"],
+        theme: "La santidad de Dios, el juicio sobre Israel y las naciones, y la promesa de restauración futura.",
+      },
+      {
+        order: 27, title: "Daniel", chapters: 12,
+        writing: { date: "c. 605–536 a.C. (tradicional; la erudición crítica propone una composición del s. II a.C.)", place: "Babilonia y Persia", countryToday: "Irak, Irán" },
+        history: { period: "Exilio babilónico y período persa", transitionNote: "Con Daniel concluyen los Profetas Mayores. Los Profetas Menores retoman, en doce libros más breves, los mismos temas de juicio y esperanza en distintos momentos de la historia de Israel y Judá, comenzando con Oseas." },
+        summary: { tag: "Fidelidad en el exilio y visiones del fin de los tiempos." },
+        mainCharacters: ["Daniel", "Sadrac", "Mesac", "Abed-nego", "Nabucodonosor"],
+        theme: "La soberanía de Dios sobre los imperios humanos y la fidelidad en medio de la persecución.",
+      }
+    ]
+  },
+  {
+    id: 5,
+    name: "Profetas Menores",
+    books: [
+      {
+        order: 28, title: "Oseas", chapters: 14,
+        writing: { date: "c. 755–710 a.C.", place: "Reino del Norte (Israel)", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (Reino del Norte)", transitionNote: "Oseas usa su propio matrimonio como metáfora de la infidelidad de Israel; Joel, con una plaga de langostas como trasfondo, llama al pueblo entero al arrepentimiento." },
+        summary: { tag: "El amor fiel de Dios por una esposa infiel." },
+        mainCharacters: ["Oseas", "Gomer"],
+        theme: "El amor inquebrantable de Dios por Israel a pesar de su idolatría, ilustrado en el matrimonio del profeta.",
+      },
+      {
+        order: 29, title: "Joel", chapters: 3,
+        writing: { date: "Incierta — propuestas entre el s. IX y el s. V–IV a.C.", place: "Judá (Jerusalén)", countryToday: "Israel / Palestina" },
+        history: { period: "Fecha incierta (contexto de Judá)", transitionNote: "Joel anuncia el \"día de Jehová\" a partir de una plaga literal; Amós, pastor de Tecoa, denuncia la injusticia social en el próspero pero corrupto Reino del Norte." },
+        summary: { tag: "Una plaga de langostas anticipa el día de Jehová." },
+        mainCharacters: ["Joel"],
+        theme: "El llamado al arrepentimiento ante el inminente día del juicio de Dios, y la promesa del derramamiento del Espíritu.",
+      },
+      {
+        order: 30, title: "Amós", chapters: 9,
+        writing: { date: "c. 760–750 a.C.", place: "Predicó en Betel (Reino del Norte); oriundo de Tecoa, Judá", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (Reino del Norte)", transitionNote: "Amós denuncia la injusticia social de Israel; Abdías, el más breve de los profetas, dirige su mensaje de juicio contra Edom por su traición a Judá." },
+        summary: { tag: "Un pastor denuncia la injusticia social de Israel." },
+        mainCharacters: ["Amós"],
+        theme: "La justicia de Dios exige rectitud social, no solo ritual religioso vacío.",
+      },
+      {
+        order: 31, title: "Abdías", chapters: 1,
+        writing: { date: "Incierta — c. 848–840 a.C. o c. 586 a.C., según el evento histórico referido", place: "Judá", countryToday: "Israel / Palestina" },
+        history: { period: "Fecha incierta (juicio contra Edom)", transitionNote: "Abdías anuncia la caída de Edom por su traición; Jonás, en contraste, muestra la compasión de Dios incluso hacia Nínive, la temida capital enemiga de Israel." },
+        summary: { tag: "El juicio contra Edom por traicionar a su hermano Judá." },
+        mainCharacters: ["Abdías"],
+        theme: "La justicia de Dios contra el orgullo y la traición de Edom hacia su pueblo hermano.",
+      },
+      {
+        order: 32, title: "Jonás", chapters: 4,
+        writing: { date: "c. 780–750 a.C. (fecha de composición debatida)", place: "Israel", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (Reino del Norte)", transitionNote: "A diferencia de Jonás, que huye de su llamado, Miqueas asume el suyo y denuncia tanto a Samaria como a Jerusalén, anunciando juicio y restauración." },
+        summary: { tag: "Un profeta huye, pero Dios persigue a Nínive con misericordia." },
+        mainCharacters: ["Jonás"],
+        theme: "La misericordia de Dios se extiende incluso a las naciones paganas, más allá del favoritismo nacional.",
+      },
+      {
+        order: 33, title: "Miqueas", chapters: 7,
+        writing: { date: "c. 735–700 a.C.", place: "Judá (Moréset)", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (Judá e Israel)", transitionNote: "Miqueas anuncia juicio y también el nacimiento del Mesías en Belén; Nahúm, un siglo después, se enfoca en anunciar la caída definitiva de Nínive." },
+        summary: { tag: "Juicio sobre Samaria y Jerusalén, y la promesa de un gobernante en Belén." },
+        mainCharacters: ["Miqueas"],
+        theme: "La justicia de Dios frente a la opresión social, y su fidelidad al prometer un Mesías nacido en Belén.",
+      },
+      {
+        order: 34, title: "Nahúm", chapters: 3,
+        writing: { date: "c. 663–612 a.C. (antes de la caída de Nínive)", place: "Judá", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (contra Nínive)", transitionNote: "Nahúm celebra la caída de Nínive como acto de justicia divina; Habacuc, en cambio, cuestiona a Dios por usar a un imperio aún más violento —Babilonia— para juzgar a Judá." },
+        summary: { tag: "La caída de Nínive como acto de justicia divina." },
+        mainCharacters: ["Nahúm"],
+        theme: "La justicia de Dios se cumple incluso contra los imperios más poderosos y crueles.",
+      },
+      {
+        order: 35, title: "Habacuc", chapters: 3,
+        writing: { date: "c. 609–598 a.C.", place: "Judá", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (antes del exilio babilónico)", transitionNote: "Habacuc aprende a confiar en Dios pese a no entender sus métodos; Sofonías advierte del inminente día de Jehová sobre Judá y las naciones, poco antes de las reformas de Josías." },
+        summary: { tag: "Un profeta cuestiona a Dios y aprende a vivir por fe." },
+        mainCharacters: ["Habacuc"],
+        theme: "La fe se sostiene en el carácter de Dios incluso cuando sus caminos no se comprenden.",
+      },
+      {
+        order: 36, title: "Sofonías", chapters: 3,
+        writing: { date: "c. 640–609 a.C. (durante el reinado de Josías)", place: "Judá", countryToday: "Israel / Palestina" },
+        history: { period: "Profecía preexílica (reinado de Josías)", transitionNote: "Sofonías anuncia el día de Jehová sobre Judá y las naciones; tras el exilio, Hageo llama al pueblo restaurado a retomar la reconstrucción del templo, largamente abandonada." },
+        summary: { tag: "El gran día de Jehová se acerca." },
+        mainCharacters: ["Sofonías"],
+        theme: "El juicio inminente sobre Judá y las naciones, junto con la promesa de un remanente fiel restaurado.",
+      },
+      {
+        order: 37, title: "Hageo", chapters: 2,
+        writing: { date: "c. 520 a.C.", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Restauración post-exílica", transitionNote: "Hageo impulsa la reconstrucción del templo; su contemporáneo Zacarías anima al mismo pueblo con visiones que apuntan más allá del templo físico, hacia el Mesías." },
+        summary: { tag: "El pueblo restaurado antepone sus casas al templo de Dios." },
+        mainCharacters: ["Hageo", "Zorobabel", "Josué el sumo sacerdote"],
+        theme: "La prioridad de la adoración a Dios sobre el interés personal, tras el regreso del exilio.",
+      },
+      {
+        order: 38, title: "Zacarías", chapters: 14,
+        writing: { date: "c. 520–480 a.C. (autoría de los caps. 9–14 debatida; erudición crítica propone fecha posterior)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Restauración post-exílica", transitionNote: "Con Zacarías el pueblo mira hacia un futuro mesiánico; Malaquías, el último profeta del Antiguo Testamento, cierra la era profética confrontando la apatía espiritual del pueblo restaurado, antes de cuatro siglos de silencio hasta los Evangelios." },
+        summary: { tag: "Visiones de un futuro mesiánico para Jerusalén." },
+        mainCharacters: ["Zacarías", "Zorobabel", "Josué el sumo sacerdote"],
+        theme: "El aliento a completar el templo, con visiones que apuntan a la obra futura del Mesías.",
+      },
+      {
+        order: 39, title: "Malaquías", chapters: 4,
+        writing: { date: "c. 460–430 a.C.", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Restauración post-exílica (final del A.T.)", transitionNote: "Con Malaquías se cierra el Antiguo Testamento y comienzan cuatro siglos de silencio profético. El Nuevo Testamento retoma la historia con el nacimiento de Jesús, narrado en los Evangelios, comenzando con Mateo." },
+        summary: { tag: "El último profeta antes de cuatro siglos de silencio." },
+        mainCharacters: ["Malaquías"],
+        theme: "La apatía espiritual del pueblo restaurado, y la promesa de un mensajero que preparará el camino del Señor.",
+      }
+    ]
+  },
+  {
+    id: 6,
+    name: "Evangelios",
+    books: [
+      {
+        order: 40, title: "Mateo", chapters: 28,
+        writing: { date: "c. 50–70 d.C. (tradicional; erudición crítica a menudo propone c. 80–90 d.C.)", place: "Posiblemente Antioquía de Siria o Judea", countryToday: "Siria o Israel / Palestina (incierto)" },
+        history: { period: "Vida de Jesús (ministerio terrenal)", transitionNote: "Mateo presenta a Jesús como el Mesías prometido a Israel, con énfasis en el cumplimiento profético; Marcos narra los mismos hechos de forma más breve y ágil, enfatizando la acción y el servicio de Jesús." },
+        summary: { tag: "Jesús, el Mesías prometido a Israel." },
+        mainCharacters: ["Jesús", "Los doce apóstoles", "Juan el Bautista"],
+        theme: "Jesús como el cumplimiento de las profecías del Antiguo Testamento y el Rey mesiánico esperado.",
+      },
+      {
+        order: 41, title: "Marcos", chapters: 16,
+        writing: { date: "c. 55–70 d.C. (probablemente el primer evangelio escrito)", place: "Posiblemente Roma", countryToday: "Italia" },
+        history: { period: "Vida de Jesús (ministerio terrenal)", transitionNote: "Marcos retrata a Jesús como el siervo que actúa sin pausa; Lucas, dirigido a un público gentil, profundiza en la compasión de Jesús hacia los marginados." },
+        summary: { tag: "Jesús, el siervo que actúa." },
+        mainCharacters: ["Jesús", "Pedro", "Los doce apóstoles"],
+        theme: "Jesús como el Siervo de Dios que sirve, sana y finalmente da su vida en rescate por muchos.",
+      },
+      {
+        order: 42, title: "Lucas", chapters: 24,
+        writing: { date: "c. 60–63 d.C. (algunos proponen c. 70–80 d.C.)", place: "Posiblemente Cesarea o Roma", countryToday: "Israel / Palestina o Italia" },
+        history: { period: "Vida de Jesús (ministerio terrenal)", transitionNote: "Lucas concluye con la ascensión de Jesús; en una segunda parte de su obra, Hechos, el mismo autor narra cómo el Espíritu Santo expande la iglesia desde Jerusalén hasta Roma." },
+        summary: { tag: "Jesús, el Salvador de todos, especialmente los marginados." },
+        mainCharacters: ["Jesús", "María", "Los doce apóstoles", "Pecadores y marginados"],
+        theme: "Jesús como el Salvador compasivo que busca y salva lo que se había perdido, incluyendo a gentiles, pobres y pecadores.",
+      },
+      {
+        order: 43, title: "Juan", chapters: 21,
+        writing: { date: "c. 85–95 d.C. (fecha más tardía que los sinópticos; autoría también debatida)", place: "Posiblemente Éfeso", countryToday: "Turquía" },
+        history: { period: "Vida de Jesús (ministerio terrenal) — enfoque teológico", transitionNote: "Con Juan concluyen los cuatro Evangelios. El siguiente bloque, Hechos, narra qué sucede después de la ascensión de Jesús: el nacimiento y expansión de la iglesia mediante el Espíritu Santo." },
+        summary: { tag: "Jesús, el Hijo de Dios eterno hecho carne." },
+        mainCharacters: ["Jesús", "El discípulo amado (Juan)", "María, Marta y Lázaro"],
+        theme: "Jesús como el Verbo eterno de Dios hecho hombre, para que todo el que cree en él tenga vida eterna.",
+      }
+    ]
+  },
+  {
+    id: 7,
+    name: "Historia",
+    books: [
+      {
+        order: 44, title: "Hechos", chapters: 28,
+        writing: { date: "c. 62–64 d.C. (tradicional, ya que termina antes de la muerte de Pablo; erudición crítica a veces propone c. 80–90 d.C.)", place: "Posiblemente Roma", countryToday: "Italia" },
+        history: { period: "Nacimiento y expansión de la iglesia", transitionNote: "Hechos termina con Pablo predicando en Roma bajo arresto domiciliario. Sus propias cartas a las iglesias que fundó —comenzando con Romanos— completan el testimonio de su ministerio y enseñanza doctrinal." },
+        summary: { tag: "El Espíritu Santo expande la iglesia hasta los confines de la tierra." },
+        mainCharacters: ["Pedro", "Pablo", "Esteban", "Bernabé", "Los apóstoles"],
+        theme: "La obra del Espíritu Santo llevando el evangelio desde Jerusalén hasta Roma, cumpliendo la Gran Comisión.",
+      }
+    ]
+  },
+  {
+    id: 8,
+    name: "Cartas Paulinas",
+    books: [
+      {
+        order: 45, title: "Romanos", chapters: 16,
+        writing: { date: "c. 57 d.C.", place: "Corinto", countryToday: "Grecia" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "Romanos expone sistemáticamente el evangelio a una iglesia que Pablo aún no ha visitado; 1 Corintios, en cambio, corrige de forma pastoral los problemas concretos de una iglesia que él mismo fundó." },
+        summary: { tag: "El evangelio explicado de principio a fin." },
+        mainCharacters: ["Pablo", "Febe"],
+        theme: "La justificación por la fe y la vida nueva en Cristo, tanto para judíos como para gentiles.",
+      },
+      {
+        order: 46, title: "1 Corintios", chapters: 16,
+        writing: { date: "c. 55 d.C.", place: "Éfeso", countryToday: "Turquía" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "1 Corintios corrige divisiones y desorden dentro de la iglesia; 2 Corintios, escrita poco después, defiende la autoridad apostólica de Pablo frente a quienes la cuestionan." },
+        summary: { tag: "Corrigiendo el desorden de una iglesia dividida." },
+        mainCharacters: ["Pablo", "Apolos", "Cefas (Pedro)"],
+        theme: "La unidad, la pureza moral y el uso correcto de los dones espirituales dentro de la iglesia.",
+      },
+      {
+        order: 47, title: "2 Corintios", chapters: 13,
+        writing: { date: "c. 55–56 d.C.", place: "Macedonia", countryToday: "Grecia" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "2 Corintios defiende el ministerio apostólico de Pablo marcado por el sufrimiento; Gálatas defiende, con mayor urgencia doctrinal, el evangelio mismo frente a quienes exigen la circuncisión." },
+        summary: { tag: "El poder de Dios se perfecciona en la debilidad." },
+        mainCharacters: ["Pablo", "Tito"],
+        theme: "La autenticidad del ministerio apostólico, probada por el sufrimiento y sostenida por la gracia de Dios.",
+      },
+      {
+        order: 48, title: "Gálatas", chapters: 6,
+        writing: { date: "c. 48–55 d.C. (fecha debatida según los destinatarios: Galacia del norte o del sur)", place: "Antioquía o Éfeso", countryToday: "Turquía" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "Gálatas defiende la libertad del evangelio frente a la ley; Efesios, desde la prisión, expande esa libertad hacia una visión más amplia de la iglesia unida en Cristo." },
+        summary: { tag: "Libres de la ley, salvos solo por fe." },
+        mainCharacters: ["Pablo", "Pedro", "Bernabé"],
+        theme: "La justificación es solo por fe en Cristo, no por las obras de la ley.",
+      },
+      {
+        order: 49, title: "Efesios", chapters: 6,
+        writing: { date: "c. 60–62 d.C. (tradicional, desde prisión; autoría debatida — estilo y vocabulario difieren de las cartas indiscutidas de Pablo)", place: "Roma", countryToday: "Italia" },
+        history: { period: "Prisión de Pablo en Roma", transitionNote: "Efesios describe la identidad de la iglesia como cuerpo de Cristo; Filipenses, escrita también desde prisión, es más personal, agradeciendo el apoyo de una iglesia amiga con gozo en medio del sufrimiento." },
+        summary: { tag: "La iglesia, un solo cuerpo unido en Cristo." },
+        mainCharacters: ["Pablo"],
+        theme: "La unidad de judíos y gentiles en un solo cuerpo, la iglesia, y la identidad del creyente en Cristo.",
+      },
+      {
+        order: 50, title: "Filipenses", chapters: 4,
+        writing: { date: "c. 61 d.C., desde prisión en Roma", place: "Roma", countryToday: "Italia" },
+        history: { period: "Prisión de Pablo en Roma", transitionNote: "Filipenses rebosa de gozo pese a la prisión; Colosenses, escrita en el mismo período, combate una herejía específica que amenazaba la centralidad de Cristo en esa iglesia." },
+        summary: { tag: "Gozo genuino en medio de la prisión." },
+        mainCharacters: ["Pablo", "Epafrodito", "Timoteo"],
+        theme: "El gozo cristiano que no depende de las circunstancias, sino de Cristo.",
+      },
+      {
+        order: 51, title: "Colosenses", chapters: 4,
+        writing: { date: "c. 60–62 d.C. (tradicional, desde prisión; autoría debatida por razones similares a Efesios)", place: "Roma", countryToday: "Italia" },
+        history: { period: "Prisión de Pablo en Roma", transitionNote: "Colosenses defiende la supremacía absoluta de Cristo frente al error doctrinal; 1 Tesalonicenses, escrita años antes, refleja las primeras enseñanzas de Pablo a una iglesia joven, con énfasis en la segunda venida de Cristo." },
+        summary: { tag: "Cristo es supremo sobre toda filosofía y poder." },
+        mainCharacters: ["Pablo", "Epafras", "Onésimo"],
+        theme: "La supremacía y suficiencia de Cristo frente a falsas enseñanzas filosóficas y legalistas.",
+      },
+      {
+        order: 52, title: "1 Tesalonicenses", chapters: 5,
+        writing: { date: "c. 50–51 d.C. (una de las cartas más tempranas de Pablo)", place: "Corinto", countryToday: "Grecia" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "1 Tesalonicenses anima a una iglesia joven respecto a la segunda venida de Cristo; 2 Tesalonicenses corrige malentendidos que surgieron sobre ese mismo tema poco después." },
+        summary: { tag: "Consuelo y esperanza ante la segunda venida de Cristo." },
+        mainCharacters: ["Pablo", "Silvano (Silas)", "Timoteo"],
+        theme: "La esperanza de la segunda venida de Cristo como consuelo y motivación para una vida santa.",
+      },
+      {
+        order: 53, title: "2 Tesalonicenses", chapters: 3,
+        writing: { date: "c. 51–52 d.C. (tradicional; autoría debatida por diferencias de tono escatológico respecto a 1 Tesalonicenses)", place: "Corinto", countryToday: "Grecia" },
+        history: { period: "Expansión de la iglesia (era apostólica)", transitionNote: "Con 2 Tesalonicenses concluyen las cartas a iglesias. Las siguientes —1-2 Timoteo y Tito— son cartas pastorales dirigidas a líderes individuales, comenzando con instrucciones para el joven Timoteo en Éfeso." },
+        summary: { tag: "Corrigiendo la confusión sobre el día del Señor." },
+        mainCharacters: ["Pablo", "Silvano (Silas)", "Timoteo"],
+        theme: "La corrección de una falsa creencia sobre la inminencia del día del Señor, y el llamado a seguir trabajando fielmente.",
+      },
+      {
+        order: 54, title: "1 Timoteo", chapters: 6,
+        writing: { date: "c. 62–64 d.C. (tradicional; autoría debatida — estructura eclesiástica más desarrollada que el resto del corpus paulino)", place: "Posiblemente Macedonia", countryToday: "Grecia" },
+        history: { period: "Ministerio pastoral tardío de Pablo", transitionNote: "1 Timoteo instruye sobre el orden y liderazgo de la iglesia en tiempos de paz relativa; 2 Timoteo, escrita al final de la vida de Pablo desde una segunda prisión, tiene un tono mucho más personal y urgente." },
+        summary: { tag: "Instrucciones para ordenar la iglesia local." },
+        mainCharacters: ["Pablo", "Timoteo"],
+        theme: "El orden correcto del liderazgo, la doctrina sana y la conducta dentro de la iglesia local.",
+      },
+      {
+        order: 55, title: "2 Timoteo", chapters: 4,
+        writing: { date: "c. 66–67 d.C. (tradicional, última carta de Pablo; autoría debatida por las mismas razones que 1 Timoteo)", place: "Segunda prisión en Roma", countryToday: "Italia" },
+        history: { period: "Última prisión y muerte de Pablo", transitionNote: "2 Timoteo es el testamento final de Pablo a su discípulo más cercano; Tito, escrita en un tono similar, da instrucciones parecidas a otro colaborador encargado de organizar la iglesia en Creta." },
+        summary: { tag: "El testamento final del apóstol antes de morir." },
+        mainCharacters: ["Pablo", "Timoteo", "Lucas"],
+        theme: "La fidelidad hasta el final, y el llamado a Timoteo a preservar y transmitir la sana doctrina.",
+      },
+      {
+        order: 56, title: "Tito", chapters: 3,
+        writing: { date: "c. 62–64 d.C. (tradicional; autoría debatida por las mismas razones que las otras Pastorales)", place: "Posiblemente Macedonia o Corinto", countryToday: "Grecia" },
+        history: { period: "Ministerio pastoral tardío de Pablo", transitionNote: "Tito organiza el liderazgo de la iglesia en Creta; Filemón, la más breve y personal de las cartas de Pablo, aborda un caso individual: la reconciliación entre un amo cristiano y su esclavo fugitivo." },
+        summary: { tag: "Organizando la iglesia en Creta." },
+        mainCharacters: ["Pablo", "Tito"],
+        theme: "El nombramiento de ancianos calificados y la importancia de las buenas obras como fruto de la sana doctrina.",
+      },
+      {
+        order: 57, title: "Filemón", chapters: 1,
+        writing: { date: "c. 60–62 d.C., desde prisión en Roma", place: "Roma", countryToday: "Italia" },
+        history: { period: "Prisión de Pablo en Roma", transitionNote: "Con Filemón concluyen las cartas paulinas. El siguiente bloque, las Cartas Generales, agrupa cartas de otros apóstoles y líderes —Santiago, Pedro, Juan y Judas— dirigidas a la iglesia en general, comenzando con Hebreos." },
+        summary: { tag: "Un llamado a perdonar y reconciliar como hermanos." },
+        mainCharacters: ["Pablo", "Filemón", "Onésimo"],
+        theme: "El perdón y la reconciliación cristiana, que transforma las relaciones incluso entre amo y esclavo.",
+      }
+    ]
+  },
+  {
+    id: 9,
+    name: "Cartas Generales",
+    books: [
+      {
+        order: 58, title: "Hebreos", chapters: 13,
+        writing: { date: "c. 60–70 d.C. (antes de la destrucción del templo en 70 d.C.); autor completamente desconocido — el texto nunca se autoidentifica, sin consenso entre Pablo, Bernabé, Apolos o Priscila como candidatos", place: "Incierto", countryToday: "No determinado" },
+        history: { period: "Comunidad judeocristiana bajo persecución", transitionNote: "Hebreos argumenta la superioridad de Cristo sobre el sistema levítico para cristianos de trasfondo judío tentados a abandonar la fe; Santiago, con un tono más práctico, enseña cómo esa fe genuina se demuestra en obras concretas." },
+        summary: { tag: "Cristo, superior a todo el sistema del Antiguo Pacto." },
+        mainCharacters: ["Cristo (como Sumo Sacerdote)"],
+        theme: "La superioridad absoluta de Cristo sobre ángeles, Moisés y el sacerdocio levítico, como fundamento para perseverar en la fe.",
+      },
+      {
+        order: 59, title: "Santiago", chapters: 5,
+        writing: { date: "c. 45–49 d.C. (tradicional; una de las cartas más tempranas del N.T. si esta fecha es correcta)", place: "Jerusalén", countryToday: "Israel / Palestina" },
+        history: { period: "Iglesia primitiva dispersa", transitionNote: "Santiago enseña que la fe verdadera se demuestra en obras prácticas; 1 Pedro anima a los creyentes dispersos a perseverar con esperanza en medio del sufrimiento y la persecución." },
+        summary: { tag: "La fe verdadera se demuestra en obras." },
+        mainCharacters: ["Santiago"],
+        theme: "La fe genuina se manifiesta en un comportamiento práctico y coherente, no solo en palabras.",
+      },
+      {
+        order: 60, title: "1 Pedro", chapters: 5,
+        writing: { date: "c. 62–64 d.C.", place: "Roma (\"Babilonia\" como referencia simbólica)", countryToday: "Italia" },
+        history: { period: "Persecución bajo el Imperio Romano", transitionNote: "1 Pedro anima a los creyentes a perseverar ante el sufrimiento externo; 2 Pedro advierte sobre una amenaza distinta: los falsos maestros que corrompen la iglesia desde dentro." },
+        summary: { tag: "Esperanza viva en medio del sufrimiento." },
+        mainCharacters: ["Pedro"],
+        theme: "La esperanza y la santidad del creyente frente a la persecución y el sufrimiento injusto.",
+      },
+      {
+        order: 61, title: "2 Pedro", chapters: 3,
+        writing: { date: "c. 65–68 d.C. (tradicional; autoría fuertemente debatida — estilo muy distinto a 1 Pedro y atestación tardía en la iglesia primitiva llevan a buena parte de la erudición crítica a datarla pseudónima, s. II d.C.)", place: "Roma", countryToday: "Italia" },
+        history: { period: "Últimos días de Pedro / amenaza de falsos maestros", transitionNote: "2 Pedro advierte contra falsos maestros que niegan el regreso de Cristo; 1 Juan, con un enfoque distinto, da al creyente pruebas concretas para discernir la verdadera comunión con Dios frente a doctrinas falsas similares." },
+        summary: { tag: "Cuidado con los falsos maestros y el escepticismo sobre el regreso de Cristo." },
+        mainCharacters: ["Pedro"],
+        theme: "La advertencia contra falsos maestros y la certeza del regreso de Cristo pese a las burlas de los escépticos.",
+      },
+      {
+        order: 62, title: "1 Juan", chapters: 5,
+        writing: { date: "c. 85–95 d.C.", place: "Posiblemente Éfeso", countryToday: "Turquía" },
+        history: { period: "Comunidad joánica tardía, frente al error doctrinal", transitionNote: "1 Juan da criterios claros para discernir la verdadera fe frente al error; 2 Juan aplica los mismos principios de forma breve a una iglesia particular, advirtiendo contra recibir a falsos maestros." },
+        summary: { tag: "Certezas para saber que tienes vida eterna." },
+        mainCharacters: ["El apóstol Juan"],
+        theme: "La certeza de la salvación, demostrada en el amor genuino, la obediencia y la fe correcta en Cristo.",
+      },
+      {
+        order: 63, title: "2 Juan", chapters: 1,
+        writing: { date: "c. 85–95 d.C.", place: "Posiblemente Éfeso", countryToday: "Turquía" },
+        history: { period: "Comunidad joánica tardía, frente al error doctrinal", transitionNote: "2 Juan advierte contra recibir a falsos maestros; 3 Juan, en cambio, elogia la hospitalidad genuina hacia los maestros fieles, mostrando el otro lado de la misma preocupación pastoral." },
+        summary: { tag: "No recibas ni animes a los falsos maestros." },
+        mainCharacters: ["El apóstol Juan", "\"La señora elegida\""],
+        theme: "El equilibrio entre el amor cristiano y el discernimiento doctrinal frente a falsos maestros.",
+      },
+      {
+        order: 64, title: "3 Juan", chapters: 1,
+        writing: { date: "c. 85–95 d.C.", place: "Posiblemente Éfeso", countryToday: "Turquía" },
+        history: { period: "Comunidad joánica tardía, frente al error doctrinal", transitionNote: "Con 3 Juan concluyen las cartas joánicas sobre hospitalidad y verdad. Judas cierra el bloque de Cartas Generales con una advertencia urgente contra falsos maestros infiltrados en la iglesia." },
+        summary: { tag: "Elogio a la hospitalidad genuina hacia los maestros fieles." },
+        mainCharacters: ["El apóstol Juan", "Gayo", "Diótrefes", "Demetrio"],
+        theme: "La importancia de apoyar a quienes sirven fielmente a la verdad, en contraste con el orgullo que rechaza la autoridad apostólica.",
+      },
+      {
+        order: 65, title: "Judas", chapters: 1,
+        writing: { date: "c. 65–80 d.C. (fecha incierta; su relación literaria con 2 Pedro —contenido muy similar— complica la datación precisa)", place: "Incierto, posiblemente Palestina", countryToday: "Israel / Palestina" },
+        history: { period: "Amenaza de falsos maestros infiltrados", transitionNote: "Con Judas concluyen las Cartas Generales. El último libro de la Biblia, Apocalipsis, cierra toda la narrativa bíblica con la revelación final de Cristo y la consumación del plan de Dios." },
+        summary: { tag: "Contendiendo por la fe frente a los infiltrados." },
+        mainCharacters: ["Judas"],
+        theme: "El llamado urgente a contender por la fe verdadera frente a falsos maestros infiltrados en la iglesia.",
+      }
+    ]
+  },
+  {
+    id: 10,
+    name: "Profecía",
+    books: [
+      {
+        order: 66, title: "Apocalipsis", chapters: 22,
+        writing: { date: "c. 95 d.C. (tradicional, bajo Domiciano; algunos proponen c. 68–69 d.C. bajo Nerón); autoría también debatida — diferencias de estilo con el Evangelio y las cartas de Juan llevan a parte de la erudición a proponer un \"Juan el Presbítero\" distinto del apóstol", place: "Isla de Patmos", countryToday: "Grecia" },
+        history: { period: "Consumación final del plan de Dios", transitionNote: "Con Apocalipsis se cierra el canon bíblico completo. Su visión final del cielo nuevo y la tierra nueva no conecta con un libro siguiente: es la consumación de la historia que comenzó en Génesis, cuando Dios creó los cielos y la tierra por primera vez." },
+        summary: { tag: "El regreso de Cristo y la consumación de todas las cosas." },
+        mainCharacters: ["Jesucristo (el Cordero)", "El apóstol Juan", "Las siete iglesias de Asia"],
+        theme: "La victoria final de Cristo sobre el mal, el juicio de las naciones y la restauración eterna de la creación en un cielo nuevo y una tierra nueva.",
+      }
+    ]
+  }
+];
+
+
+// ============ MAPA GEOGRÁFICO ============
+
+// Regiones macro. Coordenadas reales aproximadas (lat/lng), agrupadas para
+// evitar amontonar puntos que a esta escala quedarían superpuestos
+// (ej. Belén, Ramá y Jerusalén están a pocos km entre sí).
+const geoRegions = {
+  egipto:            { label: "Egipto (incl. Sinaí)", country: "Egipto", lat: 29.9, lng: 32.9 },
+  jordania:          { label: "Jordania (Moab)", country: "Jordania", lat: 31.20, lng: 35.72 },
+  israel_palestina:  { label: "Israel / Palestina", country: "Israel / Palestina", lat: 31.80, lng: 35.20 },
+  babilonia:         { label: "Babilonia", country: "Irak", lat: 32.54, lng: 44.42 },
+  susa:              { label: "Persia (Susa)", country: "Irán", lat: 32.19, lng: 48.25 },
+  antioquia:         { label: "Antioquía", country: "Turquía", lat: 36.20, lng: 36.16 },
+  efeso:             { label: "Éfeso", country: "Turquía", lat: 37.94, lng: 27.34 },
+  corinto:           { label: "Corinto", country: "Grecia", lat: 37.91, lng: 22.88 },
+  macedonia:         { label: "Macedonia", country: "Grecia", lat: 40.64, lng: 22.94 },
+  patmos:            { label: "Patmos", country: "Grecia", lat: 37.30, lng: 26.55 },
+  roma:              { label: "Roma", country: "Italia", lat: 41.90, lng: 12.50 },
+};
+
+// Radio aproximado (en metros) de la "zona" que representa cada región al
+// seleccionarla. Es una referencia visual, no un límite histórico o
+// político preciso — por eso se aclara en el panel.
+const regionRadius = {
+  egipto: 220000,
+  jordania: 90000,
+  israel_palestina: 110000,
+  babilonia: 150000,
+  susa: 150000,
+  antioquia: 80000,
+  efeso: 70000,
+  corinto: 70000,
+  macedonia: 150000,
+  patmos: 40000,
+  roma: 100000,
+};
+
+// Libro -> región. "uncertain: true" refleja que el dato original usa
+// "posiblemente" / "o [otro lugar]". Jeremías y Daniel tuvieron una segunda
+// etapa geográfica real (Egipto y Persia respectivamente) — eso ahora vive
+// en sus propios "Recorridos", no acá.
+const bookGeo = {
+  "Génesis": { region: "egipto" },
+  "Éxodo": { region: "egipto" },
+  "Levítico": { region: "egipto" },
+  "Números": { region: "jordania" },
+  "Deuteronomio": { region: "jordania" },
+  "Josué": { region: "israel_palestina" },
+  "Jueces": { region: "israel_palestina", uncertain: true },
+  "Rut": { region: "israel_palestina" },
+  "1 Samuel": { region: "israel_palestina" },
+  "2 Samuel": { region: "israel_palestina" },
+  "1 Reyes": { region: "babilonia", uncertain: true },
+  "2 Reyes": { region: "babilonia", uncertain: true },
+  "1 Crónicas": { region: "israel_palestina" },
+  "2 Crónicas": { region: "israel_palestina" },
+  "Esdras": { region: "israel_palestina", uncertain: true },
+  "Nehemías": { region: "israel_palestina" },
+  "Ester": { region: "susa" },
+  "Job": { region: null },
+  "Salmos": { region: "israel_palestina" },
+  "Proverbios": { region: "israel_palestina" },
+  "Eclesiastés": { region: "israel_palestina" },
+  "Cantares": { region: "israel_palestina" },
+  "Isaías": { region: "israel_palestina" },
+  "Jeremías": { region: "israel_palestina" },
+  "Lamentaciones": { region: "israel_palestina" },
+  "Ezequiel": { region: "babilonia" },
+  "Daniel": { region: "babilonia" },
+  "Oseas": { region: "israel_palestina" },
+  "Joel": { region: "israel_palestina" },
+  "Amós": { region: "israel_palestina" },
+  "Abdías": { region: "israel_palestina" },
+  "Jonás": { region: "israel_palestina" },
+  "Miqueas": { region: "israel_palestina" },
+  "Nahúm": { region: "israel_palestina" },
+  "Habacuc": { region: "israel_palestina" },
+  "Sofonías": { region: "israel_palestina" },
+  "Hageo": { region: "israel_palestina" },
+  "Zacarías": { region: "israel_palestina" },
+  "Malaquías": { region: "israel_palestina" },
+  "Mateo": { region: "antioquia", uncertain: true },
+  "Marcos": { region: "roma", uncertain: true },
+  "Lucas": { region: "israel_palestina", uncertain: true },
+  "Juan": { region: "efeso", uncertain: true },
+  "Hechos": { region: "roma", uncertain: true },
+  "Romanos": { region: "corinto" },
+  "1 Corintios": { region: "efeso" },
+  "2 Corintios": { region: "macedonia" },
+  "Gálatas": { region: "antioquia", uncertain: true },
+  "Efesios": { region: "roma" },
+  "Filipenses": { region: "roma" },
+  "Colosenses": { region: "roma" },
+  "1 Tesalonicenses": { region: "corinto" },
+  "2 Tesalonicenses": { region: "corinto" },
+  "1 Timoteo": { region: "macedonia", uncertain: true },
+  "2 Timoteo": { region: "roma" },
+  "Tito": { region: "macedonia", uncertain: true },
+  "Filemón": { region: "roma" },
+  "Hebreos": { region: null },
+  "Santiago": { region: "israel_palestina" },
+  "1 Pedro": { region: "roma" },
+  "2 Pedro": { region: "roma" },
+  "1 Juan": { region: "efeso", uncertain: true },
+  "2 Juan": { region: "efeso", uncertain: true },
+  "3 Juan": { region: "efeso", uncertain: true },
+  "Judas": { region: "israel_palestina", uncertain: true },
+  "Apocalipsis": { region: "patmos" },
+};
+
+// ============ VIDEOS DE RESUMEN (YouTube) ============
+// Para agregar un video, pegá la URL dentro del arreglo del libro.
+// Un solo video:  "Génesis": ["https://youtu.be/XXXXXXXXXXX"]
+// Dos partes:     "Génesis": ["https://youtu.be/PARTE1", "https://youtu.be/PARTE2"]
+// Si el arreglo queda vacío [], la columna muestra un guion "—".
+const bookVideos = {
+  "Génesis": ["https://www.youtube.com/watch?v=HQMKA6w5ZZM", "https://www.youtube.com/watch?v=MC8BqGu9B8A"], "Éxodo": ["https://www.youtube.com/watch?v=y9pED55wMM4", "https://www.youtube.com/watch?v=U2lUpubEMDI"], "Levítico": ["https://www.youtube.com/watch?v=vKT8eo3hAMw"], "Números": ["https://www.youtube.com/watch?v=dtfbSxNecMk"], "Deuteronomio": ["https://www.youtube.com/watch?v=qfMplfJoYA0"],
+  "Josué": ["https://www.youtube.com/watch?v=49ggVrdBN_Y"], "Jueces": ["https://www.youtube.com/watch?v=bCwaJz4L2nU"], "Rut": ["https://www.youtube.com/watch?v=f984fG4-xlE"], "1 Samuel": ["https://www.youtube.com/watch?v=34biq4ivs5I"], "2 Samuel": ["https://www.youtube.com/watch?v=BEvicPpjQBE"],
+  "1 Reyes": ["https://www.youtube.com/watch?v=8V-TefJJc0g"], "2 Reyes": ["https://www.youtube.com/watch?v=8V-TefJJc0g"], "1 Crónicas": ["https://www.youtube.com/watch?v=lMj--4fDpvc"], "2 Crónicas": ["https://www.youtube.com/watch?v=lMj--4fDpvc"], "Esdras": ["https://www.youtube.com/watch?v=OGdiLZ92nQs"],
+  "Nehemías": ["https://www.youtube.com/watch?v=OGdiLZ92nQs"], "Ester": ["https://www.youtube.com/watch?v=0NzTOuBKAcI"], "Job": ["https://www.youtube.com/watch?v=A3ifTHYTmMQ"], "Salmos": ["https://www.youtube.com/watch?v=8yieTfiw_Ew"], "Proverbios": ["https://www.youtube.com/watch?v=pNjt_NfIam8"],
+  "Eclesiastés": ["https://www.youtube.com/watch?v=X4Brf1Z8N4E"], "Cantares": ["https://www.youtube.com/watch?v=JeTxGCZH99o"], "Isaías": ["https://www.youtube.com/watch?v=9lWr9EZchWg", "https://www.youtube.com/watch?v=s-K5s7YpUC8"], "Jeremías": ["https://www.youtube.com/watch?v=_Nf4IcDuyTc&list"], "Lamentaciones": ["https://www.youtube.com/watch?v=CWgafyPYpAU"],
+  "Ezequiel": ["https://www.youtube.com/watch?v=_XqV69VU3o0&list", "https://www.youtube.com/watch?v=5_PVGlLfuk8&list"], "Daniel": ["https://www.youtube.com/watch?v=yBO4FjCebrI"], "Oseas": ["https://www.youtube.com/watch?v=f81QQCnEOT4"], "Joel": ["https://www.youtube.com/watch?v=lcUo6mIBx1E"], "Amós": ["https://www.youtube.com/watch?v=_6VyB2nOH8w"],
+  "Abdías": ["https://www.youtube.com/watch?v=aEe3f0vEmVw"], "Jonás": ["https://www.youtube.com/watch?v=oozILMuVVio"], "Miqueas": ["https://www.youtube.com/watch?v=uivwBR1_tLs"], "Nahúm": ["https://www.youtube.com/watch?v=bDGI0kq3vaE"], "Habacuc": ["https://www.youtube.com/watch?v=AJT_ipZplS4"],
+  "Sofonías": ["https://www.youtube.com/watch?v=I9KvC0w1plE"], "Hageo": ["https://www.youtube.com/watch?v=kPOORNkv4AA"], "Zacarías": ["https://www.youtube.com/watch?v=pYh4r4bNruQ"], "Malaquías": ["https://www.youtube.com/watch?v=8ZMSBFH-8QM"], "Mateo": ["https://www.youtube.com/watch?v=3jUPGTb80ms", "https://www.youtube.com/watch?v=EobkNEf-ySA"],
+  "Marcos": ["https://www.youtube.com/watch?v=gsXLQkppzUc"], "Lucas": ["https://www.youtube.com/watch?v=bPzhlL9zKmg", "https://www.youtube.com/watch?v=CxiSs-SHTuI"], "Juan": ["https://www.youtube.com/watch?v=OU16-2Sg_CQ", "https://www.youtube.com/watch?v=NUW1Frg8DA0"], "Hechos": ["https://www.youtube.com/watch?v=5h7Q0EK-m8I", "https://www.youtube.com/watch?v=ZKaaHQUdVCY"], "Romanos": ["https://www.youtube.com/watch?v=0tco1rQGC1o", "https://www.youtube.com/watch?v=ZqScL0dHLsM"],
+  "1 Corintios": ["https://www.youtube.com/watch?v=6f0kym4bUmE"], "2 Corintios": ["https://www.youtube.com/watch?v=jV7dTkYFym4"], "Gálatas": ["https://www.youtube.com/watch?v=kMJLgLOWb3I"], "Efesios": ["https://www.youtube.com/watch?v=yJgym5MGzM4"], "Filipenses": ["https://www.youtube.com/watch?v=gks8CQX5mwQ"],
+  "Colosenses": ["https://www.youtube.com/watch?v=AG4jqCUapng"], "1 Tesalonicenses": ["https://www.youtube.com/watch?v=_7N4vdUUK2w"], "2 Tesalonicenses": ["https://www.youtube.com/watch?v=YXBzJlvH6l4"], "1 Timoteo": ["https://www.youtube.com/watch?v=K5xCbQcSsOE"], "2 Timoteo": ["https://www.youtube.com/watch?v=lvNqjbjTytE"],
+  "Tito": ["https://www.youtube.com/watch?v=SuJmsIu_1-M"], "Filemón": ["https://www.youtube.com/watch?v=wNySA_IEHbM"], "Hebreos": ["https://www.youtube.com/watch?v=VqVAOqyoKCs"], "Santiago": ["https://www.youtube.com/watch?v=yDqK_U-ipfc"], "1 Pedro": ["https://www.youtube.com/watch?v=NXRkCxeO-C4"],
+  "2 Pedro": ["https://www.youtube.com/watch?v=0RJLecW7F08"], "1 Juan": ["https://www.youtube.com/watch?v=wQtMnuBzb4c"], "2 Juan": ["https://www.youtube.com/watch?v=wQtMnuBzb4c"], "3 Juan": ["https://www.youtube.com/watch?v=wQtMnuBzb4c"], "Judas": ["https://www.youtube.com/watch?v=vhPyNSJiRZ8"],
+  "Apocalipsis": ["https://www.youtube.com/watch?v=PgV57gK-Xow", "https://www.youtube.com/watch?v=DMXA-GERRzY"],
+};
+
+const tbody = document.getElementById('table-body');
+
+blocks.forEach(block => {
+  const blockRow = document.createElement('tr');
+  blockRow.className = 'block-row';
+  blockRow.innerHTML = `<td colspan="8"><div class="block-label">Bloque ${block.id} <span>· ${block.name}</span></div></td>`;
+  tbody.appendChild(blockRow);
+
+  block.books.forEach(book => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="col-book">
+        <div class="book-num">${String(book.order).padStart(2,'0')} | <strong>${book.title}</strong></div>
+        <div class="book-chapters">${book.chapters} cap</div>
+        <div class="book-tag">"${book.summary.tag}"</div>
+        <div class="book-date">${book.writing.date}</div>
+      </td>
+      <td>${renderPlaceCell(book)}</td>
+      <td>${book.writing.countryToday}</td>
+      <td>${book.history.period}</td>
+      <td class="col-characters">${book.mainCharacters.join(', ')}</td>
+      <td class="col-theme">${book.theme}</td>
+      <td class="col-summary">${renderVideoCell(book)}</td>
+      <td class="col-connect"><strong>Siguiente libro:</strong>${book.history.transitionNote}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+});
+
+const cardsContainer = document.getElementById('book-cards');
+
+blocks.forEach(block => {
+  const blockLabel = document.createElement('div');
+  blockLabel.className = 'card-block-label';
+  blockLabel.innerHTML = `Bloque ${block.id} <span>· ${block.name}</span>`;
+  cardsContainer.appendChild(blockLabel);
+
+  block.books.forEach(book => {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.innerHTML = `
+      <div class="book-card-head">
+        <div class="book-num">${String(book.order).padStart(2,'0')} | <strong>${book.title}</strong></div>
+        <div class="book-chapters">${book.chapters} cap</div>
+        <div class="book-tag">"${book.summary.tag}"</div>
+        <div class="book-date">${book.writing.date}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">Lugar de escritura</div>
+        <div class="book-card-value">${renderPlaceCell(book)}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">País actual</div>
+        <div class="book-card-value">${book.writing.countryToday}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">Período bíblico</div>
+        <div class="book-card-value">${book.history.period}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">Personajes principales</div>
+        <div class="book-card-value">${book.mainCharacters.join(', ')}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">Tema principal</div>
+        <div class="book-card-value">${book.theme}</div>
+      </div>
+      <div class="book-card-row">
+        <div class="book-card-label">Resumen</div>
+        <div class="book-card-value">${renderVideoCell(book)}</div>
+      </div>
+      <div class="book-card-row connect">
+        <div class="book-card-label">Siguiente libro</div>
+        <div class="book-card-value">${book.history.transitionNote}</div>
+      </div>
+    `;
+    cardsContainer.appendChild(card);
+  });
+});
+
+function renderPlaceCell(book){
+  const geo = bookGeo[book.title];
+  if(geo && geo.region){
+    return `<span class="place-link" data-book-title="${book.title}" onclick="goToBookLocation(this.dataset.bookTitle)">${book.writing.place}</span>`;
+  }
+  return book.writing.place;
+}
+
+function renderVideoCell(book){
+  const videos = bookVideos[book.title] || [];
+  if(videos.length === 0){
+    return '<span class="video-pending">—</span>';
+  }
+  return videos.map((url, i) => `
+    <a class="video-pill" href="${url}" target="_blank" rel="noopener noreferrer">
+      ▶ ${videos.length > 1 ? 'Parte ' + (i + 1) : 'Resumen'}
+    </a>
+  `).join('');
+}
+
+
+// ============ RECORRIDOS HISTÓRICOS ============
+// Coordenadas aproximadas de sitios tradicionales. Donde la ubicación
+// exacta es discutida (ej. el cruce del Mar Rojo, el Sinaí bíblico),
+// se usa el sitio de identificación más aceptada, marcado en la nota.
+const routes = {
+  exodo: {
+    label: "Éxodo de Egipto",
+    color: "#c9a24b",
+    description: "La salida de Israel de Egipto hasta las llanuras de Moab, frente a la Tierra Prometida (Génesis–Deuteronomio).",
+    waypoints: [
+      { name: "Ramesés, Egipto", lat: 30.80, lng: 31.99, note: "Punto de partida (Éx 12:37)" },
+      { name: "Sucot", lat: 30.57, lng: 32.27 },
+      { name: "Cruce del Mar Rojo", lat: 29.97, lng: 32.60, note: "Ubicación exacta debatida" },
+      { name: "Monte Sinaí", lat: 28.5392, lng: 33.9734, note: "Identificación tradicional (Jebel Musa)" },
+      { name: "Cades-barnea", lat: 30.6870, lng: 34.4854 },
+      { name: "Monte Nebo, Moab", lat: 31.7688, lng: 35.7256, note: "Moisés ve la Tierra Prometida (Dt 34)" },
+    ],
+  },
+  jesus: {
+    label: "Recorrido de Jesús",
+    color: "#7ea8c9",
+    description: "Lugares clave del nacimiento y ministerio de Jesús, de forma simplificada (no es un itinerario cronológico exhaustivo).",
+    waypoints: [
+      { name: "Belén", lat: 31.7054, lng: 35.2024, note: "Nacimiento" },
+      { name: "Nazaret", lat: 32.6996, lng: 35.2967, note: "Infancia y juventud" },
+      { name: "Río Jordán", lat: 31.8372, lng: 35.5494, note: "Bautismo por Juan" },
+      { name: "Capernaúm", lat: 32.8807, lng: 35.5753, note: "Base del ministerio en Galilea" },
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Semana final, crucifixión y resurrección" },
+    ],
+  },
+  pablo1: {
+    label: "1er viaje misionero de Pablo",
+    color: "#a888c9",
+    description: "Hechos 13–14. Pablo y Bernabé recorren Chipre y el centro de Asia Menor.",
+    waypoints: [
+      { name: "Antioquía de Siria", lat: 36.2021, lng: 36.1604, note: "Punto de partida" },
+      { name: "Salamina, Chipre", lat: 35.1856, lng: 33.9031 },
+      { name: "Pafos, Chipre", lat: 34.7571, lng: 32.4097 },
+      { name: "Perge", lat: 36.9614, lng: 30.8494 },
+      { name: "Antioquía de Pisidia", lat: 38.3081, lng: 31.1897 },
+      { name: "Iconio", lat: 37.8747, lng: 32.4932 },
+      { name: "Listra", lat: 37.5786, lng: 32.4664 },
+      { name: "Derbe", lat: 37.3494, lng: 33.2481 },
+      { name: "Antioquía de Siria", lat: 36.2021, lng: 36.1604, note: "Regreso" },
+    ],
+  },
+  pablo2: {
+    label: "2do viaje misionero de Pablo",
+    color: "#c98878",
+    description: "Hechos 15:36–18:22. Pablo cruza a Macedonia y Grecia; se escriben 1-2 Tesalonicenses.",
+    waypoints: [
+      { name: "Antioquía de Siria", lat: 36.2021, lng: 36.1604, note: "Punto de partida" },
+      { name: "Listra (revisita)", lat: 37.5786, lng: 32.4664 },
+      { name: "Troas", lat: 39.7580, lng: 26.1520 },
+      { name: "Filipos", lat: 41.0138, lng: 24.2875 },
+      { name: "Tesalónica", lat: 40.6401, lng: 22.9444 },
+      { name: "Berea", lat: 40.5231, lng: 22.2044 },
+      { name: "Atenas", lat: 37.9838, lng: 23.7275 },
+      { name: "Corinto", lat: 37.9061, lng: 22.8781, note: "18 meses de ministerio" },
+      { name: "Éfeso", lat: 37.9375, lng: 27.3407, note: "Visita breve" },
+      { name: "Antioquía de Siria", lat: 36.2021, lng: 36.1604, note: "Regreso" },
+    ],
+  },
+  pablo3: {
+    label: "3er viaje misionero de Pablo",
+    color: "#88c9a0",
+    description: "Hechos 18:23–21:17. Pablo pasa ~3 años en Éfeso; se escriben 1-2 Corintios, Romanos.",
+    waypoints: [
+      { name: "Antioquía de Siria", lat: 36.2021, lng: 36.1604, note: "Punto de partida" },
+      { name: "Éfeso", lat: 37.9375, lng: 27.3407, note: "~3 años de ministerio" },
+      { name: "Macedonia (Filipos)", lat: 41.0138, lng: 24.2875 },
+      { name: "Corinto (revisita)", lat: 37.9061, lng: 22.8781, note: "3 meses, escribe Romanos" },
+      { name: "Troas", lat: 39.7580, lng: 26.1520 },
+      { name: "Mileto", lat: 37.5312, lng: 27.2833 },
+      { name: "Tiro", lat: 33.2704, lng: 35.2038 },
+      { name: "Cesarea", lat: 32.50, lng: 34.90 },
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Arresto" },
+    ],
+  },
+  pablo_roma: {
+    label: "Viaje de Pablo a Roma",
+    color: "#c9c088",
+    description: "Hechos 27–28. Como preso, Pablo naufraga camino a Roma para ser juzgado ante el César.",
+    waypoints: [
+      { name: "Cesarea", lat: 32.50, lng: 34.90, note: "Punto de partida, como preso" },
+      { name: "Sidón", lat: 33.5606, lng: 35.3758 },
+      { name: "Mira", lat: 36.2603, lng: 29.9847 },
+      { name: "Creta (Buenos Puertos)", lat: 34.9853, lng: 25.0864 },
+      { name: "Malta", lat: 35.9375, lng: 14.3754, note: "Naufragio" },
+      { name: "Siracusa, Sicilia", lat: 37.0755, lng: 15.2866 },
+      { name: "Puteoli", lat: 40.8236, lng: 14.1197 },
+      { name: "Roma", lat: 41.9028, lng: 12.4964, note: "Juicio ante el César" },
+    ],
+  },
+  abraham: {
+    label: "Viaje de Abraham",
+    color: "#c96b6b",
+    description: "Génesis 11–13. El llamado de Dios a Abraham, de Ur de los Caldeos hasta Canaán.",
+    waypoints: [
+      { name: "Ur de los Caldeos", lat: 30.9625, lng: 46.1039, note: "Punto de partida" },
+      { name: "Harán", lat: 36.8622, lng: 39.0281, note: "Muere Taré, padre de Abraham" },
+      { name: "Siquem, Canaán", lat: 32.2137, lng: 35.2810, note: "Primera promesa de la tierra" },
+      { name: "Betel", lat: 31.9306, lng: 35.2178 },
+      { name: "Hebrón", lat: 31.5326, lng: 35.0998, note: "Se establece finalmente" },
+    ],
+  },
+  exilio: {
+    label: "Exilio a Babilonia",
+    color: "#8892c9",
+    description: "2 Reyes 25. La deportación de Judá tras la caída de Jerusalén en 586 a.C.",
+    waypoints: [
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Caída de la ciudad, 586 a.C." },
+      { name: "Ribla", lat: 34.4667, lng: 36.5333, note: "Campamento de Nabucodonosor" },
+      { name: "Babilonia", lat: 32.5364, lng: 44.4208, note: "Destino del exilio" },
+    ],
+  },
+  jeremias: {
+    label: "Jeremías, el profeta",
+    color: "#d9895a",
+    description: "Jeremías 1, 39–43. Del pueblo natal del profeta hasta su traslado forzado a Egipto tras la caída de Jerusalén.",
+    waypoints: [
+      { name: "Anatot", lat: 31.83, lng: 35.27, note: "Pueblo natal de Jeremías (Jer 1:1)" },
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Décadas de ministerio profético" },
+      { name: "Mizpa", lat: 31.87, lng: 35.18, note: "Permanece en Judá bajo el gobernador Gedalías" },
+      { name: "Tahpanhes, Egipto", lat: 30.87, lng: 32.33, note: "Llevado a la fuerza por el remanente judío (Jer 43)" },
+    ],
+  },
+  daniel: {
+    label: "Daniel, en el exilio",
+    color: "#5fb8b0",
+    description: "Daniel 1, 8. De un joven deportado de Jerusalén a una carrera de décadas sirviendo en las cortes de Babilonia y Persia.",
+    waypoints: [
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Deportado en 605 a.C., siendo joven" },
+      { name: "Babilonia", lat: 32.5364, lng: 44.4208, note: "Sirve en la corte de Nabucodonosor y sus sucesores" },
+      { name: "Susa", lat: 32.1943, lng: 48.2533, note: "Escenario de su visión final (Dn 8)" },
+    ],
+  },
+  david: {
+    label: "David huye de Saúl",
+    color: "#c96b9e",
+    description: "1 Samuel 19–27. Los años de David como fugitivo antes de convertirse en rey.",
+    waypoints: [
+      { name: "Belén", lat: 31.7054, lng: 35.2024, note: "Pueblo natal de David" },
+      { name: "Naiot, en Ramá", lat: 31.85, lng: 35.22, note: "Huye donde el profeta Samuel" },
+      { name: "Nob", lat: 31.78, lng: 35.23, note: "El sacerdote Ahimelec le da pan y la espada de Goliat" },
+      { name: "Gat, Filistea", lat: 31.70, lng: 34.84, note: "Se refugia entre los filisteos, finge locura" },
+      { name: "Cueva de Adulam", lat: 31.62, lng: 34.99 },
+      { name: "En-gadi", lat: 31.46, lng: 35.39, note: "Perdona la vida de Saúl en una cueva" },
+      { name: "Siclag", lat: 31.28, lng: 34.65, note: "Base final bajo protección filistea (ubicación exacta debatida)" },
+    ],
+  },
+  elias: {
+    label: "Elías, el profeta",
+    color: "#a3b83c",
+    description: "1 Reyes 17–19. Del anuncio de la sequía al encuentro con Dios en el monte Horeb.",
+    waypoints: [
+      { name: "Tisbé, en Galaad", lat: 32.35, lng: 35.75, note: "Origen del profeta (ubicación aproximada)" },
+      { name: "Arroyo de Querit", lat: 32.40, lng: 35.60, note: "Se esconde, alimentado por cuervos" },
+      { name: "Sarepta, cerca de Sidón", lat: 33.4667, lng: 35.2833, note: "La viuda y el aceite que no se agota" },
+      { name: "Monte Carmelo", lat: 32.7333, lng: 35.0500, note: "Duelo contra los profetas de Baal" },
+      { name: "Monte Horeb", lat: 28.5392, lng: 33.9734, note: "Huye de Jezabel; encuentro con Dios en el silbo apacible" },
+    ],
+  },
+  reyes_magos: {
+    label: "Los reyes magos",
+    color: "#c9a0e0",
+    description: "Mateo 2. Los sabios de Oriente que siguen una estrella hasta el niño Jesús.",
+    waypoints: [
+      { name: "Oriente", lat: 32.5364, lng: 44.4208, note: "Origen incierto; tradicionalmente Babilonia, Persia o Arabia" },
+      { name: "Jerusalén", lat: 31.7683, lng: 35.2137, note: "Consultan a Herodes" },
+      { name: "Belén", lat: 31.7054, lng: 35.2024, note: "Encuentran al niño y lo adoran" },
+    ],
+  },
+};
+
+// Construir listado de libros por región + lista de "sin ubicación"
+const allBooksFlat = blocks.flatMap(b => b.books.map(bk => ({ ...bk, blockName: b.name })));
+const booksByRegion = {};
+const unresolvedBooks = [];
+
+allBooksFlat.forEach(book => {
+  const geo = bookGeo[book.title];
+  if(!geo || !geo.region){
+    unresolvedBooks.push(book);
+    return;
+  }
+  if(!booksByRegion[geo.region]) booksByRegion[geo.region] = [];
+  booksByRegion[geo.region].push({ book, uncertain: !!geo.uncertain });
+});
+
+let selectedRegion = null;
+let selectedRoute = null;
+let leafletMap = null;
+let mapTileLayer = null;
+const leafletMarkers = {};
+let routeLayer = null;
+let regionHighlightLayer = null;
+
+function renderMap(){
+  leafletMap = L.map('leaflet-map', {
+    center: [33, 30],
+    zoom: 4.4,
+    scrollWheelZoom: true,
+  });
+
+  // CartoDB Dark Matter / Positron: tiles gratuitos, sin API key, que
+  // combinan con el tema activo de la app (los tiles estandar de OSM son
+  // a color y no siguen el tema).
+  const initialTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+  mapTileLayer = L.tileLayer(tileUrlForTheme(initialTheme), {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    subdomains: 'abcd',
+    maxZoom: 19,
+  }).addTo(leafletMap);
+
+  Object.keys(geoRegions).forEach(key => {
+    if(!booksByRegion[key]) return;
+    const region = geoRegions[key];
+    const entries = booksByRegion[key];
+    const total = entries.length;
+    const allUncertain = entries.every(e => e.uncertain);
+    const size = 14 + Math.sqrt(total) * 3.2;
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div class="geo-marker-icon${allUncertain ? ' uncertain' : ''}" style="width:${size}px;height:${size}px">${total}</div>`,
+      iconSize: [size, size],
+    });
+
+    const marker = L.marker([region.lat, region.lng], { icon }).addTo(leafletMap);
+    marker.bindTooltip(region.label, { direction: 'top', offset: [0, -size/2] });
+    marker.on('click', () => selectRegion(key));
+    leafletMarkers[key] = marker;
+  });
+
+  routeLayer = L.layerGroup().addTo(leafletMap);
+  regionHighlightLayer = L.layerGroup().addTo(leafletMap);
+  renderPanelLists();
+}
+
+function setMobileListCollapsed(collapsed){
+  const wrap = document.getElementById('map-wrap');
+  if(!wrap) return;
+  wrap.classList.toggle('mobile-collapsed', collapsed);
+  if(collapsed && leafletMap){
+    // El contenedor pasa de display:none a visible recién ahora. Hay que
+    // recalcular el tamaño de Leaflet ANTES de mover la vista (flyTo/
+    // flyToBounds); si se hace después, el destino se calcula sobre un
+    // contenedor de tamaño 0 y el movimiento sale mal o no se nota.
+    leafletMap.invalidateSize(false);
+  }
+}
+
+function expandMobileList(){
+  if(selectedRegion){ clearRegionSelection(); }
+  else if(selectedRoute){ clearRoute(); }
+  else { setMobileListCollapsed(false); }
+}
+
+function goToRegion(key){
+  setMobileListCollapsed(true);
+  const region = geoRegions[key];
+  leafletMap.flyTo([region.lat, region.lng], 6, { duration: 0.6 });
+  selectRegion(key);
+}
+
+function goToBookLocation(bookTitle){
+  const geo = bookGeo[bookTitle];
+  if(!geo || !geo.region) return;
+
+  const wasMapReady = !!leafletMap;
+  setView('map');
+
+  // Si el mapa recién se está inicializando en este mismo clic, hay que
+  // esperar a que exista antes de centrar la vista.
+  if(wasMapReady){
+    goToRegion(geo.region);
+  } else {
+    setTimeout(() => goToRegion(geo.region), 200);
+  }
+}
+
+function selectRegion(key){
+  setMobileListCollapsed(true);
+  selectedRegion = key;
+  selectedRoute = null;
+  routeLayer.clearLayers();
+  regionHighlightLayer.clearLayers();
+
+  Object.keys(leafletMarkers).forEach(k => {
+    const marker = leafletMarkers[k];
+    marker.setOpacity(k === key ? 1 : 0);
+    const el = marker.getElement();
+    if(el){
+      const icon = el.querySelector('.geo-marker-icon');
+      if(icon) icon.classList.toggle('selected', k === key);
+    }
+  });
+
+  const region = geoRegions[key];
+  L.circle([region.lat, region.lng], {
+    radius: regionRadius[key] || 100000,
+    color: '#C9A24B',
+    weight: 1.5,
+    dashArray: '4,5',
+    fillColor: '#C9A24B',
+    fillOpacity: 0.08,
+  }).addTo(regionHighlightLayer);
+
+  renderPanelLists();
+  renderGeoPanel();
+}
+
+// Distancia aproximada en línea recta (no la ruta real caminada/navegada,
+// que sería más larga) entre dos coordenadas.
+function haversineKm(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function routeTotalKm(route){
+  let total = 0;
+  for(let i = 0; i < route.waypoints.length - 1; i++){
+    const a = route.waypoints[i], b = route.waypoints[i + 1];
+    total += haversineKm(a.lat, a.lng, b.lat, b.lng);
+  }
+  return total;
+}
+
+function showRoute(routeKey){
+  setMobileListCollapsed(true);
+  selectedRoute = routeKey;
+  selectedRegion = null;
+  regionHighlightLayer.clearLayers();
+  Object.keys(leafletMarkers).forEach(k => {
+    leafletMarkers[k].setOpacity(1);
+    const el = leafletMarkers[k].getElement();
+    if(el){
+      const icon = el.querySelector('.geo-marker-icon');
+      if(icon) icon.classList.remove('selected');
+    }
+  });
+
+  routeLayer.clearLayers();
+  const route = routes[routeKey];
+  const lastIdx = route.waypoints.length - 1;
+
+  // Un segmento de línea por tramo (en vez de una sola polilínea), para
+  // poder mostrar la distancia aproximada al pasar el mouse por cada tramo.
+  for(let i = 0; i < lastIdx; i++){
+    const a = route.waypoints[i], b = route.waypoints[i + 1];
+    const km = haversineKm(a.lat, a.lng, b.lat, b.lng);
+    const segment = L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+      color: route.color,
+      weight: 2.5,
+      opacity: 0.85,
+      dashArray: '6,6',
+    }).addTo(routeLayer);
+    segment.bindTooltip(`~${Math.round(km).toLocaleString('es')} km`, { sticky: true, className: 'geo-distance-label' });
+  }
+
+  route.waypoints.forEach((w, i) => {
+    const isStart = i === 0;
+    const isEnd = i === lastIdx;
+
+    if(isStart || isEnd){
+      // Ícono fijo y pequeño (🚩/🏁) siempre visible para ubicar de un
+      // vistazo dónde empieza y termina; el nombre solo aparece al pasar
+      // el mouse, igual que el resto de las paradas.
+      const icon = L.divIcon({
+        className: '',
+        html: `<div class="route-endpoint-icon">${isStart ? '🚩' : '🏁'}</div>`,
+        iconSize: [22, 22],
+      });
+      const marker = L.marker([w.lat, w.lng], { icon }).addTo(routeLayer);
+      marker.bindTooltip(`${isStart ? 'Inicio' : 'Fin'}: ${w.name}`, { direction: 'top' });
+    } else {
+      const marker = L.circleMarker([w.lat, w.lng], {
+        radius: 5,
+        color: route.color,
+        weight: 2,
+        fillColor: route.color,
+        fillOpacity: 0.9,
+      }).addTo(routeLayer);
+      marker.bindTooltip(`${i + 1}. ${w.name}`, { direction: 'top' });
+    }
+  });
+
+  const bounds = L.latLngBounds(route.waypoints.map(w => [w.lat, w.lng]));
+  leafletMap.flyToBounds(bounds, { padding: [50, 50], duration: 0.6 });
+
+  renderPanelLists();
+  renderGeoPanel();
+}
+
+function clearRoute(){
+  selectedRoute = null;
+  routeLayer.clearLayers();
+  renderPanelLists();
+  renderGeoPanel();
+  setMobileListCollapsed(false);
+}
+
+function clearRegionSelection(){
+  selectedRegion = null;
+  regionHighlightLayer.clearLayers();
+  Object.keys(leafletMarkers).forEach(k => {
+    leafletMarkers[k].setOpacity(1);
+    const el = leafletMarkers[k].getElement();
+    if(el){
+      const icon = el.querySelector('.geo-marker-icon');
+      if(icon) icon.classList.remove('selected');
+    }
+  });
+  renderPanelLists();
+  renderGeoPanel();
+  setMobileListCollapsed(false);
+}
+
+function renderPanelLists(){
+  const container = document.getElementById('geo-panel-lists');
+  if(!container) return;
+
+  const placesHtml = Object.keys(geoRegions)
+    .filter(key => booksByRegion[key])
+    .map(key => `
+      <button class="geo-chip${selectedRegion === key ? ' active' : ''}" onclick="goToRegion('${key}')">
+        ${geoRegions[key].label}
+      </button>
+    `).join('');
+
+  const routesHtml = Object.keys(routes).map(key => `
+    <button class="geo-chip geo-route-chip${selectedRoute === key ? ' active' : ''}" onclick="showRoute('${key}')">
+      <span class="geo-route-swatch" style="background:${routes[key].color}"></span>
+      ${routes[key].label}
+    </button>
+  `).join('');
+
+  container.innerHTML = `
+    <div class="geo-panel-section">
+      <div class="geo-panel-section-title">Lugares</div>
+      <div class="geo-chip-list">${placesHtml}</div>
+    </div>
+    <div class="geo-panel-section">
+      <div class="geo-panel-section-title">Recorridos</div>
+      <div class="geo-chip-list">${routesHtml}</div>
+    </div>
+  `;
+}
+
+function renderGeoPanel(){
+  const panel = document.getElementById('geo-panel-detail');
+
+  if(selectedRoute){
+    const route = routes[selectedRoute];
+    const totalKm = Math.round(routeTotalKm(route));
+    panel.innerHTML = `
+      <button class="geo-clear-btn" onclick="clearRoute()">✕ Ocultar recorrido</button>
+      <div class="geo-panel-header">Recorrido</div>
+      <h3>${route.label}</h3>
+      <div class="geo-route-distance">~${totalKm.toLocaleString('es')} km totales</div>
+      <div class="geo-route-desc">${route.description}</div>
+      ${route.waypoints.map((w, i) => `
+        <div class="geo-waypoint-item">
+          <div class="geo-waypoint-num">${i + 1}</div>
+          <div>
+            ${w.name}
+            ${w.note ? `<span class="geo-waypoint-note">${w.note}</span>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    `;
+    return;
+  }
+
+  if(!selectedRegion){
+    panel.innerHTML = `
+      <div class="geo-panel-header">Cómo leer el mapa</div>
+      <div class="geo-legend">
+        <div><span class="geo-legend-dot solid"></span>Ubicación razonablemente cierta</div>
+        <div><span class="geo-legend-dot dashed"></span>Ubicación debatida ("posiblemente...")</div>
+        <div style="margin-top:8px">El número indica cuántos libros se escribieron ahí. Tocá un punto, o un nombre de la lista, para ver el detalle.</div>
+      </div>
+      <div class="geo-unresolved">
+        <strong>Sin ubicación determinada:</strong> ${unresolvedBooks.map(b => b.title).join(', ')}. El texto bíblico no lo especifica, así que preferimos no inventar un dato que no existe.
+      </div>
+    `;
+    return;
+  }
+
+  const region = geoRegions[selectedRegion];
+  const entries = booksByRegion[selectedRegion];
+
+  panel.innerHTML = `
+    <button class="geo-clear-btn" onclick="clearRegionSelection()">✕ Ver todos los lugares</button>
+    <div class="geo-panel-header">${entries.length} libro${entries.length !== 1 ? 's' : ''} escrito${entries.length !== 1 ? 's' : ''} aquí</div>
+    <h3>${region.label}</h3>
+    <div class="geo-panel-country">${region.country}</div>
+    ${entries.map(e => `
+      <div class="geo-book-item">
+        <div class="geo-book-title">
+          ${String(e.book.order).padStart(2,'0')} · ${e.book.title}
+          ${e.uncertain ? '<span class="geo-uncertain-tag">Debatido</span>' : ''}
+        </div>
+        <div class="geo-book-meta">${e.book.writing.place} · ${e.book.blockName}</div>
+      </div>
+    `).join('')}
+    <div class="geo-unresolved" style="margin-top:14px">
+      El círculo del mapa marca una zona aproximada de referencia, no un límite histórico o político preciso.
+    </div>
+  `;
+}
+
+function setView(view){
+  const tableWrap = document.querySelector('.table-wrap');
+  const cardsWrap = document.getElementById('book-cards');
+  const mapWrap = document.getElementById('map-wrap');
+  const scrollHint = document.querySelector('.scroll-hint');
+  const btnTable = document.getElementById('btn-view-table');
+  const btnMap = document.getElementById('btn-view-map');
+
+  if(view === 'map'){
+    tableWrap.classList.add('hidden');
+    cardsWrap.classList.add('hidden');
+    mapWrap.classList.add('active');
+    scrollHint.style.display = 'none';
+    btnTable.classList.remove('active');
+    btnMap.classList.add('active');
+    setMobileListCollapsed(false);
+    if(!leafletMap) renderMap();
+    renderGeoPanel();
+    // El contenedor estaba oculto (display:none) al inicializar Leaflet,
+    // así que hay que forzar un recálculo de tamaño una vez visible.
+    setTimeout(() => leafletMap && leafletMap.invalidateSize(), 50);
+  } else {
+    tableWrap.classList.remove('hidden');
+    cardsWrap.classList.remove('hidden');
+    mapWrap.classList.remove('active');
+    scrollHint.style.display = '';
+    btnMap.classList.remove('active');
+    btnTable.classList.add('active');
+  }
+}
+
+</script>
+
+</body>
+</html>

@@ -78,11 +78,11 @@
   font-size:16px; flex:0 0 auto;
 }
 
-/* Botón Guardar: gris (por defecto / hay cambios sin guardar) -> verde (todo guardado) */
-#notesBtnSave.is-saved{
-  background: var(--green-bg);
-  border-color: var(--green-border);
-  color: var(--green);
+/* Botón único Atrás/Guardar: modo normal (Volver) vs modo con cambios pendientes (Guardar) */
+#notesBtnBack.is-save-mode{
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent2);
 }
 
 /* Variante de botón "primario" (acento), usada en el modal de confirmación */
@@ -299,7 +299,6 @@
 <h1>Notas<span class="view-header__tail" id="notesHeaderTail"><span class="crumb__full" id="notesTailFull"></span><span class="crumb__compact" id="notesTailCompact"></span></span></h1>
 <div class="view__nav is-hidden" id="notesHeaderActions">
 <button aria-label="Volver" class="pill pill--icon" id="notesBtnBack" title="Volver" type="button"><i class="fa-solid fa-circle-left"></i></button>
-<button aria-label="Guardar" class="pill pill--icon is-hidden" id="notesBtnSave" title="Guardar" type="button"><i class="fa-solid fa-floppy-disk"></i></button>
 <button aria-label="Compartir" class="pill pill--icon is-hidden" id="notesBtnShare" title="Compartir" type="button"><i class="fa-solid fa-share-from-square"></i></button>
 </div>
 </div>
@@ -599,8 +598,8 @@
             <tr>
               <th></th>
               <th>Nombre del discípulo</th>
-              <th class="check-col" id="attThCelMain">Célula</th>
-              <th class="check-col" id="attThRedMain">Red</th>
+              <th class="check-col" id="attThCelMain"><i class="fa-solid fa-house" title="Célula"></i></th>
+              <th class="check-col" id="attThRedMain"><i class="fa-solid fa-cross" title="Red"></i></th>
             </tr>
           </thead>
           <tbody id="attMainBody"></tbody>
@@ -617,9 +616,9 @@
             <tr>
               <th></th>
               <th>Nombre del discípulo</th>
-              <th class="check-col" id="attThCelVisit">Célula</th>
-              <th class="check-col" id="attThRedVisit">Red</th>
-              <th class="check-col check-col--wide">🌟Nuevo</th>
+              <th class="check-col" id="attThCelVisit"><i class="fa-solid fa-house" title="Célula"></i></th>
+              <th class="check-col" id="attThRedVisit"><i class="fa-solid fa-cross" title="Red"></i></th>
+              <th class="check-col" title="Nuevo"><i class="fa-solid fa-user-plus"></i></th>
             </tr>
           </thead>
           <tbody id="attVisitBody"></tbody>
@@ -767,11 +766,14 @@
     </div>
   </div>
   <div class="sheet-body">
-    <div class="muted tiny" id="takersMeta"></div>
     <div class="note-head">
       <div class="note-head__field">
         <label class="field__label" for="takersTema">Tema</label>
         <input class="input input--tema" id="takersTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field note-head__field--date">
+        <label class="field__label">Fecha</label>
+        <div class="note-head__date" id="takersMeta"></div>
       </div>
     </div>
     <div class="rte">
@@ -789,11 +791,14 @@
     </div>
   </div>
   <div class="sheet-body">
-    <div class="muted tiny" id="cultosMeta"></div>
     <div class="note-head">
       <div class="note-head__field">
         <label class="field__label" for="cultosTema">Tema</label>
         <input class="input input--tema" id="cultosTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field note-head__field--date">
+        <label class="field__label">Fecha</label>
+        <div class="note-head__date" id="cultosMeta"></div>
       </div>
     </div>
     <div class="rte">
@@ -811,11 +816,14 @@
     </div>
   </div>
   <div class="sheet-body">
-    <div class="muted tiny" id="lideresMeta"></div>
     <div class="note-head">
       <div class="note-head__field">
         <label class="field__label" for="lideresTema">Tema</label>
         <input class="input input--tema" id="lideresTema" type="text" placeholder="Tema"/>
+      </div>
+      <div class="note-head__field note-head__field--date">
+        <label class="field__label">Fecha</label>
+        <div class="note-head__date" id="lideresMeta"></div>
       </div>
     </div>
     <div class="rte">
@@ -858,16 +866,9 @@
 </div>
 </div>
 </section>
-<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1></div>
+<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1><div class="view__nav"><button class="pill" id="btnMdAddRow" type="button">+</button><button class="pill" id="btnMdRemoveRow" type="button">−</button></div></div>
 
 <div class="panel" id="misDoceContainer">
-  <div class="sheet-header">
-    <div class="sheet-title">Mis Doce</div>
-    <div class="sheet-actions">
-      <button class="pill" id="btnMdAddRow" type="button">+</button>
-      <button class="pill" id="btnMdRemoveRow" type="button">−</button>
-    </div>
-  </div>
 
   <div class="table-wrap">
     <table class="table md-table" id="misDoceTable">
@@ -875,16 +876,33 @@
         <tr>
           <th>Nombre</th>
           <th>Cumpleaños</th>
-          <th>Teléfono</th>
           <th>Plan 5 Estrellas</th>
           <th>DRC**</th>
+          <th>Zona</th>
         </tr>
       </thead>
       <tbody id="misDoceBody">
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
-          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
-          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-bday-wrap">
+              <div class="dc-wheel" data-min="1" data-max="31" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="DD" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+              <span class="md-bday-sep">/</span>
+              <div class="dc-wheel" data-min="1" data-max="12" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="MM" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+            </div>
+          </td>
           <td>
             <div class="md-plan">
               <label><input type="checkbox" data-plan="LE"/> LE</label>
@@ -906,11 +924,29 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
+          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
-          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
-          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-bday-wrap">
+              <div class="dc-wheel" data-min="1" data-max="31" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="DD" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+              <span class="md-bday-sep">/</span>
+              <div class="dc-wheel" data-min="1" data-max="12" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="MM" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+            </div>
+          </td>
           <td>
             <div class="md-plan">
               <label><input type="checkbox" data-plan="LE"/> LE</label>
@@ -932,11 +968,29 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
+          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
-          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
-          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-bday-wrap">
+              <div class="dc-wheel" data-min="1" data-max="31" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="DD" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+              <span class="md-bday-sep">/</span>
+              <div class="dc-wheel" data-min="1" data-max="12" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="MM" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+            </div>
+          </td>
           <td>
             <div class="md-plan">
               <label><input type="checkbox" data-plan="LE"/> LE</label>
@@ -958,11 +1012,29 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
+          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
-          <td><input class="input md-bday" type="text" inputmode="numeric" maxlength="5" placeholder="DD/MM"/></td>
-          <td><input class="input md-phone" type="text" inputmode="numeric" maxlength="9" placeholder="####-####"/></td>
+          <td>
+            <div class="md-bday-wrap">
+              <div class="dc-wheel" data-min="1" data-max="31" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="DD" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+              <span class="md-bday-sep">/</span>
+              <div class="dc-wheel" data-min="1" data-max="12" data-ref="1">
+                <input class="input dc-wheel__value" type="text" inputmode="numeric" readonly placeholder="MM" value=""/>
+                <div class="dc-wheel__panel is-hidden">
+                  <div class="dc-wheel__marker"></div>
+                  <div class="dc-wheel__list"></div>
+                </div>
+              </div>
+            </div>
+          </td>
           <td>
             <div class="md-plan">
               <label><input type="checkbox" data-plan="LE"/> LE</label>
@@ -984,6 +1056,7 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
+          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
         </tr>
       </tbody>
     </table>

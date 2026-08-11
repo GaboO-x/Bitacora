@@ -848,11 +848,11 @@
 
 
 </section>
-<section class="view view--embed" data-view-section="lectura" id="view-lectura">
+<section class="view view--embed view--embed-narrow" data-view-section="lectura" id="view-lectura">
 <div class="view__header"><h1>Lectura Bíblica</h1></div>
 <iframe class="embed-frame" data-src="Yadá/Lectura_Biblica.html" title="Lectura Bíblica" loading="lazy"></iframe>
 </section>
-<section class="view view--embed" data-view-section="memorizar" id="view-memorizar">
+<section class="view view--embed view--embed-narrow" data-view-section="memorizar" id="view-memorizar">
 <div class="view__header"><h1>Memorizar</h1></div>
 <iframe class="embed-frame" data-src="Yadá/Memorizar.html" title="Memorizar" loading="lazy"></iframe>
 </section>
@@ -1113,6 +1113,21 @@
       document.documentElement.setAttribute('data-theme', theme);
       try{ localStorage.setItem('bitacora_theme', theme); }catch(e){}
       updateIcon();
+      broadcastThemeToEmbeds(theme);
+    }
+
+    // Los "apps" embebidos (Yadá) viven en iframes con su propio documento;
+    // no heredan el data-theme del padre. Les avisamos por postMessage.
+    function broadcastThemeToEmbeds(theme){
+      var frames = document.querySelectorAll('iframe.embed-frame');
+      for (var i = 0; i < frames.length; i++){
+        try{
+          frames[i].contentWindow && frames[i].contentWindow.postMessage(
+            { action: 'setTheme', theme: theme },
+            window.location.origin
+          );
+        }catch(e){}
+      }
     }
 
     btn.addEventListener('click', function(){

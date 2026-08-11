@@ -155,21 +155,21 @@
     <aside class="sidebar" id="sidebar" aria-label="Navegación">
       <div class="sidebar__group">
         <div class="sidebar__label">Menú</div>
-        <button class="nav-btn" id="sideNavInvite" data-nav="invite" type="button">
-          <span class="nav-btn__icon"><i class="fa-solid fa-user-plus"></i></span>
-          <span class="nav-btn__text">Invitar usuario</span>
+        <button class="nav-btn" id="sideNavCalendar" data-nav="calendar" type="button">
+          <span class="nav-btn__icon"><i class="fa-solid fa-calendar-days"></i></span>
+          <span class="nav-btn__text">Calendario</span>
         </button>
         <button class="nav-btn" id="sideNavAnnouncements" data-nav="announcements" type="button">
           <span class="nav-btn__icon"><i class="fa-solid fa-bell"></i></span>
           <span class="nav-btn__text">Anuncios</span>
         </button>
-        <button class="nav-btn" id="sideNavCalendar" data-nav="calendar" type="button">
-          <span class="nav-btn__icon"><i class="fa-solid fa-calendar-days"></i></span>
-          <span class="nav-btn__text">Calendario</span>
-        </button>
         <button class="nav-btn" id="sideNavMaterials" data-nav="materials" type="button">
           <span class="nav-btn__icon"><i class="fa-solid fa-user-graduate"></i></span>
           <span class="nav-btn__text">Material de Apoyo</span>
+        </button>
+        <button class="nav-btn" id="sideNavInvite" data-nav="invite" type="button">
+          <span class="nav-btn__icon"><i class="fa-solid fa-user-plus"></i></span>
+          <span class="nav-btn__text">Invitar usuario</span>
         </button>
         <button class="nav-btn" id="sideNavUsers" data-nav="users" type="button">
           <span class="nav-btn__icon"><i class="fa-solid fa-users-gear"></i></span>
@@ -214,16 +214,6 @@
       <h2 style="margin-bottom:6px;">Inicio</h2>
 
       <div class="admin-menu-grid">
-        <button id="navInvite" class="admin-menu-card" type="button">
-          <div class="admin-menu-top">
-            <div class="admin-menu-ico"><i class="fa-solid fa-user-plus"></i></div>
-            <div>
-              <div class="admin-menu-title">Invitar usuario</div>
-            </div>
-          </div>
-          <p class="admin-menu-desc">Crear usuarios e invitar por correo.</p>
-        </button>
-
         <button id="navCalendar" class="admin-menu-card" type="button">
           <div class="admin-menu-top">
             <div class="admin-menu-ico"><i class="fa-solid fa-calendar-days"></i></div>
@@ -252,6 +242,16 @@
             </div>
           </div>
           <p class="admin-menu-desc">Recursos evangelisticos.</p>
+        </button>
+
+        <button id="navInvite" class="admin-menu-card" type="button">
+          <div class="admin-menu-top">
+            <div class="admin-menu-ico"><i class="fa-solid fa-user-plus"></i></div>
+            <div>
+              <div class="admin-menu-title">Invitar usuario</div>
+            </div>
+          </div>
+          <p class="admin-menu-desc">Crear usuarios e invitar por correo.</p>
         </button>
 
         <button id="navUsers" class="admin-menu-card" type="button">

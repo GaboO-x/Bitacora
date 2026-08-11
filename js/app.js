@@ -196,6 +196,15 @@ btnBack?.addEventListener('click', () => {
       // la primera vez que el usuario entra a esa vista.
       const embedFrame = section?.querySelector('iframe[data-src]');
       if (embedFrame && !embedFrame.getAttribute('src')) {
+        embedFrame.addEventListener('load', () => {
+          const theme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+          try {
+            embedFrame.contentWindow?.postMessage(
+              { action: 'setTheme', theme },
+              window.location.origin
+            );
+          } catch {}
+        }, { once: true });
         embedFrame.setAttribute('src', embedFrame.dataset.src);
       }
 

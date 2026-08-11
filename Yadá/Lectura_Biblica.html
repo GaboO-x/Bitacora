@@ -131,7 +131,7 @@
         }
     
 /* === Progreso del plan (barra) === */
-.progress-wrap { margin-bottom: 1.25rem; }
+.progress-wrap { margin: 0 auto 1.25rem auto; }
 .progress {
   width: 100%;
   height: 12px;
@@ -166,12 +166,6 @@
 /* Empuja todo el bloque de capítulos a la derecha del número de día */
 .day-row .chapter-container { margin-left: 3rem; } /* ~48px */
 
-/* === Dropdown de versión bíblica === */
-.version-wrap { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; }
-.version-label { font-size: 14px; color: var(--text-muted); }
-.version-select { padding: 4px 8px; border: 1px solid var(--ink-line); border-radius: 6px; background: var(--ink-soft); color: var(--text); }
-
-
 /* === Ajustes de ancho solicitados (solo anchos) === */
 /* Título de mes: se ajusta al contenido (no ocupa todo el ancho) */
 .month-title {
@@ -190,10 +184,11 @@
   box-shadow: 0 2px 10px rgba(0,0,0,0.15);
 }
 
-/* === Selector de ritmo de lectura (4 vs 2 versiculos/dia) === */
-.plan-mode-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 0.75rem; }
-.plan-mode-label { font-size: 14px; color: var(--text-muted); }
-.plan-mode-toggle { display: inline-flex; border: 1px solid var(--ink-line); border-radius: 8px; overflow: hidden; }
+/* === Selector de versión (wheel) + Ritmo de lectura ("Capítulos"):
+   un solo control unido (segmented), mismo estilo/patrón visual que
+   el .dc-optwheel de la app madre. === */
+.plan-mode-wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 10px; margin-bottom: 0.75rem; }
+.plan-mode-toggle { display: inline-flex; border: 1px solid var(--ink-line); border-radius: 8px; position: relative; }
 .plan-mode-btn {
   padding: 6px 12px;
   font-size: 13px;
@@ -204,16 +199,114 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.plan-mode-btn + .plan-mode-btn { border-left: 1px solid var(--ink-line); }
+.plan-mode-toggle > .plan-mode-btn + .plan-mode-btn,
+.plan-mode-toggle > .version-wheel + .plan-mode-btn { border-left: 1px solid var(--ink-line); }
 .plan-mode-btn:hover { background: var(--ink-row); }
 .plan-mode-btn.active { background: var(--gold); color: var(--ink-soft); }
 
-/* Caja principal (contenedor del mes): reduce el ancho total */
+/* Ya no se usa overflow:hidden en .plan-mode-toggle (recortaba el panel
+   desplegable del wheel de versión), así que el primer/último segmento
+   heredan el radio del contenedor de forma explícita. */
+.version-wheel .version-wheel__value { border-radius: 8px 0 0 8px; }
+.plan-mode-toggle > .plan-mode-btn:last-child { border-radius: 0 8px 8px 0; }
+
+/* Select real de versión: oculto visualmente, sigue siendo la fuente de
+   verdad (getSelectedVersion()/openYouVersionFromSpan() lo leen por id).
+   El wheel de abajo es solo la capa visual, igual patrón que .dc-att__select-native
+   en la app madre. */
+.sr-only-select {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+}
+
+/* Wheel de versión (reemplaza el <select> nativo por un scroll tipo
+   "rueda" con scroll-snap, mismo patrón que .dc-optwheel de la app madre). */
+.version-wheel { position: relative; }
+.version-wheel__value { display: inline-flex; align-items: center; gap: 4px; }
+.version-wheel__value::after { content: "\25BE"; font-size: 10px; opacity: .7; }
+.version-wheel__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 120px;
+  height: 132px;
+  background: var(--ink-soft);
+  border: 1px solid var(--ink-line);
+  border-radius: 10px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+  overflow: hidden;
+  z-index: 30;
+}
+.version-wheel__panel.is-hidden { display: none; }
+.version-wheel__panel::before,
+.version-wheel__panel::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0;
+  height: 48px;
+  pointer-events: none;
+  z-index: 2;
+}
+.version-wheel__panel::before { top: 0; background: linear-gradient(to bottom, var(--ink-soft), transparent); }
+.version-wheel__panel::after { bottom: 0; background: linear-gradient(to top, var(--ink-soft), transparent); }
+.version-wheel__marker {
+  position: absolute;
+  top: 50%;
+  left: 0; right: 0;
+  height: 36px;
+  transform: translateY(-50%);
+  border-top: 1px solid var(--ink-line);
+  border-bottom: 1px solid var(--ink-line);
+  pointer-events: none;
+  z-index: 1;
+}
+.version-wheel__list {
+  height: 100%;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  padding: 48px 0;
+  scrollbar-width: none;
+}
+.version-wheel__list::-webkit-scrollbar { display: none; }
+.version-wheel__option {
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+.version-wheel__option.is-active { color: var(--text); font-weight: 700; }
+
+/* Caja principal (contenedor del mes): se ajusta al ancho real del
+   contenido (checkbox + capítulos de cada fila) en vez de un valor fijo,
+   y se centra dentro del contenedor padre. */
 .month {
-  max-width: 680px;   /* ancho de la caja roja aprox; ajustable */
-  width: 100%;
-  margin-left: 0;     /* alineado a la izquierda del contenedor padre */
-  margin-right: auto;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Móvil: forzar 2 capítulos por fila (2 y 2) en vez del wrap libre
+   que antes acomodaba 3 y 1 según el ancho disponible. */
+@media (max-width: 640px) {
+  .chapter-container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 8px;
+  }
+  .chapter-container .chap-wrap {
+    width: 100%;
+  }
 }
 
 </style>
@@ -1306,6 +1399,24 @@ function updateProgressBar() {
 }
 // === Fin progreso ===
 
+// === Sincronizar ancho de la barra de progreso con el recuadro del mes ===
+// El .month ahora usa width:fit-content (se ajusta al contenido real de
+// cada fila), así que su ancho cambia según el modo (4v/2v) y el contenido.
+// No hay forma puramente CSS de "copiar" ese ancho a otro elemento, así que
+// lo medimos y lo aplicamos como estilo inline.
+function syncProgressBarWidth() {
+  const month = document.querySelector('#app .month');
+  const progressWrap = document.getElementById('plan-progress');
+  if (!progressWrap) return;
+  if (month) {
+    const w = month.getBoundingClientRect().width;
+    if (w > 0) progressWrap.style.width = w + 'px';
+  } else {
+    progressWrap.style.width = '';
+  }
+}
+window.addEventListener('resize', () => { syncProgressBarWidth(); });
+
 
 
         
@@ -1349,6 +1460,106 @@ function getSelectedVersion() {
   return (sel && sel.value) || localStorage.getItem('bibleVersion') || 'RV60';
 }
 
+// === Wheel de versión (reemplaza el <select> nativo) ===
+// Mismo patrón que .dc-optwheel de la app madre: el <select id="versionSelect">
+// oculto sigue siendo la fuente de verdad (selectedIndex + evento 'change');
+// este wheel es solo la capa visual que lo controla.
+const VERSION_WHEEL_ITEM_H = 36; // debe coincidir con .version-wheel__option { height:36px }
+let versionWheelDocListenerAdded = false;
+
+function closeVersionWheelPanels(exceptPanel) {
+  document.querySelectorAll('.version-wheel__panel').forEach(p => {
+    if (p !== exceptPanel) p.classList.add('is-hidden');
+  });
+}
+
+function ensureVersionWheelDocListener() {
+  if (versionWheelDocListenerAdded) return;
+  versionWheelDocListenerAdded = true;
+  document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.version-wheel')) return;
+    closeVersionWheelPanels();
+  });
+}
+
+function initVersionWheel() {
+  const select = document.getElementById('versionSelect');
+  const btn = document.getElementById('versionWheelBtn');
+  const panel = document.getElementById('versionWheelPanel');
+  const list = document.getElementById('versionWheelList');
+  if (!select || !btn || !panel || !list) return;
+
+  const clampIdx = (raw) => Math.min(select.options.length - 1, Math.max(0, raw));
+
+  const buildOptions = () => {
+    list.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    Array.from(select.options).forEach((o, i) => {
+      const opt = document.createElement('div');
+      opt.className = 'version-wheel__option';
+      opt.dataset.idx = String(i);
+      opt.textContent = o.textContent;
+      frag.appendChild(opt);
+    });
+    list.appendChild(frag);
+  };
+
+  const setActive = (idx) => {
+    list.querySelectorAll('.version-wheel__option').forEach(o => {
+      o.classList.toggle('is-active', Number(o.dataset.idx) === idx);
+    });
+  };
+
+  const syncLabel = () => {
+    const opt = select.options[select.selectedIndex];
+    btn.textContent = opt ? opt.textContent : '';
+  };
+
+  const commit = (idx) => {
+    const opt = select.options[idx];
+    if (!opt) return;
+    const changed = select.selectedIndex !== idx;
+    select.selectedIndex = idx;
+    syncLabel();
+    if (changed) select.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  buildOptions();
+  syncLabel();
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const isOpen = !panel.classList.contains('is-hidden');
+    if (isOpen) { panel.classList.add('is-hidden'); return; }
+    closeVersionWheelPanels(panel);
+    panel.classList.remove('is-hidden');
+    const idx = Math.max(0, select.selectedIndex);
+    list.scrollTop = idx * VERSION_WHEEL_ITEM_H;
+    setActive(idx);
+  });
+
+  let scrollTimer = null;
+  list.addEventListener('scroll', () => {
+    const liveIdx = clampIdx(Math.round(list.scrollTop / VERSION_WHEEL_ITEM_H));
+    setActive(liveIdx);
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      const settledIdx = clampIdx(Math.round(list.scrollTop / VERSION_WHEEL_ITEM_H));
+      commit(settledIdx);
+    }, 140);
+  });
+
+  list.addEventListener('click', (e) => {
+    const opt = e.target.closest('.version-wheel__option');
+    if (!opt) return;
+    commit(Number(opt.dataset.idx));
+    panel.classList.add('is-hidden');
+  });
+
+  ensureVersionWheelDocListener();
+}
+// === Fin wheel de versión ===
+
 
 function openYouVersionFromSpan(span){
   const sel = document.getElementById('versionSelect');
@@ -1377,23 +1588,25 @@ function openYouVersionFromSpan(span){
         function renderPlan() {
             
 appDiv.innerHTML = `
-  <div class="version-wrap">
-    <label for="versionSelect" class="version-label">Versión:</label>
-    <select id="versionSelect" class="version-select">
+  <div class="plan-mode-wrap">
+    <div class="plan-mode-toggle">
+      <div class="version-wheel" id="versionWheel">
+        <button type="button" class="plan-mode-btn version-wheel__value" id="versionWheelBtn">RV60</button>
+        <div class="version-wheel__panel is-hidden" id="versionWheelPanel">
+          <div class="version-wheel__marker"></div>
+          <div class="version-wheel__list" id="versionWheelList"></div>
+        </div>
+      </div>
+      <button type="button" class="plan-mode-btn" data-mode="4v">4 Capítulos</button>
+      <button type="button" class="plan-mode-btn" data-mode="2v">2 Capítulos</button>
+    </div>
+    <select id="versionSelect" class="sr-only-select">
       <option value="RV60">RV60</option>
       <option value="NTV">NTV</option>
       <option value="TLA">TLA</option>
       <option value="DHH">DHH</option>
       <option value="LBLA">LBLA</option>
     </select>
-  </div>
-
-  <div class="plan-mode-wrap">
-    <span class="plan-mode-label">Ritmo de lectura:</span>
-    <div class="plan-mode-toggle">
-      <button type="button" class="plan-mode-btn" data-mode="4v">4 versículos / día</button>
-      <button type="button" class="plan-mode-btn" data-mode="2v">2 versículos / día</button>
-    </div>
   </div>
 
   <div id="plan-progress" class="progress-wrap">
@@ -1405,7 +1618,9 @@ appDiv.innerHTML = `
 `;
 updateProgressBar();
 
-// Inicializar dropdown de versión (persistencia)
+// Inicializar selector de versión (wheel visual + <select> oculto como
+// fuente de verdad; getSelectedVersion()/openYouVersionFromSpan() siguen
+// leyendo #versionSelect exactamente igual que antes).
 (function(){
   const select = document.getElementById('versionSelect');
   if (select) {
@@ -1417,11 +1632,14 @@ updateProgressBar();
       updateProgressBar();
     });
   }
+  initVersionWheel();
 })();
 
-// Inicializar selector de ritmo de lectura (4v / 2v), con persistencia propia
+// Inicializar selector de ritmo de lectura (4v / 2v), con persistencia propia.
+// [data-mode] excluye al botón del wheel de versión, que comparte la clase
+// .plan-mode-btn solo por estilo pero no tiene data-mode.
 (function(){
-  const btns = document.querySelectorAll('.plan-mode-btn');
+  const btns = document.querySelectorAll('.plan-mode-btn[data-mode]');
   const current = getSelectedPlanMode();
   btns.forEach(b => {
     b.classList.toggle('active', b.dataset.mode === current);
@@ -1528,6 +1746,10 @@ chapterSpan.classList.add('chapter');
                 monthDiv.appendChild(daysList);
                 appDiv.appendChild(monthDiv);
             }
+
+            // El ancho de .month recién queda definitivo una vez que todos
+            // los meses están en el DOM; sincronizamos la barra ahora.
+            syncProgressBarWidth();
         }
 
         // Desplaza la vista hasta el capítulo marcado más avanzado (el último

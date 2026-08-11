@@ -173,8 +173,6 @@
 </header>
 <aside aria-label="Navegación" class="sidebar" id="sidebar">
 <div class="sidebar__group">
-<div class="sidebar__label">Menú</div>
-
 <button class="nav-btn" data-view="notas" type="button">
 <span class="nav-btn__icon"><i class="fa-solid fa-book-bookmark"></i></span>
 <span class="nav-btn__text">Notas</span>
@@ -199,19 +197,19 @@
 <span class="nav-btn__icon"><i class="fa-solid fa-people-group"></i></span>
 <span class="nav-btn__text">Mis Doce</span>
 </button>
-
-<button class="nav-btn" id="btnLogoutSide" type="button">
-<span class="nav-btn__icon"><i class="fa-solid fa-plug-circle-xmark"></i></span> 
-<span class="nav-btn__text">Salir</span>
-</button>
 </div>
 <div class="sidebar__footer">
 <button aria-label="Cambiar tema" class="sidebar-theme-btn" id="btnThemeToggle" title="Cambiar tema" type="button">
 <span class="nav-btn__icon" id="themeToggleIcon">☾</span>
 <span class="nav-btn__text">Tema</span>
 </button>
+<button class="nav-btn" id="btnLogoutSide" type="button">
+<span class="nav-btn__icon"><i class="fa-solid fa-plug-circle-xmark"></i></span> 
+<span class="nav-btn__text">Salir</span>
+</button>
 </div>
 </aside>
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
 <main class="main" id="main">
 <!-- Vistas -->
 <section class="view is-visible" data-view-section="home" id="view-home">
@@ -860,9 +858,11 @@
 </section>
 <section class="view" data-view-section="material" id="view-material"><div class="view__header"><h1>Material de apoyo</h1></div>
 
+<nav class="material-breadcrumb" id="materialBreadcrumb" aria-label="Ruta de carpetas"></nav>
+
 <div class="placeholder">
 <div class="placeholder__body">
-<div class="grid" id="supportGrid">Cargando…</div>
+<div class="grid material-grid" id="supportGrid">Cargando…</div>
 </div>
 </div>
 </section>

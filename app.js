@@ -129,11 +129,18 @@ btnBack?.addEventListener('click', () => {
       }
     };
 
-    // Color del botón Guardar: gris (hay cambios sin guardar) / verde (todo guardado)
+    // Estado visual del botón único Atrás/Guardar: si la hoja abierta tiene cambios sin guardar,
+    // el botón se muestra como "Guardar" (icono disquete + resaltado); si no, como "Volver".
     const updateSaveButtonState = () => {
-      if (!notesBtnSave) return;
-      const allSaved = !!state.notesOpenSheet && !isCurrentSheetDirty();
-      notesBtnSave.classList.toggle('is-saved', allSaved);
+      if (!notesBtnBack) return;
+      const dirty = !!state.notesOpenSheet && isCurrentSheetDirty();
+      notesBtnBack.classList.toggle('is-save-mode', dirty);
+      notesBtnBack.innerHTML = dirty
+        ? '<i class="fa-solid fa-floppy-disk"></i>'
+        : '<i class="fa-solid fa-circle-left"></i>';
+      const label = dirty ? 'Guardar' : 'Volver';
+      notesBtnBack.setAttribute('aria-label', label);
+      notesBtnBack.title = label;
     };
 
     const updateNotesHeaderActions = () => {
@@ -143,9 +150,6 @@ btnBack?.addEventListener('click', () => {
       if (notesBtnShare) {
         const showShare = NOTES_SHEETS_WITH_SHARE.includes(state.notesOpenSheet);
         notesBtnShare.classList.toggle('is-hidden', !showShare);
-      }
-      if (notesBtnSave) {
-        notesBtnSave.classList.toggle('is-hidden', !state.notesOpenSheet);
       }
       updateSaveButtonState();
     };
@@ -832,11 +836,11 @@ btnBack?.addEventListener('click', () => {
 
         const actions = url
           ? (
-            '<div style="display:flex;gap:10px;align-items:center;">'
-              + '<a class="pill" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar" '
-                + 'style="text-decoration:none;min-width:44px;text-align:center;">⬇️</a>'
-              + '<a class="pill" href="' + safeUrl + '" target="_blank" rel="noopener" title="Abrir" aria-label="Abrir" '
-                + 'style="text-decoration:none;min-width:44px;text-align:center;">🔍</a>'
+            '<div style="display:flex;gap:8px;align-items:center;">'
+              + '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar">'
+                + '<i class="fa-solid fa-file-arrow-down"></i></a>'
+              + '<button type="button" class="pill pill--icon" data-share-title="' + title + '" data-share-url="' + safeUrl + '" title="Compartir" aria-label="Compartir">'
+                + '<i class="fa-solid fa-share-from-square"></i></button>'
             + '</div>'
           )
           : '';
@@ -898,20 +902,22 @@ btnBack?.addEventListener('click', () => {
 
         const actions = url
           ? (
-            '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">'
-              + '<a class="pill" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar" '
-                + 'style="text-decoration:none;min-width:44px;text-align:center;">⬇️</a>'
-              + '<a class="pill" href="' + safeUrl + '" target="_blank" rel="noopener" title="Abrir" aria-label="Abrir" '
-                + 'style="text-decoration:none;min-width:44px;text-align:center;">🔍</a>'
+            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+              + '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar">'
+                + '<i class="fa-solid fa-file-arrow-down"></i></a>'
+              + '<button type="button" class="pill pill--icon" data-share-title="' + title + '" data-share-url="' + safeUrl + '" title="Compartir" aria-label="Compartir">'
+                + '<i class="fa-solid fa-share-from-square"></i></button>'
             + '</div>'
           )
           : '';
 
         return (
           '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
-            + '<div style="font-weight:800;">' + title + '</div>'
+            + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;">'
+              + '<div style="min-width:0;font-weight:800;">' + title + '</div>'
+              + actions
+            + '</div>'
             + img
-            + actions
           + '</div>'
         );
       }).join('');
@@ -1180,7 +1186,6 @@ btnBack?.addEventListener('click', () => {
     const notesHeaderActions = qs('#notesHeaderActions');
     const notesBtnBack = qs('#notesBtnBack');
     const notesBtnShare = qs('#notesBtnShare');
-    const notesBtnSave = qs('#notesBtnSave');
 
     // Modal de confirmación al salir de una hoja con cambios sin guardar
     const notesLeaveModal = qs('#notesLeaveModal');
@@ -1212,6 +1217,7 @@ btnBack?.addEventListener('click', () => {
       if (notesSheetScreen) notesSheetScreen.classList.add('is-hidden');
       state.dcOpen = false;
       state.notesOpenSheet = null;
+      updateNotesFullHeightMode();
 	      // Si el elemento fue fijado (p.ej. convertido a botón "Inicio"), no sobrescribimos su texto.
 	      if (notesHint && !notesHint.dataset.fixed) {
 	        notesHint.textContent = visible ? 'Semana seleccionada: elige una actividad.' : 'Selecciona la semana.';
@@ -1224,6 +1230,14 @@ btnBack?.addEventListener('click', () => {
       notesSheetCultos?.classList.add('is-hidden');
       notesSheetLideres?.classList.add('is-hidden');
       state.notesOpenSheet = null;
+      updateNotesFullHeightMode();
+    };
+
+    // Marca <body> cuando una hoja de texto libre (Takers/Cultos/Líderes) está abierta,
+    // para que esa hoja pueda ocupar el alto disponible con scroll interno (ver CSS .notes-fullheight).
+    const NOTES_FULLHEIGHT_SHEETS = ['takers', 'cultos', 'lideres'];
+    const updateNotesFullHeightMode = () => {
+      document.body.classList.toggle('notes-fullheight', NOTES_FULLHEIGHT_SHEETS.includes(state.notesOpenSheet));
     };
 
     const showNoteSheet = (sheetEl) => {
@@ -1239,6 +1253,7 @@ btnBack?.addEventListener('click', () => {
       else if (sheetEl === notesSheetCultos) state.notesOpenSheet = 'cultos';
       else if (sheetEl === notesSheetLideres) state.notesOpenSheet = 'lideres';
       else state.notesOpenSheet = null;
+      updateNotesFullHeightMode();
     };
 
     const setSheetVisible = (visible) => {
@@ -1414,7 +1429,9 @@ btnBack?.addEventListener('click', () => {
     const DC_WHEEL_ITEM_H = 36; // debe coincidir con .dc-wheel__option { height:36px } en app.css
 
     const closeAllDcWheels = (exceptPanel) => {
-      qsa('.dc-wheel__panel', notesSheetScreen || document).forEach(panel => {
+      // Alcance global (document): este wheel también se usa en Mis Doce (Cumpleaños DD/MM),
+      // fuera de #notesSheetScreen, así que no puede limitarse a ese contenedor.
+      qsa('.dc-wheel__panel', document).forEach(panel => {
         if (panel === exceptPanel) return;
         panel.classList.add('is-hidden');
       });
@@ -1424,6 +1441,17 @@ btnBack?.addEventListener('click', () => {
       qsa('.dc-wheel__option', wheelEl).forEach(opt => {
         opt.classList.toggle('is-active', Number(opt.dataset.val) === idx);
       });
+    };
+
+    // Rango numérico de cada wheel: por defecto 0-60 (tarjetas de Dinámica Celular);
+    // un wheel puede definir su propio rango vía data-min/data-max (p.ej. Mis Doce: DD 1-31, MM 1-12).
+    const getDcWheelRange = (wheelEl) => {
+      const min = parseInt(wheelEl.dataset.min, 10);
+      const max = parseInt(wheelEl.dataset.max, 10);
+      return {
+        min: Number.isFinite(min) ? min : DC_WHEEL_MIN,
+        max: Number.isFinite(max) ? max : DC_WHEEL_MAX,
+      };
     };
 
     // Solo escribe/dispara evento si el valor realmente cambia: así el campo
@@ -1442,8 +1470,9 @@ btnBack?.addEventListener('click', () => {
     const buildDcWheelOptions = (wheelEl) => {
       const list = qs('.dc-wheel__list', wheelEl);
       if (!list || list.dataset.built === '1') return;
+      const { min, max } = getDcWheelRange(wheelEl);
       const frag = document.createDocumentFragment();
-      for (let i = DC_WHEEL_MIN; i <= DC_WHEEL_MAX; i++) {
+      for (let i = min; i <= max; i++) {
         const opt = document.createElement('div');
         opt.className = 'dc-wheel__option';
         opt.dataset.val = String(i);
@@ -1467,17 +1496,20 @@ btnBack?.addEventListener('click', () => {
       closeAllOptWheels();
       panel.classList.remove('is-hidden');
 
-      const ref = parseInt(wheelEl.dataset.ref, 10) || 0;
+      const { min, max } = getDcWheelRange(wheelEl);
+      const ref = parseInt(wheelEl.dataset.ref, 10) || min;
       const hasValue = valueInput.value !== '';
       const parsed = parseInt(valueInput.value, 10);
-      const idx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, hasValue && !isNaN(parsed) ? parsed : ref));
+      const idx = Math.min(max, Math.max(min, hasValue && !isNaN(parsed) ? parsed : ref));
 
-      list.scrollTop = idx * DC_WHEEL_ITEM_H;
+      list.scrollTop = (idx - min) * DC_WHEEL_ITEM_H;
       setDcWheelActiveOption(wheelEl, idx);
     };
 
     const initDcWheels = () => {
-      qsa('.dc-wheel', notesSheetScreen || document).forEach(wheelEl => {
+      // Alcance global (document): incluye tanto las tarjetas de Dinámica Celular
+      // como los wheels de Cumpleaños (DD/MM) en Mis Doce.
+      qsa('.dc-wheel', document).forEach(wheelEl => {
         if (wheelEl.dataset.wheelInit === '1') return;
         wheelEl.dataset.wheelInit = '1';
 
@@ -1496,13 +1528,14 @@ btnBack?.addEventListener('click', () => {
         });
 
         // Detecta la opción centrada por scroll-snap; commitea solo cuando el scroll se asienta.
+        const { min: rMin, max: rMax } = getDcWheelRange(wheelEl);
         let scrollTimer = null;
         list.addEventListener('scroll', () => {
-          const liveIdx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
+          const liveIdx = Math.min(rMax, Math.max(rMin, rMin + Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
           setDcWheelActiveOption(wheelEl, liveIdx);
           if (scrollTimer) clearTimeout(scrollTimer);
           scrollTimer = setTimeout(() => {
-            const settledIdx = Math.min(DC_WHEEL_MAX, Math.max(DC_WHEEL_MIN, Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
+            const settledIdx = Math.min(rMax, Math.max(rMin, rMin + Math.round(list.scrollTop / DC_WHEEL_ITEM_H)));
             commitDcWheelValue(wheelEl, settledIdx);
           }, 140);
         });
@@ -2242,10 +2275,12 @@ btnBack?.addEventListener('click', () => {
         attActiveSectionLabel.textContent = sec.label;
         attActiveVisitLabel.textContent = sec.visitLabel;
         const col2 = attState.section === 'makers' ? 'Culto' : 'Red';
-        attThCelMain.textContent = 'Célula';
-        attThRedMain.textContent = col2;
-        attThCelVisit.textContent = 'Célula';
-        attThRedVisit.textContent = col2;
+        const celIconHtml = '<i class="fa-solid fa-house" title="Célula"></i>';
+        const col2IconHtml = '<i class="fa-solid fa-cross" title="' + col2 + '"></i>';
+        attThCelMain.innerHTML = celIconHtml;
+        attThRedMain.innerHTML = col2IconHtml;
+        attThCelVisit.innerHTML = celIconHtml;
+        attThRedVisit.innerHTML = col2IconHtml;
         attLblCel.textContent = 'Total Célula:';
         attLblRed.textContent = `Total ${col2}:`;
       };
@@ -2592,6 +2627,18 @@ btnBack?.addEventListener('click', () => {
       }
     };
 
+    // Compartir (Anuncios / Material de apoyo): delegación sobre el contenedor,
+    // así cubre también las tarjetas que se re-renderizan al recargar datos.
+    const handleShareCardClick = (e) => {
+      const btn = e.target.closest('[data-share-url]');
+      if (!btn) return;
+      const title = btn.dataset.shareTitle || '';
+      const url = btn.dataset.shareUrl || '';
+      shareText([title, url].filter(Boolean).join('\n'));
+    };
+    announcementsList?.addEventListener('click', handleShareCardClick);
+    supportGrid?.addEventListener('click', handleShareCardClick);
+
     const buildShare = (title, temaEl, dateEl, editorEl) => {
       const week = state.selectedWeek ? `Semana ${state.selectedWeek}` : '';
       const tema = temaEl?.value ? `Tema: ${temaEl.value}` : '';
@@ -2615,7 +2662,13 @@ btnBack?.addEventListener('click', () => {
       lideres: () => shareText(buildShare('Reunión de Líderes/Ministerios', lideresTema, lideresDate, lideresNotes)),
     };
 
+    // Botón único Atrás/Guardar: si la hoja abierta tiene cambios sin guardar, guarda
+    // (y el botón vuelve a mostrarse como "Atrás"); si no hay nada pendiente, navega hacia atrás.
     notesBtnBack?.addEventListener('click', async () => {
+      if (state.notesOpenSheet && isCurrentSheetDirty()) {
+        saveNotesNow();
+        return;
+      }
       const action = state.notesOpenSheet ? NOTES_BACK_ACTIONS[state.notesOpenSheet] : null;
       if (action) { await action(); return; }
       if (state.selectedWeek) await backToWeekPicker();
@@ -2624,10 +2677,6 @@ btnBack?.addEventListener('click', () => {
     notesBtnShare?.addEventListener('click', () => {
       const action = NOTES_SHARE_ACTIONS[state.notesOpenSheet];
       if (action) action();
-    });
-
-    notesBtnSave?.addEventListener('click', () => {
-      saveNotesNow();
     });
 
 btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
@@ -2759,16 +2808,15 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const btnMdAddRow = qs('#btnMdAddRow');
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
 
-    const mdFormatDdMm = (raw) => {
-      const digits = String(raw || '').replace(/\D/g, '').slice(0, 4);
-      if (digits.length <= 2) return digits;
-      return digits.slice(0,2) + '/' + digits.slice(2);
-    };
-
-    const mdFormatPhone = (raw) => {
-      const digits = String(raw || '').replace(/\D/g, '').slice(0, 8);
-      if (digits.length <= 4) return digits;
-      return digits.slice(0,4) + '-' + digits.slice(4);
+    // "Zona" solo se activa si DRC tiene un día asignado (distinto de N/A).
+    const mdUpdateZonaState = (tr) => {
+      if (!tr) return;
+      const drc = qs('.md-drc', tr);
+      const zona = qs('.md-zona', tr);
+      if (!drc || !zona) return;
+      const active = drc.value !== 'N/A';
+      zona.disabled = !active;
+      if (!active) zona.value = '';
     };
 
     const mdClearRow = (tr) => {
@@ -2777,6 +2825,15 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       qsa('input[type="checkbox"]', tr).forEach(chk => { chk.checked = false; });
       const sel = qs('select', tr);
       if (sel) sel.value = 'N/A';
+      mdUpdateZonaState(tr);
+    };
+
+    // Los wheels (.dc-wheel) clonados heredan el flag de inicialización y las
+    // opciones ya construidas del template; hay que limpiarlos para que
+    // initDcWheels() les enganche los listeners de nuevo desde cero.
+    const mdResetClonedWheels = (tr) => {
+      qsa('.dc-wheel', tr).forEach(w => { delete w.dataset.wheelInit; });
+      qsa('.dc-wheel__list', tr).forEach(l => { l.innerHTML = ''; delete l.dataset.built; });
     };
 
     const mdAddRow = () => {
@@ -2785,7 +2842,9 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       if (!tpl) return;
       const tr = tpl.cloneNode(true);
       mdClearRow(tr);
+      mdResetClonedWheels(tr);
       misDoceBody.appendChild(tr);
+      initDcWheels();
     };
 
     const mdRemoveRow = () => {
@@ -2798,28 +2857,23 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     btnMdAddRow?.addEventListener('click', mdAddRow);
     btnMdRemoveRow?.addEventListener('click', mdRemoveRow);
 
-    // Formateo en vivo (delegación)
-    misDoceBody?.addEventListener('input', (e) => {
-      const bday = e.target.closest('.md-bday');
-      if (bday) {
-        const next = mdFormatDdMm(bday.value);
-        if (bday.value !== next) bday.value = next;
-        return;
-      }
-      const phone = e.target.closest('.md-phone');
-      if (phone) {
-        const next = mdFormatPhone(phone.value);
-        if (phone.value !== next) phone.value = next;
-        return;
-      }
+    // Activa/desactiva "Zona" según DRC (delegación, cubre filas añadidas dinámicamente)
+    misDoceBody?.addEventListener('change', (e) => {
+      const drc = e.target.closest('.md-drc');
+      if (!drc) return;
+      mdUpdateZonaState(drc.closest('tr'));
     });
 
     // Defaults: tabla arranca con 4 filas (HTML). Si quedara en blanco por cambios futuros, garantiza 4.
     (() => {
       if (!misDoceBody) return;
       const rows = qsa('tr', misDoceBody);
-      if (rows.length) return;
-      for (let i=0; i<4; i++) mdAddRow();
+      if (!rows.length) {
+        for (let i=0; i<4; i++) mdAddRow();
+        return;
+      }
+      // Filas ya presentes en el HTML: asegurar estado inicial de Zona.
+      rows.forEach(mdUpdateZonaState);
     })();
 
 

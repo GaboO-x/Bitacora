@@ -269,6 +269,15 @@ body{
 .view{display:none; max-width: 1100px; width:100%; margin:0 auto}
 .view.is-visible{display:block}
 
+.view--embed{max-width:none; height:calc(100vh - var(--topbarH) - 48px); flex-direction:column}
+.view.view--embed.is-visible{display:flex}
+.view--embed .view__header{flex:0 0 auto}
+.embed-frame{flex:1 1 auto; width:100%; min-height:0; border:1px solid var(--line); border-radius: var(--radius); background: var(--panel)}
+
+@media (max-width: 920px){
+  .view--embed{height:calc(100vh - var(--topbarH) - 32px)}
+}
+
 h1{
   font-family: var(--font-serif);
   font-weight:600;

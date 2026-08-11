@@ -49,6 +49,7 @@ btnBack?.addEventListener('click', () => {
       takersDirty: false,
       cultosDirty: false,
       lideresDirty: false,
+      materialFolderId: null,
     };
 
     // ---- Sidebar toggle (móvil / escritorio)
@@ -65,6 +66,12 @@ btnBack?.addEventListener('click', () => {
     };
 
     btnToggleSidebar?.addEventListener('click', toggleSidebar);
+
+    // Cerrar el sidebar en móvil al hacer click fuera (backdrop)
+    const sidebarBackdrop = qs('#sidebarBackdrop');
+    sidebarBackdrop?.addEventListener('click', () => {
+      shell.classList.remove('is-sidebar-open');
+    });
 
     // Limpia estado al cambiar de tamaño
     window.addEventListener('resize', () => {
@@ -876,35 +883,116 @@ btnBack?.addEventListener('click', () => {
 
 
     // ---- Material de apoyo (tabla materials + Storage bucket materials)
+    // Carpetas: tabla `material_folders` en Supabase (paso 3).
+    // `materials.folder_id` referencia esa tabla (null = raíz).
+
     const supportGrid = qs('#supportGrid');
+    const materialBreadcrumbEl = qs('#materialBreadcrumb');
+    let materialRowsCache = [];
+    let materialFoldersCache = [];
+
+    const MATERIAL_TYPE_ICON = {
+      folder:        'fa-solid fa-folder',
+      folder_open:   'fa-solid fa-folder-open',
+      word:          'fa-solid fa-file-word',
+      image:         'fa-solid fa-image',
+      pdf:           'fa-solid fa-file-pdf',
+      ppt:           'fa-solid fa-file-powerpoint',
+      link:          'fa-solid fa-link',
+      link_spotify:  'fa-brands fa-spotify',
+      link_youtube:  'fa-brands fa-youtube',
+    };
+
+    const getMaterialFolderById = (id) => materialFoldersCache.find(f => f.id === id) || null;
+    const getMaterialFolderChildren = (parentId) =>
+      materialFoldersCache.filter(f => (f.parent_id || null) === (parentId || null));
+    const getMaterialFolderPath = (id) => {
+      const path = [];
+      let cur = id ? getMaterialFolderById(id) : null;
+      while (cur) {
+        path.unshift(cur);
+        cur = cur.parent_id ? getMaterialFolderById(cur.parent_id) : null;
+      }
+      return path;
+    };
+    // Deriva el tipo de ícono a partir del nombre/URL del archivo.
+    const inferMaterialType = (row) => {
+      const url = row.image_url || '';
+      if (/spotify\.com/i.test(url)) return 'link_spotify';
+      if (/youtube\.com|youtu\.be/i.test(url)) return 'link_youtube';
+      const name = (row.file_name || url || '').toLowerCase();
+      if (/\.pdf(\?|$)/.test(name)) return 'pdf';
+      if (/\.(docx?|rtf)(\?|$)/.test(name)) return 'word';
+      if (/\.(pptx?|key)(\?|$)/.test(name)) return 'ppt';
+      if (/\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(name)) return 'image';
+      if (/^https?:\/\//i.test(url) && !row.file_name) return 'link';
+      return 'image';
+    };
+
+    const renderMaterialBreadcrumb = () => {
+      if (!materialBreadcrumbEl) return;
+      const path = getMaterialFolderPath(state.materialFolderId);
+      let html = '<button type="button" class="material-crumb' + (!state.materialFolderId ? ' is-current' : '') + '" data-folder-id="">'
+        + '<i class="fa-solid fa-folder-open"></i> Material</button>';
+      path.forEach((f, i) => {
+        const isCurrent = i === path.length - 1;
+        html += '<span class="material-crumb-sep">/</span>'
+          + '<button type="button" class="material-crumb' + (isCurrent ? ' is-current' : '') + '" data-folder-id="' + escapeHtml(f.id) + '">'
+          + escapeHtml(f.name) + '</button>';
+      });
+      materialBreadcrumbEl.innerHTML = html;
+    };
+
+    materialBreadcrumbEl?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.material-crumb');
+      if (!btn) return;
+      const id = btn.dataset.folderId || null;
+      if (id === (state.materialFolderId || null)) return;
+      state.materialFolderId = id || null;
+      renderMaterials(materialRowsCache);
+    });
 
     const renderMaterials = (rows) => {
       if (!supportGrid) return;
+      renderMaterialBreadcrumb();
+
+      const folders = getMaterialFolderChildren(state.materialFolderId);
       const data = Array.isArray(rows) ? rows : [];
-      if (!data.length) {
-        supportGrid.innerHTML = '<div class="muted">No hay material de apoyo.</div>';
+      const itemsHere = data.filter(r => (r.folder_id || null) === (state.materialFolderId || null));
+
+      if (!folders.length && !itemsHere.length) {
+        supportGrid.innerHTML = '<div class="muted">No hay material de apoyo en esta carpeta.</div>';
         return;
       }
 
-      supportGrid.innerHTML = data.map(r => {
+      const folderCards = folders.map(f => (
+        '<button type="button" class="material-card material-card--folder" data-open-folder="' + escapeHtml(f.id) + '">'
+          + '<div class="material-card__title-row">'
+            + '<span class="material-icon"><i class="' + MATERIAL_TYPE_ICON.folder + '"></i></span>'
+            + '<span class="material-name">' + escapeHtml(f.name) + '</span>'
+          + '</div>'
+        + '</button>'
+      )).join('');
+
+      const itemCards = itemsHere.map(r => {
         const title = escapeHtml(r.title || 'Material');
         const url = r.image_url || '';
         const safeUrl = escapeHtml(url);
+        const type = inferMaterialType(r);
+        const iconClass = MATERIAL_TYPE_ICON[type] || MATERIAL_TYPE_ICON.image;
+        const isLink = type === 'link' || type === 'link_spotify' || type === 'link_youtube';
 
-        const img = url
-          ? (
-            '<a href="' + safeUrl + '" target="_blank" rel="noopener" style="text-decoration:none;display:block;">'
-              + '<img src="' + safeUrl + '" alt="' + title + '" '
-                + 'style="width:100%;border-radius:12px;border:1px solid rgba(255,255,255,0.12);cursor:pointer;"/>'
-            + '</a>'
-          )
-          : '<div class="muted">(sin imagen)</div>';
+        const nameEl = url
+          ? '<a class="material-name" href="' + safeUrl + '" target="_blank" rel="noopener">' + title + '</a>'
+          : '<span class="material-name">' + title + '</span>';
 
         const actions = url
           ? (
-            '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-              + '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar">'
-                + '<i class="fa-solid fa-file-arrow-down"></i></a>'
+            '<div class="material-actions">'
+              + (isLink ? '' : (
+                '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar">'
+                  + '<i class="fa-solid fa-file-arrow-down"></i></a>'
+              ))
               + '<button type="button" class="pill pill--icon" data-share-title="' + title + '" data-share-url="' + safeUrl + '" title="Compartir" aria-label="Compartir">'
                 + '<i class="fa-solid fa-share-from-square"></i></button>'
             + '</div>'
@@ -912,33 +1000,56 @@ btnBack?.addEventListener('click', () => {
           : '';
 
         return (
-          '<div style="border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:12px;display:grid;gap:10px;">'
-            + '<div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;">'
-              + '<div style="min-width:0;font-weight:800;">' + title + '</div>'
-              + actions
+          '<div class="material-card">'
+            + '<div class="material-card__title-row">'
+              + '<span class="material-icon"><i class="' + iconClass + '"></i></span>'
+              + nameEl
             + '</div>'
-            + img
+            + actions
           + '</div>'
         );
       }).join('');
+
+      supportGrid.innerHTML = folderCards + itemCards;
     };
+
+    supportGrid?.addEventListener('click', (e) => {
+      const folderBtn = e.target.closest('[data-open-folder]');
+      if (!folderBtn) return;
+      state.materialFolderId = folderBtn.dataset.openFolder;
+      renderMaterials(materialRowsCache);
+    });
 
     const loadMaterials = async () => {
       if (!supportGrid) return;
       supportGrid.textContent = 'Cargando…';
 
-      const { data, error } = await supabase
-        .from('materials')
-        .select('id, title, image_url, created_at')
-        .order('created_at', { ascending: false });
+      const [foldersRes, materialsRes] = await Promise.all([
+        supabase
+          .from('material_folders')
+          .select('id, name, parent_id')
+          .order('name', { ascending: true }),
+        supabase
+          .from('materials')
+          .select('id, title, image_url, file_name, created_at, folder_id')
+          .order('created_at', { ascending: false }),
+      ]);
 
-      if (error) {
-        supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+      if (foldersRes.error) {
+        supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(foldersRes.error.message) + '</div>';
+        return;
+      }
+      if (materialsRes.error) {
+        supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(materialsRes.error.message) + '</div>';
         return;
       }
 
-      renderMaterials(data);
+      materialFoldersCache = Array.isArray(foldersRes.data) ? foldersRes.data : [];
+      materialRowsCache = Array.isArray(materialsRes.data) ? materialsRes.data : [];
+      state.materialFolderId = null;
+      renderMaterials(materialRowsCache);
     };
+
 
     const fmtInvestment = (v) => {
       if (v == null || v === '') return '';

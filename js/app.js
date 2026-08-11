@@ -192,6 +192,13 @@ btnBack?.addEventListener('click', () => {
       const section = qs(`#view-${view}`);
       section?.classList.add('is-visible');
 
+      // Carga diferida de apps embebidas (Yadá): solo se pide el archivo
+      // la primera vez que el usuario entra a esa vista.
+      const embedFrame = section?.querySelector('iframe[data-src]');
+      if (embedFrame && !embedFrame.getAttribute('src')) {
+        embedFrame.setAttribute('src', embedFrame.dataset.src);
+      }
+
       setActiveNav(view);
       if (view === 'notas') { updateNotesCrumb(); updateNotesHeaderActions(); }
       closeSidebarOnMobile();
@@ -386,7 +393,7 @@ btnBack?.addEventListener('click', () => {
     };
 
 
-    qsa('.nav-btn').forEach(btn => {
+    qsa('.nav-btn[data-view]').forEach(btn => {
       btn.addEventListener('click', () => navigate(btn.dataset.view));
     });
     // ---- Accesos directos (cards en Inicio)
@@ -415,6 +422,19 @@ btnBack?.addEventListener('click', () => {
     const calendarContainer = qs('#calendarContainer');
     const calendarStatus = qs('#calendarStatus');
     const btnCalNew = qs('#btnCalNew');
+    let calendarRowsCache = [];
+
+    // Ordena por cercanía a la fecha actual (la más próxima primero),
+    // sin importar si el evento ya pasó o está por venir.
+    const sortCalendarByProximity = (rows) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return [...(rows || [])].sort((a, b) => {
+        const da = a.event_date ? Math.abs(new Date(a.event_date + 'T00:00:00') - today) : Infinity;
+        const db = b.event_date ? Math.abs(new Date(b.event_date + 'T00:00:00') - today) : Infinity;
+        return da - db;
+      });
+    };
 
     const normalizeProfile = (p) => {
       if (!p) return null;
@@ -1101,8 +1121,8 @@ btnBack?.addEventListener('click', () => {
         '<th>Encargado</th>',
         '<th>#Contacto</th>',
         '<th>Inversión</th>',
+        '<th class="cal-actions">Acciones</th>',
       ];
-      if (isAdmin) headCells.append('<th class="cal-actions">Acciones</th>');
 
       const body = (rows || []).map(r => {
         const cells = [
@@ -1111,15 +1131,11 @@ btnBack?.addEventListener('click', () => {
           `<td>${escapeHtml(r.owner_name)}</td>`,
           `<td>${escapeHtml(r.contact_phone)}</td>`,
           `<td>${escapeHtml(fmtInvestment(r.investment))}</td>`,
+          `<td class="cal-actions">` +
+            `<button type="button" class="pill pill--icon" data-cal-share="${escapeHtml(r.id)}" title="Compartir" aria-label="Compartir">` +
+              `<i class="fa-solid fa-share-from-square"></i></button>` +
+          `</td>`,
         ];
-        if (isAdmin) {
-          cells.append(
-            `<td class="cal-actions">` +
-              `<button class="pill" data-cal-action="edit" data-id="${escapeHtml(r.id)}" type="button">Editar</button> ` +
-              `<button class="pill danger" data-cal-action="delete" data-id="${escapeHtml(r.id)}" type="button">Eliminar</button>` +
-            `</td>`
-          );
-        }
         return `<tr>${cells.join('')}</tr>`;
       }).join('');
 
@@ -1152,8 +1168,9 @@ btnBack?.addEventListener('click', () => {
         return;
       }
 
-      renderCalendarTable(data || [], isAdmin);
-      setStatus(calendarStatus, `Registros: ${(data || []).length}`);
+      calendarRowsCache = sortCalendarByProximity(data || []);
+      renderCalendarTable(calendarRowsCache, isAdmin);
+      setStatus(calendarStatus, `Registros: ${calendarRowsCache.length}`);
     };
 
     const createCalendarActivity = async () => {
@@ -1179,63 +1196,16 @@ btnBack?.addEventListener('click', () => {
       setStatus(calendarStatus, 'Actividad creada.');
     };
 
-    const editCalendarActivity = async (id) => {
-      const role = await getRole();
-      if (role !== 'admin') return;
-
-      const { data, error } = await supabase
-        .from('calendar_activities')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error || !data) {
-        alert('No se pudo cargar la actividad.');
-        return;
-      }
-
-      const payload = readActivityFromPrompts(data);
-      if (!payload) return;
-
-      setStatus(calendarStatus, 'Actualizando…');
-
-      const upd = await supabase
-        .from('calendar_activities')
-        .update(payload)
-        .eq('id', id);
-
-      if (upd.error) {
-        setStatus(calendarStatus, 'Error al actualizar.');
-        alert('No se pudo actualizar la actividad.');
-        return;
-      }
-
-      await loadCalendar();
-      setStatus(calendarStatus, 'Actividad actualizada.');
-    };
-
-    const deleteCalendarActivity = async (id) => {
-      const role = await getRole();
-      if (role !== 'admin') return;
-
-      const ok = confirm('¿Eliminar esta actividad?');
-      if (!ok) return;
-
-      setStatus(calendarStatus, 'Eliminando…');
-
-      const del = await supabase
-        .from('calendar_activities')
-        .delete()
-        .eq('id', id);
-
-      if (del.error) {
-        setStatus(calendarStatus, 'Error al eliminar.');
-        alert('No se pudo eliminar la actividad.');
-        return;
-      }
-
-      await loadCalendar();
-      setStatus(calendarStatus, 'Actividad eliminada.');
+    const buildCalendarShare = (r) => {
+      const lines = [
+        r.activity ? `Actividad: ${r.activity}` : '',
+        r.event_date ? `Fecha: ${r.event_date}` : '',
+        r.owner_name ? `Encargado: ${r.owner_name}` : '',
+        r.contact_phone ? `Contacto: ${r.contact_phone}` : '',
+        (r.investment !== null && r.investment !== undefined && r.investment !== '')
+          ? `Inversión: ${fmtInvestment(r.investment)}` : '',
+      ];
+      return lines.filter(Boolean).join('\n');
     };
 
     btnCalNew?.addEventListener('click', (e) => {
@@ -1244,14 +1214,13 @@ btnBack?.addEventListener('click', () => {
     });
 
     calendarContainer?.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-cal-action]');
+      const btn = e.target.closest('[data-cal-share]');
       if (!btn) return;
       e.preventDefault();
-      const action = btn.getAttribute('data-cal-action');
-      const id = btn.getAttribute('data-id');
-      if (!id) return;
-      if (action === 'edit') editCalendarActivity(id);
-      if (action === 'delete') deleteCalendarActivity(id);
+      const id = btn.getAttribute('data-cal-share');
+      const row = calendarRowsCache.find(r => String(r.id) === String(id));
+      if (!row) return;
+      shareText(buildCalendarShare(row));
     });
 
 

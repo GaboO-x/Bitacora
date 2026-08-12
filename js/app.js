@@ -2896,16 +2896,41 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const misDoceBody = qs('#misDoceBody');
     const btnMdAddRow = qs('#btnMdAddRow');
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
+    const btnMdShareAll = qs('#btnMdShareAll');
 
     // "Zona" solo se activa si DRC tiene un día asignado (distinto de N/A).
+    // Aplica/quita el link de Waze en el botón: sin link = ícono apagado
+    // (--muted), con link = acento del tema (misma paleta del resto de la
+    // Bitácora, sin colores ajenos al ecosistema).
+    const mdSetWazeLink = (btn, link) => {
+      if (!btn) return;
+      const clean = (link || '').trim();
+      if (clean) {
+        btn.dataset.link = clean;
+        btn.classList.add('has-link');
+        btn.title = 'Abrir zona en Waze';
+      } else {
+        delete btn.dataset.link;
+        btn.classList.remove('has-link');
+        btn.title = btn.disabled ? 'Agregar link de Waze' : 'Agregar link de Waze';
+      }
+    };
+
     const mdUpdateZonaState = (tr) => {
       if (!tr) return;
       const drc = qs('.md-drc', tr);
       const zona = qs('.md-zona', tr);
+      const wazeBtn = qs('.md-waze-btn', tr);
+      const shareBtn = qs('.md-share-btn', tr);
       if (!drc || !zona) return;
       const active = drc.value !== 'N/A';
       zona.disabled = !active;
       if (!active) zona.value = '';
+      if (wazeBtn) {
+        wazeBtn.disabled = !active;
+        if (!active) mdSetWazeLink(wazeBtn, '');
+      }
+      if (shareBtn) shareBtn.disabled = !active;
     };
 
     const mdClearRow = (tr) => {
@@ -2914,7 +2939,25 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       qsa('input[type="checkbox"]', tr).forEach(chk => { chk.checked = false; });
       const sel = qs('select', tr);
       if (sel) sel.value = 'N/A';
+      const wazeBtn = qs('.md-waze-btn', tr);
+      if (wazeBtn) mdSetWazeLink(wazeBtn, '');
       mdUpdateZonaState(tr);
+    };
+
+    // Arma el texto de la ficha de la zona para compartir por WhatsApp.
+    const mdBuildShareText = (tr) => {
+      const name = (qs('.md-name', tr)?.value || '').trim() || 'Sin nombre';
+      const drc = qs('.md-drc', tr);
+      const dia = (drc && drc.value !== 'N/A') ? drc.value : 'No asignado';
+      const zona = (qs('.md-zona', tr)?.value || '').trim() || 'Sin zona';
+      const wazeBtn = qs('.md-waze-btn', tr);
+      const link = wazeBtn?.dataset.link || 'Sin link registrado';
+      return (
+        `* Líder: "${name}"\n` +
+        `* Día de reunión de Célula: "${dia}"\n` +
+        `* Zona: "${zona}"\n` +
+        `* Dirección: "${link}"`
+      );
     };
 
     // Los wheels (.dc-wheel) clonados heredan el flag de inicialización y las
@@ -2951,6 +2994,82 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       const drc = e.target.closest('.md-drc');
       if (!drc) return;
       mdUpdateZonaState(drc.closest('tr'));
+    });
+
+    // Botón de Waze en "Zona":
+    //  - Tap corto sin link  -> pide el link y lo guarda (ícono cambia de color).
+    //  - Tap corto con link  -> abre esa zona en Waze en pestaña nueva.
+    //  - Mantener presionado -> edita o quita el link (funciona con mouse y touch).
+    let mdWazePressTimer = null;
+    let mdWazeLongPressFired = false;
+
+    const mdWazeEditPrompt = (btn) => {
+      const current = btn.dataset.link || '';
+      const url = window.prompt('Link de Waze para esta zona (vacío para quitarlo):', current);
+      if (url === null) return; // cancelado
+      mdSetWazeLink(btn, url.trim());
+    };
+
+    misDoceBody?.addEventListener('pointerdown', (e) => {
+      const btn = e.target.closest('.md-waze-btn');
+      if (!btn || btn.disabled) return;
+      mdWazeLongPressFired = false;
+      clearTimeout(mdWazePressTimer);
+      mdWazePressTimer = setTimeout(() => {
+        mdWazeLongPressFired = true;
+        mdWazeEditPrompt(btn);
+      }, 550);
+    });
+
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(evt => {
+      misDoceBody?.addEventListener(evt, () => clearTimeout(mdWazePressTimer));
+    });
+
+    misDoceBody?.addEventListener('click', (e) => {
+      const btn = e.target.closest('.md-waze-btn');
+      if (!btn || btn.disabled) return;
+      if (mdWazeLongPressFired) { mdWazeLongPressFired = false; return; } // ya se resolvió como long-press
+
+      const current = btn.dataset.link || '';
+      if (current) {
+        window.open(current, '_blank', 'noopener');
+      } else {
+        const url = window.prompt('Pega el link de Waze para esta zona:');
+        if (url && url.trim()) mdSetWazeLink(btn, url.trim());
+      }
+    });
+
+    // Botón de compartir: copia la ficha de la zona al portapapeles y abre
+    // WhatsApp con ese mismo texto precargado (wa.me sin número = elegir contacto).
+    misDoceBody?.addEventListener('click', async (e) => {
+      const shareBtn = e.target.closest('.md-share-btn');
+      if (!shareBtn || shareBtn.disabled) return;
+
+      const tr = shareBtn.closest('tr');
+      if (!tr) return;
+      const text = mdBuildShareText(tr);
+
+      try { await navigator.clipboard.writeText(text); } catch {}
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
+    });
+
+    // Compartir general: junta todas las filas con "compartir" activo (mismo
+    // criterio que el botón individual: DRC ≠ N/A) en un solo mensaje.
+    btnMdShareAll?.addEventListener('click', async () => {
+      if (!misDoceBody) return;
+      const activeRows = qsa('tr', misDoceBody).filter(tr => {
+        const shareBtn = qs('.md-share-btn', tr);
+        return shareBtn && !shareBtn.disabled;
+      });
+
+      if (!activeRows.length) {
+        alert('No hay zonas activas para compartir. Asigna un día de reunión de célula (DRC) primero.');
+        return;
+      }
+
+      const text = activeRows.map(mdBuildShareText).join('\n\n');
+      try { await navigator.clipboard.writeText(text); } catch {}
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
     });
 
     // Defaults: tabla arranca con 4 filas (HTML). Si quedara en blanco por cambios futuros, garantiza 4.

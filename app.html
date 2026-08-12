@@ -893,11 +893,11 @@
 </div>
 </div>
 </section>
-<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1><div class="view__nav"><button class="pill" id="btnMdAddRow" type="button">+</button><button class="pill" id="btnMdRemoveRow" type="button">−</button></div></div>
+<section class="view" data-view-section="misdoce" id="view-misdoce"><div class="view__header"><h1>Mis Doce</h1><div class="view__nav"><button class="pill pill--icon" id="btnMdShareAll" type="button" title="Compartir todas las zonas activas" aria-label="Compartir todas las zonas activas"><i class="fa-solid fa-share-from-square"></i></button><button class="pill" id="btnMdAddRow" type="button">+</button><button class="pill" id="btnMdRemoveRow" type="button">−</button></div></div>
 
 <div class="panel" id="misDoceContainer">
 
-  <div class="table-wrap">
+  <div class="table-wrap md-table-wrap">
     <table class="table md-table" id="misDoceTable">
       <thead>
         <tr>
@@ -930,16 +930,16 @@
               </div>
             </div>
           </td>
-          <td>
+          <td class="md-td-plan" data-mobile-label="Plan 5 Estrellas">
             <div class="md-plan">
-              <label><input type="checkbox" data-plan="LE"/> LE</label>
-              <label><input type="checkbox" data-plan="CN"/> CN</label>
-              <label><input type="checkbox" data-plan="AC"/> AC</label>
-              <label><input type="checkbox" data-plan="LI"/> Lí</label>
-              <label><input type="checkbox" data-plan="CC"/> CC</label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LE"/><span>LE</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CN"/><span>CN</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="AC"/><span>AC</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LI"/><span>Lí</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CC"/><span>CC</span></label>
             </div>
           </td>
-          <td>
+          <td class="md-td-drc" data-mobile-label="DRC**">
             <select class="md-drc">
               <option value="N/A">N/A</option>
               <option value="Lunes">Lunes</option>
@@ -951,7 +951,17 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
-          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
+          <td>
+            <div class="md-zona-wrap">
+              <input class="input md-zona" type="text" placeholder="Zona" disabled/>
+              <button type="button" class="md-waze-btn" disabled title="Agregar link de Waze" aria-label="Link de Waze de la zona">
+                <i class="fa-brands fa-waze"></i>
+              </button>
+              <button type="button" class="md-share-btn" disabled title="Compartir por WhatsApp" aria-label="Compartir información de la zona por WhatsApp">
+                <i class="fa-solid fa-share-from-square"></i>
+              </button>
+            </div>
+          </td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
@@ -974,16 +984,16 @@
               </div>
             </div>
           </td>
-          <td>
+          <td class="md-td-plan" data-mobile-label="Plan 5 Estrellas">
             <div class="md-plan">
-              <label><input type="checkbox" data-plan="LE"/> LE</label>
-              <label><input type="checkbox" data-plan="CN"/> CN</label>
-              <label><input type="checkbox" data-plan="AC"/> AC</label>
-              <label><input type="checkbox" data-plan="LI"/> Lí</label>
-              <label><input type="checkbox" data-plan="CC"/> CC</label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LE"/><span>LE</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CN"/><span>CN</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="AC"/><span>AC</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LI"/><span>Lí</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CC"/><span>CC</span></label>
             </div>
           </td>
-          <td>
+          <td class="md-td-drc" data-mobile-label="DRC**">
             <select class="md-drc">
               <option value="N/A">N/A</option>
               <option value="Lunes">Lunes</option>
@@ -995,7 +1005,17 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
-          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
+          <td>
+            <div class="md-zona-wrap">
+              <input class="input md-zona" type="text" placeholder="Zona" disabled/>
+              <button type="button" class="md-waze-btn" disabled title="Agregar link de Waze" aria-label="Link de Waze de la zona">
+                <i class="fa-brands fa-waze"></i>
+              </button>
+              <button type="button" class="md-share-btn" disabled title="Compartir por WhatsApp" aria-label="Compartir información de la zona por WhatsApp">
+                <i class="fa-solid fa-share-from-square"></i>
+              </button>
+            </div>
+          </td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
@@ -1018,16 +1038,16 @@
               </div>
             </div>
           </td>
-          <td>
+          <td class="md-td-plan" data-mobile-label="Plan 5 Estrellas">
             <div class="md-plan">
-              <label><input type="checkbox" data-plan="LE"/> LE</label>
-              <label><input type="checkbox" data-plan="CN"/> CN</label>
-              <label><input type="checkbox" data-plan="AC"/> AC</label>
-              <label><input type="checkbox" data-plan="LI"/> Lí</label>
-              <label><input type="checkbox" data-plan="CC"/> CC</label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LE"/><span>LE</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CN"/><span>CN</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="AC"/><span>AC</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LI"/><span>Lí</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CC"/><span>CC</span></label>
             </div>
           </td>
-          <td>
+          <td class="md-td-drc" data-mobile-label="DRC**">
             <select class="md-drc">
               <option value="N/A">N/A</option>
               <option value="Lunes">Lunes</option>
@@ -1039,7 +1059,17 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
-          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
+          <td>
+            <div class="md-zona-wrap">
+              <input class="input md-zona" type="text" placeholder="Zona" disabled/>
+              <button type="button" class="md-waze-btn" disabled title="Agregar link de Waze" aria-label="Link de Waze de la zona">
+                <i class="fa-brands fa-waze"></i>
+              </button>
+              <button type="button" class="md-share-btn" disabled title="Compartir por WhatsApp" aria-label="Compartir información de la zona por WhatsApp">
+                <i class="fa-solid fa-share-from-square"></i>
+              </button>
+            </div>
+          </td>
         </tr>
         <tr>
           <td><input class="input md-name" type="text" placeholder="Nombre"/></td>
@@ -1062,16 +1092,16 @@
               </div>
             </div>
           </td>
-          <td>
+          <td class="md-td-plan" data-mobile-label="Plan 5 Estrellas">
             <div class="md-plan">
-              <label><input type="checkbox" data-plan="LE"/> LE</label>
-              <label><input type="checkbox" data-plan="CN"/> CN</label>
-              <label><input type="checkbox" data-plan="AC"/> AC</label>
-              <label><input type="checkbox" data-plan="LI"/> Lí</label>
-              <label><input type="checkbox" data-plan="CC"/> CC</label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LE"/><span>LE</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CN"/><span>CN</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="AC"/><span>AC</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="LI"/><span>Lí</span></label>
+              <label class="md-plan-chip"><input type="checkbox" class="md-plan-input" data-plan="CC"/><span>CC</span></label>
             </div>
           </td>
-          <td>
+          <td class="md-td-drc" data-mobile-label="DRC**">
             <select class="md-drc">
               <option value="N/A">N/A</option>
               <option value="Lunes">Lunes</option>
@@ -1083,7 +1113,17 @@
               <option value="Domingo">Domingo</option>
             </select>
           </td>
-          <td><input class="input md-zona" type="text" placeholder="Zona" disabled/></td>
+          <td>
+            <div class="md-zona-wrap">
+              <input class="input md-zona" type="text" placeholder="Zona" disabled/>
+              <button type="button" class="md-waze-btn" disabled title="Agregar link de Waze" aria-label="Link de Waze de la zona">
+                <i class="fa-brands fa-waze"></i>
+              </button>
+              <button type="button" class="md-share-btn" disabled title="Compartir por WhatsApp" aria-label="Compartir información de la zona por WhatsApp">
+                <i class="fa-solid fa-share-from-square"></i>
+              </button>
+            </div>
+          </td>
         </tr>
       </tbody>
     </table>

@@ -137,6 +137,7 @@
             background: var(--bg2);
             border-bottom: 1px solid var(--border);
             display: flex;
+            justify-content: center;
             max-width: 760px;
             margin: 0 auto;
             padding: 0 20px;
@@ -218,8 +219,15 @@
             background: var(--red); color: #fff;
         }
         .modal-btn-danger:hover { background: var(--gold2); }
+        .modal-btn-primary {
+            background: var(--gold); color: #fff;
+        }
+        .modal-btn-primary:hover { background: var(--gold2); }
+        .modal-icon-neutral { background: var(--gold-bg); color: var(--gold); }
+        .modal-form-fields { text-align: left; margin-bottom: 6px; }
 
-        /* ── Selector de dificultad global ── */
+        /* ── Selector de dificultad global (compartido entre Aprender y
+           Mis Versículos — misma clase, dos instancias en el DOM) ── */
         .difficulty-selector {
             display: flex; gap: 8px; margin: -12px -16px 20px; padding: 12px 16px;
             position: sticky; top: 0; z-index: 90;
@@ -230,11 +238,19 @@
             border: 1px solid var(--border); background: var(--bg2);
             color: var(--text2); font-size: 0.82em; font-weight: 600;
             letter-spacing: 0.02em; cursor: pointer; transition: all 0.2s;
+            white-space: nowrap;
         }
         .diff-btn:hover { border-color: var(--accent-border); color: var(--gold); }
         .diff-btn.active {
             background: var(--gold); border-color: var(--gold); color: var(--bg2);
         }
+        /* Botón "+Agregar": acento dorado permanente para distinguirlo como
+           acción primaria dentro de la misma barra (no es un nivel de dificultad). */
+        .diff-btn-accent {
+            background: var(--gold-bg); border-color: var(--accent-border); color: var(--gold);
+        }
+        .diff-btn-accent:hover { background: var(--accent-hover-bg); }
+        .diff-btn-accent.open { background: var(--gold); border-color: var(--gold); color: var(--bg2); }
 
         /* ── Chips de acceso directo a cada versiculo ── */
         .verse-quick-picks { display: flex; gap: 4px; }
@@ -555,10 +571,114 @@
         .rstat .rstat-num { font-family: var(--font-serif); font-size: 1.6em; color: var(--text); }
         .rstat .rstat-label { font-size: 0.75em; color: var(--text3); margin-top: 2px; }
 
+        /* ═══════════════════════════════════════
+           MIS VERSÍCULOS — formulario de carga
+           Colapsado por defecto: lo abre el botón "+Agregar" de la barra
+           compartida (difficulty-selector), y se colapsa solo al guardar.
+        ═══════════════════════════════════════ */
+        .my-verse-form {
+            display: none;
+            background: var(--bg2); border: 1px solid var(--border);
+            border-radius: 14px; padding: 20px; margin-bottom: 22px;
+            box-shadow: var(--shadow);
+            animation: cardIn 0.25s ease forwards;
+        }
+        .my-verse-form.open { display: block; }
+        .mvf-field { margin-bottom: 14px; }
+        .mvf-field:last-of-type { margin-bottom: 0; }
+        .mvf-field label {
+            display: block; font-size: 0.78em; font-weight: 600;
+            letter-spacing: 0.04em; text-transform: uppercase;
+            color: var(--text3); margin-bottom: 6px;
+        }
+        .mvf-field input, .mvf-field textarea {
+            width: 100%; background: var(--bg3); border: 1px solid var(--border);
+            border-radius: 10px; padding: 10px 12px;
+            font-family: var(--font-sans); font-size: 0.95em; color: var(--text);
+            resize: vertical; transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .mvf-field textarea { font-family: var(--font-serif); font-style: italic; line-height: 1.6; }
+        .mvf-field input:focus, .mvf-field textarea:focus {
+            outline: none; border-color: var(--gold2);
+            box-shadow: 0 0 0 3px var(--accent-bg);
+        }
+        .mvf-error {
+            font-size: 0.82em; color: var(--red); min-height: 1.1em; margin: 10px 0 2px;
+        }
+        .mvf-actions { display: flex; gap: 10px; margin-top: 8px; }
+        .mvf-cancel {
+            padding: 12px 16px; border-radius: 10px; cursor: pointer;
+            background: transparent; border: 1px solid var(--border); color: var(--text2);
+            font-family: var(--font-sans); font-size: 0.95em; font-weight: 600;
+            transition: all 0.2s;
+        }
+        .mvf-cancel:hover { border-color: var(--accent-border); color: var(--gold); }
+        .mvf-submit {
+            flex: 1; padding: 12px 16px; border: none;
+            border-radius: 10px; cursor: pointer;
+            background: var(--gold); color: var(--bg2);
+            font-family: var(--font-sans); font-size: 0.95em; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 7px;
+            transition: all 0.2s;
+        }
+        .mvf-submit:hover { background: var(--gold2); transform: translateY(-1px); }
+        .mvf-submit:active { transform: scale(0.98); }
+
+        /* ── Administrar (editar/eliminar) versículos de una sección propia ── */
+        .my-admin { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+        .my-admin-toggle {
+            width: 100%; background: transparent; border: 1px dashed var(--border2);
+            border-radius: 10px; padding: 9px 12px; cursor: pointer;
+            color: var(--text3); font-family: var(--font-sans); font-size: 0.82em; font-weight: 500;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: all 0.2s;
+        }
+        .my-admin-toggle:hover { color: var(--gold); border-color: var(--gold2); background: var(--gold-bg); }
+        .my-admin-list {
+            display: none; flex-direction: column; gap: 8px;
+            margin-top: 12px; animation: cardIn 0.25s ease forwards;
+        }
+        .my-admin-list.open { display: flex; }
+        .my-admin-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 10px;
+            background: var(--bg3); border: 1px solid var(--border);
+            border-radius: 10px; padding: 8px 10px 8px 12px;
+        }
+        .my-admin-row-text { min-width: 0; font-size: 0.84em; color: var(--text2); line-height: 1.4; }
+        .my-admin-row-text strong { display: block; color: var(--gold); font-size: 0.92em; margin-bottom: 1px; }
+        .my-admin-row-text span {
+            display: block; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; font-family: var(--font-serif); font-style: italic;
+        }
+        .my-admin-row-actions { display: flex; gap: 6px; flex-shrink: 0; }
+        .my-admin-btn {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: transparent; border: 1px solid var(--border);
+            color: var(--text3); cursor: pointer; font-size: 0.78em;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+        }
+        .my-admin-btn:hover { border-color: var(--gold2); color: var(--gold); background: var(--gold-bg); }
+        .my-admin-btn-danger:hover { border-color: var(--red); color: var(--red); background: var(--red-bg); }
+
         /* ── Responsive ── */
         @media (max-width: 580px) {
-            .tabbar { padding: 0 8px; }
+            .tabbar { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
             .tab { padding: 13px 12px; font-size: 0.83em; }
+            /* La barra de "Mis Versículos" tiene 5 botones (vs 4 en Aprender):
+               achicamos antes para que siempre quepan en una sola línea. */
+            .difficulty-selector.five-btn { gap: 5px; }
+            .difficulty-selector.five-btn .diff-btn { padding: 9px 2px; font-size: 0.74em; }
+        }
+        @media (max-width: 460px) {
+            /* En "Agregar"/"Reiniciar" se oculta el texto y queda solo el
+               ícono, así Fácil/Medio/Difícil conservan su texto legible
+               y las 5 pastillas siguen en una sola línea horizontal. */
+            .difficulty-selector.five-btn .diff-btn .btn-label { display: none; }
+            .difficulty-selector.five-btn .diff-btn { padding: 9px 0; }
+        }
+        @media (max-width: 400px) {
+            .tab { padding: 12px 9px; font-size: 0.78em; gap: 5px; }
             .page { padding: 18px 12px; }
             .month-header { padding: 14px 14px; }
             .content { padding: 0 14px 16px; }
@@ -576,6 +696,9 @@
     <div class="tab active" id="tab-learn" onclick="showTab('learn')">
         <i class="fas fa-book-open"></i> Aprender
     </div>
+    <div class="tab" id="tab-mine" onclick="showTab('mine')">
+        <i class="fas fa-feather"></i> Mis Versículos
+    </div>
     <div class="tab" id="tab-random" onclick="showTab('random')">
         <i class="fas fa-shuffle"></i> Aleatorio
     </div>
@@ -583,15 +706,50 @@
 
 <!-- LEARN PAGE -->
 <div class="page active" id="page-learn">
-    <div class="difficulty-selector" id="difficulty-selector">
+    <div class="difficulty-selector" id="difficulty-selector-learn">
         <button class="diff-btn" data-level="1" onclick="setDifficulty(1)">Fácil</button>
         <button class="diff-btn" data-level="2" onclick="setDifficulty(2)">Medio</button>
         <button class="diff-btn" data-level="3" onclick="setDifficulty(3)">Difícil</button>
         <button class="diff-btn" onclick="requestResetAll()">
-            <i class="fas fa-undo"></i> Reiniciar
+            <i class="fas fa-undo"></i> <span class="btn-label">Reiniciar</span>
         </button>
     </div>
     <div id="months-wrapper"></div>
+</div>
+
+<!-- MIS VERSÍCULOS PAGE -->
+<div class="page" id="page-mine">
+    <div class="difficulty-selector five-btn" id="difficulty-selector-mine">
+        <button class="diff-btn" data-level="1" onclick="setDifficulty(1)">Fácil</button>
+        <button class="diff-btn" data-level="2" onclick="setDifficulty(2)">Medio</button>
+        <button class="diff-btn" data-level="3" onclick="setDifficulty(3)">Difícil</button>
+        <button class="diff-btn diff-btn-accent" id="add-toggle-btn" onclick="toggleAddForm()">
+            <i class="fas fa-plus"></i> <span class="btn-label">Agregar</span>
+        </button>
+        <button class="diff-btn" onclick="requestResetAllMine()">
+            <i class="fas fa-undo"></i> <span class="btn-label">Reiniciar</span>
+        </button>
+    </div>
+
+    <div class="my-verse-form" id="my-verse-form">
+        <div class="mvf-field">
+            <label for="mv-cita">Cita</label>
+            <input type="text" id="mv-cita" placeholder="Ej. Juan 3:16" maxlength="60">
+        </div>
+        <div class="mvf-field">
+            <label for="mv-texto">Versículo</label>
+            <textarea id="mv-texto" rows="3" placeholder="Escribe aquí el texto del versículo..."></textarea>
+        </div>
+        <div class="mvf-error" id="mv-error"></div>
+        <div class="mvf-actions">
+            <button type="button" class="mvf-cancel" onclick="toggleAddForm(false)">Cancelar</button>
+            <button type="button" class="mvf-submit" id="mv-submit" onclick="handleAddMyVerse()">
+                <i class="fas fa-plus"></i> Agregar versículo
+            </button>
+        </div>
+    </div>
+
+    <div id="my-sections-wrapper"></div>
 </div>
 
 <!-- RANDOM PAGE -->
@@ -615,15 +773,64 @@
     <div id="random-area"></div>
 </div>
 
-<!-- Modal de confirmación: reiniciar todo el progreso -->
+<!-- Modal de confirmación: reiniciar todo el progreso (meses) -->
 <div class="modal-overlay" id="reset-modal-overlay" onclick="if(event.target===this) closeResetModal()">
     <div class="modal-box">
         <div class="modal-icon"><i class="fas fa-triangle-exclamation"></i></div>
         <h2 class="modal-title">¿Reiniciar todo el progreso?</h2>
-        <p class="modal-text">Se borra el avance de todos los meses y versículos aprendidos. Esta acción no se puede deshacer.</p>
+        <p class="modal-text">Se borra el avance de los 12 meses (Aprender). No afecta a "Mis Versículos". Esta acción no se puede deshacer.</p>
         <div class="modal-actions">
             <button class="modal-btn modal-btn-cancel" onclick="closeResetModal()">Cancelar</button>
             <button class="modal-btn modal-btn-danger" onclick="confirmResetAll()">Sí, reiniciar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación: reiniciar todo el progreso de "Mis Versículos" -->
+<div class="modal-overlay" id="reset-mine-modal-overlay" onclick="if(event.target===this) closeResetMineModal()">
+    <div class="modal-box">
+        <div class="modal-icon"><i class="fas fa-triangle-exclamation"></i></div>
+        <h2 class="modal-title">¿Reiniciar Mis Versículos?</h2>
+        <p class="modal-text">Se borra el avance de memorización de todos tus versículos propios (no se eliminan los versículos, solo su progreso). No afecta a los meses. Esta acción no se puede deshacer.</p>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" onclick="closeResetMineModal()">Cancelar</button>
+            <button class="modal-btn modal-btn-danger" onclick="confirmResetAllMine()">Sí, reiniciar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: editar versículo propio -->
+<div class="modal-overlay" id="edit-verse-modal-overlay" onclick="if(event.target===this) closeEditVerseModal()">
+    <div class="modal-box">
+        <div class="modal-icon modal-icon-neutral"><i class="fas fa-pen"></i></div>
+        <h2 class="modal-title">Editar versículo</h2>
+        <div class="modal-form-fields">
+            <div class="mvf-field">
+                <label for="edit-mv-cita">Cita</label>
+                <input type="text" id="edit-mv-cita" maxlength="60">
+            </div>
+            <div class="mvf-field">
+                <label for="edit-mv-texto">Versículo</label>
+                <textarea id="edit-mv-texto" rows="3"></textarea>
+            </div>
+            <div class="mvf-error" id="edit-mv-error"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" onclick="closeEditVerseModal()">Cancelar</button>
+            <button class="modal-btn modal-btn-primary" onclick="confirmEditMyVerse()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmación: eliminar un versículo propio -->
+<div class="modal-overlay" id="delete-verse-modal-overlay" onclick="if(event.target===this) closeDeleteVerseModal()">
+    <div class="modal-box">
+        <div class="modal-icon"><i class="fas fa-trash"></i></div>
+        <h2 class="modal-title">¿Eliminar este versículo?</h2>
+        <p class="modal-text" id="delete-verse-text">Esta acción no se puede deshacer.</p>
+        <div class="modal-actions">
+            <button class="modal-btn modal-btn-cancel" onclick="closeDeleteVerseModal()">Cancelar</button>
+            <button class="modal-btn modal-btn-danger" onclick="confirmDeleteMyVerse()">Sí, eliminar</button>
         </div>
     </div>
 </div>
@@ -659,15 +866,18 @@ let practiceDifficulty = 1;
 function setDifficulty(level) {
     practiceDifficulty = level;
     try { localStorage.setItem('verso_difficulty', String(level)); } catch(e) {}
-    document.querySelectorAll('#difficulty-selector .diff-btn')
+    // Por clase (no por ID): así ambas barras — Aprender y Mis Versículos —
+    // quedan sincronizadas, son el mismo control compartido en 2 lugares.
+    document.querySelectorAll('.difficulty-selector .diff-btn[data-level]')
         .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === level));
     // el dominio por chip depende de la dificultad activa, se actualiza en TODOS los meses
     // (esten abiertos o no, porque los chips se ven igual en el header colapsado)
     for (const id in versesData) updateVerseChipMastery(id);
+    for (const id in getMySections()) updateVerseChipMastery(id);
     // re-renderizar cualquier mes actualmente abierto para que pips/nivel tambien se vean al toque
     document.querySelectorAll('.month-container.open').forEach(mc => {
         const id = mc.id.replace('mc-','');
-        if (monthState[id]) renderCurrent(id);
+        if (getState(id)) renderCurrent(id);
     });
 }
 
@@ -677,7 +887,7 @@ function updateQuickPicks(id, activeIdx) {
 }
 
 function updateVerseChipMastery(id) {
-    const st = monthState[id];
+    const st = getState(id);
     if (!st) return;
     document.querySelectorAll(`#mc-${id} .vq-chip`).forEach((chip,i) => {
         chip.classList.toggle('mastered', !!(st.mastered[i] && st.mastered[i][practiceDifficulty]));
@@ -685,9 +895,8 @@ function updateVerseChipMastery(id) {
 }
 
 function jumpToVerse(id, verseIdx) {
-    if (!monthState[id]) monthState[id] = makeState(id);
-    const st = monthState[id];
-    const n = versesData[id].length;
+    const st = getState(id);
+    const n = getVerses(id).length;
     st.completed = false; // permite revisar un verso puntual aunque el mes ya este dominado
     // rota la cola completa arrancando en el verso elegido: 3,4,1,2 si eligen el 3
     st.queue = Array.from({length:n}, (_,k) => (verseIdx+k) % n);
@@ -884,6 +1093,123 @@ function shuffleArr(a) {
 }
 
 // ═══════════════════════════════════════════
+// MIS VERSÍCULOS — DATOS Y PERSISTENCIA
+// (localStorage por ahora; misma clave-prefijo "verso_" que el resto.
+//  Preparado para migrar a nube sin tocar la forma de los datos: solo
+//  cambiaría saveMyVerses/loadMyVerses por llamadas a un backend.)
+// ═══════════════════════════════════════════
+const MY_VERSES_KEY   = 'verso_myverses_v1';
+const MY_SECTION_SIZE = 4; // igual que los meses: 4 versículos por tarjeta
+
+let myVerses = []; // [{ id, cita, texto }] — orden de carga = orden de secciones
+
+function genMyVerseId() {
+    return 'mv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function saveMyVerses() {
+    try { localStorage.setItem(MY_VERSES_KEY, JSON.stringify(myVerses)); } catch (e) {}
+}
+
+function loadMyVerses() {
+    try {
+        const raw = localStorage.getItem(MY_VERSES_KEY);
+        myVerses = raw ? JSON.parse(raw) : [];
+    } catch (e) { myVerses = []; }
+}
+
+// Agrupa myVerses en bloques de 4, con el mismo shape que versesData[mes]
+// ({text, reference}) para poder reutilizar el motor de práctica existente.
+// Se recalcula siempre desde myVerses (nunca queda guardado por separado),
+// así que agregar/editar/eliminar nunca deja "huecos" entre secciones.
+function getMySections() {
+    const sections = {};
+    for (let i = 0; i < myVerses.length; i += MY_SECTION_SIZE) {
+        const secNum = Math.floor(i / MY_SECTION_SIZE) + 1;
+        const secId  = `my_${secNum}`;
+        sections[secId] = myVerses.slice(i, i + MY_SECTION_SIZE)
+            .map(v => ({ text: v.texto, reference: v.cita, _uid: v.id }));
+    }
+    return sections;
+}
+
+// "SECCIÓN 01", "SECCIÓN 02"... (mismo tratamiento visual que MONTH_NAME)
+function mySectionLabel(secId) {
+    const num = secId.split('_')[1];
+    return `Sección ${String(num).padStart(2, '0')}`;
+}
+function mySectionAbbr(secId) {
+    return String(secId.split('_')[1]).padStart(2, '0');
+}
+
+// ── CRUD ──────────────────────────────────
+function addMyVerse(cita, texto) {
+    cita = (cita || '').trim();
+    texto = (texto || '').trim();
+    if (!cita || !texto) return null;
+    const verse = { id: genMyVerseId(), cita, texto };
+    myVerses.push(verse);
+    saveMyVerses();
+    return verse;
+}
+
+function editMyVerse(id, cita, texto) {
+    const v = myVerses.find(v => v.id === id);
+    if (!v) return false;
+    if (cita !== undefined)  v.cita  = cita.trim();
+    if (texto !== undefined) v.texto = texto.trim();
+    saveMyVerses();
+    // El progreso vive ligado a "id", no a la posición: editar cita/texto
+    // nunca toca ni resetea el avance de memorización de este versículo.
+    return true;
+}
+
+function deleteMyVerse(id) {
+    const idx = myVerses.findIndex(v => v.id === id);
+    if (idx === -1) return false;
+    myVerses.splice(idx, 1);
+    saveMyVerses();
+    // Limpieza: borra también el progreso de ESE id puntual.
+    // El resto de los versículos no se toca ni se resetea, aunque
+    // cambien de sección/posición al recalcularse getMySections().
+    delete myProgress[id];
+    saveMyProgress();
+    return true;
+}
+
+// ═══════════════════════════════════════════
+// MIS VERSÍCULOS — PROGRESO LIGADO A "id" (no a posición)
+// Guardar el avance por id (en vez de por índice dentro de la sección,
+// como monthState) es lo que hace que agregar/editar/eliminar versículos
+// nunca mezcle ni borre el progreso de otro versículo, aunque las
+// secciones se recalculen y las posiciones se corran.
+// ═══════════════════════════════════════════
+const MY_PROGRESS_KEY = 'verso_myverses_progress_v1';
+
+let myProgress = {}; // { [verseId]: { curLevel, nextLevel, mastered:{1,2,3} } }
+
+function makeVerseProgress() {
+    return { curLevel: 1, nextLevel: 1, mastered: { 1: false, 2: false, 3: false } };
+}
+
+// Devuelve (y crea si no existe) el progreso de un versículo puntual
+function getVerseProgress(id) {
+    if (!myProgress[id]) myProgress[id] = makeVerseProgress();
+    return myProgress[id];
+}
+
+function saveMyProgress() {
+    try { localStorage.setItem(MY_PROGRESS_KEY, JSON.stringify(myProgress)); } catch (e) {}
+}
+
+function loadMyProgress() {
+    try {
+        const raw = localStorage.getItem(MY_PROGRESS_KEY);
+        myProgress = raw ? JSON.parse(raw) : {};
+    } catch (e) { myProgress = {}; }
+}
+
+// ═══════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════
 let monthState = {};
@@ -893,6 +1219,62 @@ function makeState(id) {
     const curLevel={}, nextLevel={}, mastered={};
     for (let i=0;i<n;i++) { curLevel[i]=nextLevel[i]=1; mastered[i]={1:false,2:false,3:false}; }
     return { queue:[...Array(n).keys()], curLevel, nextLevel, mastered, cycleKnown:0, completed:false };
+}
+
+// ═══════════════════════════════════════════
+// CAPA COMÚN: el motor de práctica (renderCurrent, mark, toggleMonth,
+// jumpToVerse, showCycleEnd, etc.) trabaja contra estas 3 funciones en
+// vez de leer versesData/monthState directo. Así, un mismo motor sirve
+// tanto para los meses fijos como para las secciones de "Mis Versículos",
+// sin duplicar la lógica de práctica.
+// ═══════════════════════════════════════════
+function isMineId(id) { return typeof id === 'string' && id.startsWith('my_'); }
+
+function getVerses(id) {
+    return isMineId(id) ? (getMySections()[id] || []) : versesData[id];
+}
+
+// Sesión en memoria de las secciones "mine" (se reconstruye a partir de
+// myProgress, que es lo único persistido de verdad por id de versículo).
+let mySectionState = {};
+
+function makeMyState(id) {
+    const verses = getVerses(id);
+    const n = verses.length;
+    const curLevel={}, nextLevel={}, mastered={};
+    for (let i=0;i<n;i++) {
+        const p = getVerseProgress(verses[i]._uid);
+        curLevel[i]=p.curLevel; nextLevel[i]=p.nextLevel; mastered[i]=p.mastered;
+    }
+    return { queue:[...Array(n).keys()], curLevel, nextLevel, mastered, cycleKnown:0, completed:false };
+}
+
+function getState(id) {
+    if (isMineId(id)) {
+        if (!mySectionState[id]) mySectionState[id] = makeMyState(id);
+        return mySectionState[id];
+    }
+    return monthState[id];
+}
+
+// Guarda el estado según a quién pertenece: meses -> verso_v7 (como siempre);
+// secciones propias -> se traduce de vuelta a myProgress (por id de versículo,
+// no por posición) y se guarda en verso_myverses_progress_v1.
+function persistState(id) {
+    if (isMineId(id)) {
+        const st = mySectionState[id];
+        const verses = getVerses(id);
+        if (!st) return;
+        verses.forEach((v,i) => {
+            const p = getVerseProgress(v._uid);
+            p.curLevel  = st.curLevel[i];
+            p.nextLevel = st.nextLevel[i];
+            p.mastered  = st.mastered[i];
+        });
+        saveMyProgress();
+    } else {
+        saveState();
+    }
 }
 
 // ── Which verses count as "learned"?
@@ -907,6 +1289,18 @@ function getLearnedVerses() {
         versesData[id].forEach((v, i) => {
             if (st.nextLevel[i] >= LEVEL_MAX || st.completed) {
                 result.push({ monthId: id, verseIdx: i, text: v.text, reference: v.reference, monthName: monthNames[id] });
+            }
+        });
+    }
+    // También incluye versículos propios ya dominados. Se lee directo de
+    // myProgress (sin crear entradas nuevas) para no ensuciar el store
+    // con progreso "en cero" de versículos que nunca se practicaron.
+    const mySections = getMySections();
+    for (const id in mySections) {
+        mySections[id].forEach((v, i) => {
+            const p = myProgress[v._uid];
+            if (p && p.nextLevel >= LEVEL_MAX) {
+                result.push({ monthId: id, verseIdx: i, text: v.text, reference: v.reference, monthName: mySectionLabel(id) });
             }
         });
     }
@@ -935,56 +1329,258 @@ function showTab(tab) {
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.getElementById(`page-${tab}`).classList.add('active');
     if (tab === 'random') initRandomPage();
+    if (tab === 'mine') buildMyUI();
+}
+
+// ═══════════════════════════════════════════
+// MIS VERSÍCULOS — FORMULARIO DE CARGA (colapsable)
+// ═══════════════════════════════════════════
+// Abre/cierra el formulario de carga. Se activa con el botón "+Agregar"
+// de la barra compartida y se cierra solo (forceState=false) al guardar,
+// para no ocupar espacio en pantalla el resto del tiempo.
+function toggleAddForm(forceState) {
+    const form  = document.getElementById('my-verse-form');
+    const btn   = document.getElementById('add-toggle-btn');
+    const label = btn.querySelector('.btn-label');
+    const icon  = btn.querySelector('i');
+    const shouldOpen = typeof forceState === 'boolean' ? forceState : !form.classList.contains('open');
+
+    form.classList.toggle('open', shouldOpen);
+    btn.classList.toggle('open', shouldOpen);
+    if (label) label.textContent = shouldOpen ? 'Cerrar' : 'Agregar';
+    if (icon)  icon.className = shouldOpen ? 'fas fa-xmark' : 'fas fa-plus';
+
+    if (shouldOpen) {
+        document.getElementById('mv-cita').focus();
+    } else {
+        document.getElementById('mv-cita').value = '';
+        document.getElementById('mv-texto').value = '';
+        document.getElementById('mv-error').textContent = '';
+    }
+}
+
+function handleAddMyVerse() {
+    const citaEl  = document.getElementById('mv-cita');
+    const textoEl = document.getElementById('mv-texto');
+    const errEl   = document.getElementById('mv-error');
+
+    const cita  = citaEl.value.trim();
+    const texto = textoEl.value.trim();
+    errEl.textContent = '';
+
+    if (!cita || !texto) {
+        errEl.textContent = 'Completa la cita y el texto del versículo.';
+        (!cita ? citaEl : textoEl).focus();
+        return;
+    }
+    if (cita.length > 60) {
+        errEl.textContent = 'La cita es demasiado larga (máx. 60 caracteres).';
+        citaEl.focus();
+        return;
+    }
+
+    const verse = addMyVerse(cita, texto);
+    if (!verse) {
+        errEl.textContent = 'No se pudo agregar el versículo. Intenta de nuevo.';
+        return;
+    }
+
+    // Un versículo nuevo puede crear una sección nueva o sumarse a la última
+    // sección parcial existente: invalida la caché de sesión para que las
+    // posiciones se recalculen limpias contra la composición actual.
+    mySectionState = {};
+
+    buildMyUI();
+    toggleAddForm(false); // limpia campos y colapsa la vista al botón
+}
+
+// ═══════════════════════════════════════════
+// MIS VERSÍCULOS — EDITAR / ELIMINAR (Paso 5)
+// ═══════════════════════════════════════════
+function toggleAdminList(id) {
+    const list = document.getElementById(`admin-list-${id}`);
+    if (list) list.classList.toggle('open');
+}
+
+// ── Editar ──
+let editingVerseId = null;
+
+function openEditMyVerse(uid) {
+    const v = myVerses.find(v => v.id === uid);
+    if (!v) return;
+    editingVerseId = uid;
+    document.getElementById('edit-mv-cita').value = v.cita;
+    document.getElementById('edit-mv-texto').value = v.texto;
+    document.getElementById('edit-mv-error').textContent = '';
+    document.getElementById('edit-verse-modal-overlay').classList.add('open');
+}
+
+function closeEditVerseModal() {
+    document.getElementById('edit-verse-modal-overlay').classList.remove('open');
+    editingVerseId = null;
+}
+
+function confirmEditMyVerse() {
+    if (!editingVerseId) return;
+    const citaEl  = document.getElementById('edit-mv-cita');
+    const textoEl = document.getElementById('edit-mv-texto');
+    const errEl   = document.getElementById('edit-mv-error');
+
+    const cita  = citaEl.value.trim();
+    const texto = textoEl.value.trim();
+    errEl.textContent = '';
+
+    if (!cita || !texto) {
+        errEl.textContent = 'Completa la cita y el texto del versículo.';
+        return;
+    }
+    if (cita.length > 60) {
+        errEl.textContent = 'La cita es demasiado larga (máx. 60 caracteres).';
+        return;
+    }
+
+    editMyVerse(editingVerseId, cita, texto);
+    // El id no cambia, así que el progreso (mastered/chips) sigue intacto;
+    // no hace falta invalidar mySectionState aquí.
+    closeEditVerseModal();
+    buildMyUI();
+}
+
+// ── Eliminar ──
+let deletingVerseId = null;
+
+function requestDeleteMyVerse(uid) {
+    const v = myVerses.find(v => v.id === uid);
+    if (!v) return;
+    deletingVerseId = uid;
+    document.getElementById('delete-verse-text').textContent =
+        `Se eliminará "${v.cita}" y su progreso de memorización. Esta acción no se puede deshacer.`;
+    document.getElementById('delete-verse-modal-overlay').classList.add('open');
+}
+
+function closeDeleteVerseModal() {
+    document.getElementById('delete-verse-modal-overlay').classList.remove('open');
+    deletingVerseId = null;
+}
+
+function confirmDeleteMyVerse() {
+    if (!deletingVerseId) return;
+    deleteMyVerse(deletingVerseId);
+    // Eliminar corre posiciones dentro/entre secciones: invalida la caché
+    // de sesión para forzar reconstrucción limpia desde myProgress (por id).
+    mySectionState = {};
+    closeDeleteVerseModal();
+    buildMyUI();
 }
 
 // ═══════════════════════════════════════════
 // BUILD LEARN UI
 // ═══════════════════════════════════════════
+// Plantilla de tarjeta compartida: la usan tanto los meses fijos como
+// las secciones de "Mis Versículos" (Paso 4), para que ambas corran
+// sobre el mismo motor de práctica (toggleMonth/renderCurrent/mark/...).
+function renderSectionCard(container, id, verses, label, abbr, resetTitle) {
+    const el = document.createElement('div');
+    el.className = 'month-container';
+    el.id = `mc-${id}`;
+
+    // Bloque de editar/eliminar — solo existe en secciones "Mis Versículos".
+    // Los meses fijos (versículos de la Biblia) no se pueden editar/borrar.
+    const adminBlock = isMineId(id) ? `
+        <div class="my-admin">
+          <button type="button" class="my-admin-toggle" onclick="event.stopPropagation();toggleAdminList('${id}')">
+            <i class="fas fa-pen-to-square"></i> Editar o eliminar versículos de esta sección
+          </button>
+          <div class="my-admin-list" id="admin-list-${id}">
+            ${verses.map(v => `
+              <div class="my-admin-row">
+                <div class="my-admin-row-text">
+                  <strong>${esc(v.reference)}</strong>
+                  <span>${esc(v.text.length > 60 ? v.text.slice(0,60) + '…' : v.text)}</span>
+                </div>
+                <div class="my-admin-row-actions">
+                  <button type="button" class="my-admin-btn" onclick="event.stopPropagation();openEditMyVerse('${v._uid}')" title="Editar">
+                    <i class="fas fa-pen"></i>
+                  </button>
+                  <button type="button" class="my-admin-btn my-admin-btn-danger" onclick="event.stopPropagation();requestDeleteMyVerse('${v._uid}')" title="Eliminar">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>
+              </div>`).join('')}
+          </div>
+        </div>` : '';
+
+    el.innerHTML = `
+      <div class="month-header" onclick="toggleMonth('${id}')">
+        <div class="month-header-left">
+          <div class="month-icon">${abbr}</div>
+          <div class="month-info">
+            <div class="month-name">${label.toUpperCase()}</div>
+          </div>
+        </div>
+        <div class="month-header-right">
+          <div class="verse-quick-picks">
+            ${verses.map((_,i)=>`<button class="vq-chip" onclick="event.stopPropagation();jumpToVerse('${id}',${i})" title="Ir directo al versículo ${i+1}">${i+1}</button>`).join('')}
+          </div>
+          <button class="reset-btn" onclick="event.stopPropagation();resetMonth('${id}')" title="${resetTitle}">
+            <i class="fas fa-redo"></i>
+          </button>
+          <i class="fas fa-chevron-down chevron"></i>
+        </div>
+      </div>
+      <div id="panel-${id}" class="content">
+        <div class="panel-topbar">
+          <span class="verse-counter-label" id="vc-${id}"></span>
+          <div class="diff-pips" id="dp-${id}">
+            <div class="diff-pip"></div><div class="diff-pip"></div>
+            <div class="diff-pip"></div>
+          </div>
+        </div>
+        <div class="verse-display-area" id="da-${id}"></div>
+        <div class="controls">
+          <button class="dont-know" id="no-${id}" onclick="mark('${id}',false)">
+            <i class="fas fa-times"></i> No lo sé
+          </button>
+          <button class="know" id="yes-${id}" onclick="mark('${id}',true)">
+            <i class="fas fa-check"></i> Lo sé
+          </button>
+        </div>
+        ${adminBlock}
+      </div>`;
+    container.appendChild(el);
+}
+
 function buildUI() {
     const wrap = document.getElementById('months-wrapper');
     wrap.innerHTML = '';
     for (const id in versesData) {
-        const el = document.createElement('div');
-        el.className = 'month-container';
-        el.id = `mc-${id}`;
-        el.innerHTML = `
-          <div class="month-header" onclick="toggleMonth('${id}')">
-            <div class="month-header-left">
-              <div class="month-icon">${monthAbbr[id]}</div>
-              <div class="month-info">
-                <div class="month-name">${monthNames[id].toUpperCase()}</div>
-              </div>
-            </div>
-            <div class="month-header-right">
-              <div class="verse-quick-picks">
-                ${versesData[id].map((_,i)=>`<button class="vq-chip" onclick="event.stopPropagation();jumpToVerse('${id}',${i})" title="Ir directo al versículo ${i+1}">${i+1}</button>`).join('')}
-              </div>
-              <button class="reset-btn" onclick="event.stopPropagation();resetMonth('${id}')">
-                <i class="fas fa-redo"></i>
-              </button>
-              <i class="fas fa-chevron-down chevron"></i>
-            </div>
-          </div>
-          <div id="panel-${id}" class="content">
-            <div class="panel-topbar">
-              <span class="verse-counter-label" id="vc-${id}"></span>
-              <div class="diff-pips" id="dp-${id}">
-                <div class="diff-pip"></div><div class="diff-pip"></div>
-                <div class="diff-pip"></div>
-              </div>
-            </div>
-            <div class="verse-display-area" id="da-${id}"></div>
-            <div class="controls">
-              <button class="dont-know" id="no-${id}" onclick="mark('${id}',false)">
-                <i class="fas fa-times"></i> No lo sé
-              </button>
-              <button class="know" id="yes-${id}" onclick="mark('${id}',true)">
-                <i class="fas fa-check"></i> Lo sé
-              </button>
-            </div>
-          </div>`;
-        wrap.appendChild(el);
+        renderSectionCard(wrap, id, versesData[id], monthNames[id], monthAbbr[id], 'Reiniciar progreso de este mes');
     }
+}
+
+// Construye las tarjetas de "Mis Versículos" (una por sección de 4).
+// Se reconstruye cada vez que se abre la pestaña o se agrega un versículo,
+// porque a diferencia de los meses, esta lista cambia en vivo.
+function buildMyUI() {
+    const wrap = document.getElementById('my-sections-wrapper');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    const sections = getMySections();
+    const ids = Object.keys(sections);
+
+    if (ids.length === 0) {
+        wrap.innerHTML = `
+          <div class="random-empty">
+            <i class="fas fa-feather"></i>
+            <p>Aún no agregaste versículos propios.<br>Usa el formulario de arriba para comenzar.</p>
+          </div>`;
+        return;
+    }
+
+    ids.forEach(id => {
+        renderSectionCard(wrap, id, sections[id], mySectionLabel(id), mySectionAbbr(id), 'Reiniciar progreso de esta sección');
+    });
+    ids.forEach(id => { updateBadge(id); updateVerseChipMastery(id); });
 }
 
 function toggleMonth(id) {
@@ -1000,14 +1596,15 @@ function toggleMonth(id) {
 }
 
 function renderCurrent(id) {
-    const st=monthState[id], da=document.getElementById(`da-${id}`);
+    const st=getState(id), da=document.getElementById(`da-${id}`);
     da.innerHTML='';
     updateVerseChipMastery(id);
     if (st.completed) { showFinal(id); updateQuickPicks(id,-1); return; }
     if (st.queue.length===0) { showCycleEnd(id); updateQuickPicks(id,-1); return; }
 
-    const vi=st.queue[0], v=versesData[id][vi], level=practiceDifficulty;
-    const n=versesData[id].length, done=n-st.queue.length;
+    const verses=getVerses(id);
+    const vi=st.queue[0], v=verses[vi], level=practiceDifficulty;
+    const n=verses.length, done=n-st.queue.length;
     const hasHidden=level>1;
     updateQuickPicks(id, vi);
 
@@ -1032,7 +1629,7 @@ function renderCurrent(id) {
 }
 
 function mark(id, knew) {
-    const st=monthState[id];
+    const st=getState(id);
     if (!st||st.queue.length===0) return;
     const vi=st.queue[0];
     if (knew) {
@@ -1045,17 +1642,17 @@ function mark(id, knew) {
     }
     ctrlDisabled(id,true);
     const card=document.getElementById(`da-${id}`)?.querySelector('.verse-card');
-    const advance=()=>{ st.queue.shift(); renderCurrent(id); updateBadge(id); saveState(); };
+    const advance=()=>{ st.queue.shift(); renderCurrent(id); updateBadge(id); persistState(id); };
     if (card) { card.classList.add(knew?'slide-out-right':'slide-out-left'); card.addEventListener('animationend',advance,{once:true}); }
     else advance();
 }
 
 function showCycleEnd(id) {
-    const st=monthState[id], n=versesData[id].length;
+    const st=getState(id), n=getVerses(id).length;
     const da=document.getElementById(`da-${id}`);
     da.innerHTML=''; ctrlDisabled(id,true);
     if (Object.values(st.curLevel).every(l=>l===LEVEL_MAX) && st.cycleKnown===n) {
-        st.completed=true; updateBadge(id); saveState(); showFinal(id); return;
+        st.completed=true; updateBadge(id); persistState(id); showFinal(id); return;
     }
     const notKnown=n-st.cycleKnown;
     const div=document.createElement('div'); div.className='cycle-complete';
@@ -1072,37 +1669,41 @@ function showCycleEnd(id) {
 }
 
 function startNextCycle(id) {
-    const st=monthState[id], n=versesData[id].length;
+    const st=getState(id), n=getVerses(id).length;
     for (let i=0;i<n;i++) st.curLevel[i]=st.nextLevel[i];
     st.cycleKnown=0; st.queue=[...Array(n).keys()];
-    renderCurrent(id); updateBadge(id); saveState();
+    renderCurrent(id); updateBadge(id); persistState(id);
 }
 
 function showFinal(id) {
     const da=document.getElementById(`da-${id}`);
     da.innerHTML=''; ctrlDisabled(id,true);
+    const label = isMineId(id) ? 'Sección dominada' : 'Mes dominado';
     const div=document.createElement('div'); div.className='completion-message';
     div.innerHTML=`
       <div class="comp-icon">✦</div>
-      <div class="comp-title">¡Mes dominado!</div>
+      <div class="comp-title">¡${label}!</div>
       <div class="comp-sub">Completaste los 4 niveles de memorización.<br>¡La Palabra vive en ti!</div>
       <button class="btn-repeat" onclick="repeatMonth('${id}')"><i class="fas fa-redo"></i> Volver a practicar</button>`;
     da.appendChild(div);
 }
 
 function repeatMonth(id) {
-    const n=versesData[id].length, curLevel={}, nextLevel={};
+    const n=getVerses(id).length, curLevel={}, nextLevel={};
     for (let i=0;i<n;i++) curLevel[i]=nextLevel[i]=LEVEL_MAX;
-    monthState[id]={queue:[...Array(n).keys()],curLevel,nextLevel,cycleKnown:0,completed:false};
-    updateBadge(id); renderCurrent(id); saveState();
+    const mastered = getState(id).mastered; // conserva el detalle mastered[i][nivel] existente
+    const newState = {queue:[...Array(n).keys()],curLevel,nextLevel,mastered,cycleKnown:0,completed:false};
+    if (isMineId(id)) mySectionState[id]=newState; else monthState[id]=newState;
+    updateBadge(id); renderCurrent(id); persistState(id);
 }
 
 function updateBadge(id) {
-    const st=monthState[id], n=versesData[id].length;
+    const st=getState(id), n=getVerses(id).length;
     const mastered=Object.values(st.nextLevel).filter(l=>l>=LEVEL_MAX).length;
     const pf=document.getElementById(`pf-${id}`), ct=document.getElementById(`ct-${id}`);
+    const doneLabel = isMineId(id) ? '✦ ¡Sección completada!' : '✦ ¡Mes completado!';
     if (pf) pf.style.width=st.completed?'100%':`${(mastered/n)*100}%`;
-    if (ct) ct.textContent=st.completed?'✦ ¡Mes completado!':`${mastered} / ${n} dominados`;
+    if (ct) ct.textContent=st.completed?doneLabel:`${mastered} / ${n} dominados`;
 }
 
 function ctrlDisabled(id,dis) {
@@ -1197,7 +1798,16 @@ function markRandom(knew) {
 // RESET
 // ═══════════════════════════════════════════
 function resetMonth(id) {
-    monthState[id]=makeState(id); updateBadge(id);
+    if (isMineId(id)) {
+        // Reinicia SOLO esta sección: borra el progreso (por id) de sus
+        // versículos, sin afectar a otros versículos propios ni a los meses.
+        getVerses(id).forEach(v => { myProgress[v._uid] = makeVerseProgress(); });
+        saveMyProgress();
+        mySectionState[id] = makeMyState(id);
+    } else {
+        monthState[id] = makeState(id);
+    }
+    updateBadge(id);
     if (document.getElementById(`mc-${id}`)?.classList.contains('open')) renderCurrent(id);
     saveState();
 }
@@ -1214,6 +1824,24 @@ function confirmResetAll() {
 function resetAllProgress() {
     for (const id in versesData) monthState[id]=makeState(id);
     saveState(); location.reload();
+}
+
+// ── Reiniciar TODO el progreso de "Mis Versículos" (independiente de los meses) ──
+function requestResetAllMine() {
+    document.getElementById('reset-mine-modal-overlay').classList.add('open');
+}
+function closeResetMineModal() {
+    document.getElementById('reset-mine-modal-overlay').classList.remove('open');
+}
+function confirmResetAllMine() {
+    closeResetMineModal();
+    resetAllMineProgress();
+}
+function resetAllMineProgress() {
+    myVerses.forEach(v => { myProgress[v.id] = makeVerseProgress(); });
+    saveMyProgress();
+    mySectionState = {};
+    buildMyUI();
 }
 
 // ═══════════════════════════════════════════
@@ -1246,11 +1874,14 @@ function loadState() {
 for (const id in versesData) monthState[id]=makeState(id);
 buildUI();
 loadState();
+loadMyVerses();
+loadMyProgress();
+buildMyUI();
 try {
     const savedDiff = Number(localStorage.getItem('verso_difficulty'));
     if ([1,2,3].includes(savedDiff)) practiceDifficulty = savedDiff;
 } catch(e) {}
-document.querySelectorAll('#difficulty-selector .diff-btn')
+document.querySelectorAll('.difficulty-selector .diff-btn[data-level]')
     .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === practiceDifficulty));
 for (const id in versesData) { updateBadge(id); updateVerseChipMastery(id); }
 </script>

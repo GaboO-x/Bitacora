@@ -2898,6 +2898,118 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
     const btnMdShareAll = qs('#btnMdShareAll');
 
+    // ---- Wheel de DRC (solo visual en móvil) ------------------------------
+    // Mismo look que .dc-optwheel ("Asistencia"), pero con su propia clase
+    // (.dc-drcwheel) y su propia lógica: .dc-optwheel/.dc-justwheel están
+    // scoped a #notesSheetScreen y "Mis Doce" vive en otra sección, así que
+    // no puede reutilizar esas funciones. El <select class="md-drc"> real
+    // sigue siendo la fuente de verdad — el wheel solo lo lee/escribe.
+    const MD_DRC_OPTIONS = ['N/A', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const MD_DRC_ITEM_H = 36; // debe coincidir con .dc-optwheel__option { height:36px }
+
+    const closeAllDrcWheels = (exceptPanel) => {
+      qsa('.dc-drcwheel .dc-optwheel__panel', misDoceBody || document).forEach(panel => {
+        if (panel === exceptPanel) return;
+        panel.classList.add('is-hidden');
+      });
+    };
+
+    const setDrcWheelActiveOption = (wheelEl, idx) => {
+      qsa('.dc-optwheel__option', wheelEl).forEach(opt => {
+        opt.classList.toggle('is-active', Number(opt.dataset.idx) === idx);
+      });
+    };
+
+    // Refleja en el input visible del wheel el valor actual del <select> real.
+    const syncDrcWheelLabel = (tr) => {
+      if (!tr) return;
+      const select = qs('.md-drc', tr);
+      const wheelEl = qs('.dc-drcwheel', tr);
+      if (!select || !wheelEl) return;
+      const valueInput = qs('.dc-optwheel__value', wheelEl);
+      if (valueInput) valueInput.value = select.value || 'N/A';
+    };
+
+    const openDrcWheelPanel = (wheelEl) => {
+      const tr = wheelEl.closest('tr');
+      const select = tr ? qs('.md-drc', tr) : null;
+      const panel = qs('.dc-optwheel__panel', wheelEl);
+      const list = qs('.dc-optwheel__list', wheelEl);
+      if (!select || !panel || !list) return;
+
+      closeAllDrcWheels(panel);
+      panel.classList.remove('is-hidden');
+
+      const idx = Math.max(0, MD_DRC_OPTIONS.indexOf(select.value));
+      list.scrollTop = idx * MD_DRC_ITEM_H;
+      setDrcWheelActiveOption(wheelEl, idx);
+    };
+
+    // Confirma la opción `idx`: escribe el valor en el <select> real y
+    // dispara 'change' sobre él, igual que si el usuario lo hubiera elegido
+    // directamente — así toda la lógica existente (mdUpdateZonaState, etc.)
+    // sigue funcionando sin cambios.
+    const commitDrcWheelValue = (wheelEl, idx) => {
+      const tr = wheelEl.closest('tr');
+      const select = tr ? qs('.md-drc', tr) : null;
+      const val = MD_DRC_OPTIONS[idx];
+      if (!select || val === undefined) return;
+      const changed = select.value !== val;
+      select.value = val;
+      syncDrcWheelLabel(tr);
+      if (changed) select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    const initDrcWheels = () => {
+      qsa('.dc-drcwheel', misDoceBody || document).forEach(wheelEl => {
+        if (wheelEl.dataset.wheelInit === '1') return;
+        wheelEl.dataset.wheelInit = '1';
+
+        const tr = wheelEl.closest('tr');
+        const valueInput = qs('.dc-optwheel__value', wheelEl);
+        const list = qs('.dc-optwheel__list', wheelEl);
+        const panel = qs('.dc-optwheel__panel', wheelEl);
+        if (!tr || !valueInput || !list || !panel) return;
+
+        syncDrcWheelLabel(tr);
+
+        valueInput.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !panel.classList.contains('is-hidden');
+          if (isOpen) panel.classList.add('is-hidden');
+          else openDrcWheelPanel(wheelEl);
+        });
+
+        let scrollTimer = null;
+        const clampIdx = (raw) => Math.min(MD_DRC_OPTIONS.length - 1, Math.max(0, raw));
+        list.addEventListener('scroll', () => {
+          const liveIdx = clampIdx(Math.round(list.scrollTop / MD_DRC_ITEM_H));
+          setDrcWheelActiveOption(wheelEl, liveIdx);
+          if (scrollTimer) clearTimeout(scrollTimer);
+          scrollTimer = setTimeout(() => {
+            const settledIdx = clampIdx(Math.round(list.scrollTop / MD_DRC_ITEM_H));
+            commitDrcWheelValue(wheelEl, settledIdx);
+          }, 140);
+        });
+
+        list.addEventListener('click', (e) => {
+          const opt = e.target.closest('.dc-optwheel__option');
+          if (!opt) return;
+          commitDrcWheelValue(wheelEl, Number(opt.dataset.idx));
+          panel.classList.add('is-hidden');
+        });
+      });
+    };
+
+    // Cierra el panel del wheel de DRC al tocar fuera o presionar Escape.
+    document.addEventListener('click', (e) => {
+      if (e.target.closest && e.target.closest('.dc-drcwheel')) return;
+      closeAllDrcWheels();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeAllDrcWheels();
+    });
+
     // "Zona" solo se activa si DRC tiene un día asignado (distinto de N/A).
     // Aplica/quita el link de Waze en el botón: sin link = ícono apagado
     // (--muted), con link = acento del tema (misma paleta del resto de la
@@ -2931,6 +3043,10 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         if (!active) mdSetWazeLink(wazeBtn, '');
       }
       if (shareBtn) shareBtn.disabled = !active;
+      // En móvil, sin DRC asignado no tiene sentido reservar espacio para
+      // Zona/Links: la tarjeta pasa de 3 a 2 líneas (ver CSS de la media
+      // query ≤920px).
+      tr.classList.toggle('md-row-zona-hidden', !active);
     };
 
     const mdClearRow = (tr) => {
@@ -2939,6 +3055,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       qsa('input[type="checkbox"]', tr).forEach(chk => { chk.checked = false; });
       const sel = qs('select', tr);
       if (sel) sel.value = 'N/A';
+      syncDrcWheelLabel(tr);
       const wazeBtn = qs('.md-waze-btn', tr);
       if (wazeBtn) mdSetWazeLink(wazeBtn, '');
       mdUpdateZonaState(tr);
@@ -2966,6 +3083,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const mdResetClonedWheels = (tr) => {
       qsa('.dc-wheel', tr).forEach(w => { delete w.dataset.wheelInit; });
       qsa('.dc-wheel__list', tr).forEach(l => { l.innerHTML = ''; delete l.dataset.built; });
+      qsa('.dc-drcwheel', tr).forEach(w => { delete w.dataset.wheelInit; });
     };
 
     const mdAddRow = () => {
@@ -2977,6 +3095,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       mdResetClonedWheels(tr);
       misDoceBody.appendChild(tr);
       initDcWheels();
+      initDrcWheels();
     };
 
     const mdRemoveRow = () => {
@@ -2993,7 +3112,9 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     misDoceBody?.addEventListener('change', (e) => {
       const drc = e.target.closest('.md-drc');
       if (!drc) return;
-      mdUpdateZonaState(drc.closest('tr'));
+      const tr = drc.closest('tr');
+      mdUpdateZonaState(tr);
+      syncDrcWheelLabel(tr);
     });
 
     // Botón de Waze en "Zona":
@@ -3080,7 +3201,8 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         for (let i=0; i<4; i++) mdAddRow();
         return;
       }
-      // Filas ya presentes en el HTML: asegurar estado inicial de Zona.
+      // Filas ya presentes en el HTML: asegurar estado inicial de Zona y del wheel de DRC.
+      initDrcWheels();
       rows.forEach(mdUpdateZonaState);
     })();
 

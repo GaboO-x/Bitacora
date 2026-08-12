@@ -1030,6 +1030,34 @@ body.notes-fullheight .rte__editor{
 /* -----------------------------
    Mis Doce (tabla tipo excel)
    ----------------------------- */
+/* Barra "General": agrupa Compartir/Añadir/Quitar filas. En PC va como una
+   franja de una sola línea justo arriba de la tabla; en móvil se convierte
+   en la primera "mini tarjeta" de la lista (ver media query más abajo). */
+.md-general-bar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 14px;
+  margin-bottom:12px;
+  border:1px solid var(--border-strong);
+  border-radius:12px;
+  background: var(--panel2);
+}
+.md-general-bar__label{
+  font-family: var(--font-serif);
+  font-weight:600;
+  font-size:13px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color: var(--text-secondary);
+}
+.md-general-bar__actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+
 .md-table{min-width: 980px}
 #btnMdAddRow, #btnMdRemoveRow{border-color: var(--border-strong)}
 .md-bday-wrap{display:flex; align-items:center; justify-content:center; gap:6px}
@@ -1144,6 +1172,21 @@ body.notes-fullheight .rte__editor{
    el modo de layout con CSS Grid (igual que #dcFollowTable en Seguimiento),
    así toda la lógica de JS sigue funcionando sin tocarla. */
 @media (max-width: 920px){
+  /* Altura única para TODOS los controles de la tarjeta: Nombre, DD/MM,
+     Plan 5, DRC, Zona y los botones de Waze/Compartir.
+     37px = 44px - 15% (reducción pedida para la versión móvil). */
+  #misDoceTable{ --md-h: 37px; }
+
+  /* Barra "General" como mini tarjeta al inicio de la lista: mismo look
+     (borde, radio, fondo) que las tarjetas de cada fila. */
+  .md-general-bar{
+    background: var(--panel);
+    padding:8px 12px;
+    margin-bottom:10px;
+  }
+  .md-general-bar__label{ font-size:12px; }
+  .md-general-bar__actions .pill--icon{ width:32px; height:32px; font-size:13px; }
+
   .md-table-wrap{ overflow:visible; border:none; }
   #misDoceTable{ min-width:0; width:100%; display:block; }
   #misDoceTable thead{ display:none; }
@@ -1196,9 +1239,57 @@ body.notes-fullheight .rte__editor{
   #misDoceTable .md-plan{ width:100%; box-sizing:border-box; }
   #misDoceTable .md-zona-wrap{ width:100%; }
   #misDoceTable .md-zona{ max-width:none; flex:1 1 auto; min-width:0; }
-  #misDoceTable .md-bday-wrap{ justify-content:flex-start; }
-  #misDoceTable .md-plan{ gap:6px; }
-  #misDoceTable .md-plan-chip span{ min-width:0; padding:0 8px; }
+
+  /* --- Altura pareja: Nombre, Zona (inputs de texto) y DRC (select) --- */
+  #misDoceTable td:nth-child(1) .input,
+  #misDoceTable .md-zona,
+  #misDoceTable .md-drc{
+    height: var(--md-h);
+    padding-top:0;
+    padding-bottom:0;
+    box-sizing:border-box;
+  }
+
+  /* --- Cumpleaños: DD y MM reparten el ancho al 50% y usan la misma altura --- */
+  #misDoceTable .md-bday-wrap{
+    justify-content:flex-start;
+    gap:8px;
+  }
+  #misDoceTable .md-bday-wrap .dc-wheel{ flex:1 1 0; min-width:0; }
+  #misDoceTable .md-bday-wrap .dc-wheel__value{
+    width:100%;
+    height: var(--md-h);
+    padding:0 6px;
+    box-sizing:border-box;
+    font-size:13px;
+  }
+
+  /* --- Plan 5 Estrellas: los 5 chips en una sola línea, se reparten el ancho
+     y comparten la misma altura que el resto de controles --- */
+  #misDoceTable .md-plan{
+    display:flex;
+    flex-wrap: nowrap;
+    gap:6px;
+  }
+  #misDoceTable .md-plan-chip{ flex:1 1 0; min-width:0; }
+  #misDoceTable .md-plan-chip span{
+    width:100%;
+    height: var(--md-h);
+    min-width:0;
+    padding:0 2px;
+    font-size:11px;
+    box-sizing:border-box;
+  }
+
+  /* --- Zona: input + botones de Waze/Compartir a la misma altura, botones
+     cuadrados (ancho = alto) para que se vean parejos con el resto --- */
+  #misDoceTable .md-zona-wrap{ align-items:stretch; gap:8px; }
+  #misDoceTable .md-waze-btn,
+  #misDoceTable .md-share-btn{
+    width: var(--md-h);
+    height: var(--md-h);
+    flex:0 0 var(--md-h);
+  }
 }
 
 

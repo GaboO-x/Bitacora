@@ -1036,24 +1036,170 @@ body.notes-fullheight .rte__editor{
 .md-bday-sep{color: var(--muted)}
 .md-zona{max-width: 140px}
 .md-zona:disabled{opacity:.45; cursor:not-allowed}
+
+.md-zona-wrap{
+  display:flex;
+  align-items:center;
+  gap:6px;
+}
+.md-zona-wrap .md-zona{max-width: 140px; flex:1 1 auto}
+
+/* Botón Waze: apagado (--muted) sin link, acento del tema con link.
+   Misma paleta que el resto de la Bitácora -> sensación de ecosistema,
+   nada de colores de marca ajenos a Verso. */
+.md-waze-btn,
+.md-share-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:0 0 auto;
+  width:30px;
+  height:30px;
+  border:1px solid var(--border-strong);
+  border-radius:8px;
+  background: var(--panel, transparent);
+  color: var(--muted);
+  font-size:15px;
+  cursor:pointer;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease, transform .1s ease;
+}
+.md-waze-btn:hover:not(:disabled),
+.md-share-btn:hover:not(:disabled){
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.md-waze-btn:active:not(:disabled),
+.md-share-btn:active:not(:disabled){transform: scale(.94)}
+.md-waze-btn.has-link{
+  color: var(--accent);
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+.md-waze-btn:disabled,
+.md-share-btn:disabled{
+  opacity:.35;
+  cursor:not-allowed;
+  color: var(--muted);
+  background: transparent;
+}
 .md-plan{
   display:flex;
   flex-wrap:wrap;
-  gap:10px;
+  gap:8px;
   align-items:center;
 }
-.md-plan label{
+
+/* Checkbox unificado: el "checkbox" ES el chip, la descripción (LE/CN/AC/...)
+   vive adentro, no hay label externa. Marcado -> se pinta con --accent, que
+   ya es rojo en el tema claro y dorado en el oscuro (misma variable en
+   ambos casos, coherente con el resto del ecosistema). */
+.md-plan-chip{
+  position:relative;
   display:inline-flex;
-  align-items:center;
-  gap:6px;
-  font-size:13px;
-  color: var(--text);
-  white-space:nowrap;
   user-select:none;
 }
-.md-plan input{accent-color: var(--accent)}
+.md-plan-input{
+  position:absolute;
+  inset:0;
+  margin:0;
+  opacity:0;
+  cursor:pointer;
+}
+.md-plan-chip span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:34px;
+  height:26px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size:12px;
+  font-weight:600;
+  line-height:1;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.md-plan-input:hover:not(:checked) + span{
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+.md-plan-input:checked + span{
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--panel, #fff);
+}
+.md-plan-input:focus-visible + span{
+  outline:2px solid var(--accent-border);
+  outline-offset:2px;
+}
 .md-drc{min-width: 140px}
 .md-note{margin-top:10px; line-height:1.5; color: var(--text-secondary)}
+
+/* Mis Doce en móvil: la tabla se convierte en tarjetas apiladas de 3 líneas
+   (Nombre/Cumpleaños, Plan 5/DRC, Zona+links), nunca lado a lado -> sin
+   scroll lateral. Es el MISMO <table> con los MISMOS <tr>/<td>, solo cambia
+   el modo de layout con CSS Grid (igual que #dcFollowTable en Seguimiento),
+   así toda la lógica de JS sigue funcionando sin tocarla. */
+@media (max-width: 920px){
+  .md-table-wrap{ overflow:visible; border:none; }
+  #misDoceTable{ min-width:0; width:100%; display:block; }
+  #misDoceTable thead{ display:none; }
+  #misDoceTable tbody{ display:block; }
+  #misDoceTable tr{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "name bday"
+      "plan drc"
+      "zona zona";
+    gap:12px 10px;
+    border:1px solid var(--border-strong);
+    border-radius:12px;
+    padding:12px;
+    margin-bottom:10px;
+    background: var(--panel);
+  }
+  #misDoceTable tr:last-child{ margin-bottom:0; }
+  #misDoceTable td{
+    display:block;
+    border-bottom:none;
+    padding:0;
+    width:auto;
+    min-width:0;
+  }
+  #misDoceTable td:nth-child(1){ grid-area:name; }
+  #misDoceTable td:nth-child(2){ grid-area:bday; }
+  #misDoceTable td.md-td-plan{ grid-area:plan; align-self:end; }
+  #misDoceTable td.md-td-drc{ grid-area:drc; align-self:end; }
+  #misDoceTable td:nth-child(5){ grid-area:zona; }
+
+  /* Mini-etiquetas: el thead está oculto, así que Plan 5 y DRC necesitan
+     su propio rótulo arriba (Nombre/Cumpleaños/Zona ya se entienden por
+     el placeholder de su input). */
+  #misDoceTable td.md-td-plan::before,
+  #misDoceTable td.md-td-drc::before{
+    content: attr(data-mobile-label);
+    display:block;
+    font-size:11px;
+    font-weight:600;
+    color: var(--muted);
+    margin-bottom:6px;
+  }
+
+  /* Que ningún control interno fuerce ancho fijo y genere overflow. */
+  #misDoceTable .input,
+  #misDoceTable .md-drc,
+  #misDoceTable .md-bday-wrap,
+  #misDoceTable .md-plan{ width:100%; box-sizing:border-box; }
+  #misDoceTable .md-zona-wrap{ width:100%; }
+  #misDoceTable .md-zona{ max-width:none; flex:1 1 auto; min-width:0; }
+  #misDoceTable .md-bday-wrap{ justify-content:flex-start; }
+  #misDoceTable .md-plan{ gap:6px; }
+  #misDoceTable .md-plan-chip span{ min-width:0; padding:0 8px; }
+}
 
 
 /* -----------------------------

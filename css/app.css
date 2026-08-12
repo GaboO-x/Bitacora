@@ -1166,6 +1166,15 @@ body.notes-fullheight .rte__editor{
 .md-drc{min-width: 140px}
 .md-note{margin-top:10px; line-height:1.5; color: var(--text-secondary)}
 
+/* Wheel de DRC para móvil: reutiliza el look de .dc-optwheel (mismo scroll
+   con snap y desvanecido que usa "Asistencia"), pero con su propia clase
+   (.dc-drcwheel) y su propia lógica en JS (initDrcWheels), porque
+   .dc-optwheel/.dc-justwheel están scoped a #notesSheetScreen y "Mis Doce"
+   vive fuera de esa sección. El <select> real (.md-drc) sigue existiendo y
+   sigue siendo la fuente de verdad; el wheel solo lo refleja/controla.
+   En PC no se muestra -> se ve el <select> nativo de siempre. */
+.dc-drcwheel{ position:relative; width:100%; display:none; }
+
 /* Mis Doce en móvil: la tabla se convierte en tarjetas apiladas de 3 líneas
    (Nombre/Cumpleaños, Plan 5/DRC, Zona+links), nunca lado a lado -> sin
    scroll lateral. Es el MISMO <table> con los MISMOS <tr>/<td>, solo cambia
@@ -1217,7 +1226,17 @@ body.notes-fullheight .rte__editor{
   #misDoceTable td:nth-child(2){ grid-area:bday; }
   #misDoceTable td.md-td-plan{ grid-area:plan; align-self:end; }
   #misDoceTable td.md-td-drc{ grid-area:drc; align-self:end; }
-  #misDoceTable td:nth-child(5){ grid-area:zona; }
+  #misDoceTable td.md-td-zona{ grid-area:zona; }
+
+  /* Zona/Links solo ocupan espacio cuando DRC tiene un día asignado. Con
+     DRC=N/A la fila pasa a tener 2 líneas en vez de 3 -> tarjeta más
+     compacta (esta clase la controla mdUpdateZonaState() en app.js). */
+  #misDoceTable tr.md-row-zona-hidden{
+    grid-template-areas:
+      "name bday"
+      "plan drc";
+  }
+  #misDoceTable tr.md-row-zona-hidden td.md-td-zona{ display:none; }
 
   /* Mini-etiquetas: el thead está oculto, así que Plan 5 y DRC necesitan
      su propio rótulo arriba (Nombre/Cumpleaños/Zona ya se entienden por
@@ -1240,14 +1259,23 @@ body.notes-fullheight .rte__editor{
   #misDoceTable .md-zona-wrap{ width:100%; }
   #misDoceTable .md-zona{ max-width:none; flex:1 1 auto; min-width:0; }
 
-  /* --- Altura pareja: Nombre, Zona (inputs de texto) y DRC (select) --- */
+  /* --- Altura pareja: Nombre, Zona (inputs de texto) --- */
   #misDoceTable td:nth-child(1) .input,
-  #misDoceTable .md-zona,
-  #misDoceTable .md-drc{
+  #misDoceTable .md-zona{
     height: var(--md-h);
     padding-top:0;
     padding-bottom:0;
     box-sizing:border-box;
+  }
+
+  /* --- DRC: en móvil se oculta el <select> nativo (feo en iOS/Android) y
+     se muestra el wheel con scroll-snap, mismo estilo que "Asistencia". --- */
+  #misDoceTable .md-drc{ display:none; }
+  #misDoceTable .dc-drcwheel{ display:block; }
+  #misDoceTable .dc-drcwheel .dc-optwheel__value{
+    height: var(--md-h);
+    box-sizing:border-box;
+    padding:0 10px;
   }
 
   /* --- Cumpleaños: DD y MM reparten el ancho al 50% y usan la misma altura --- */

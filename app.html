@@ -863,12 +863,6 @@
 <section class="view" data-view-section="calendario" id="view-calendario"><div class="view__header"><h1>Anuncios</h1></div>
 
 <div class="panel" id="calendarPanel">
-  <div class="sheet-header">
-    <div class="sheet-actions">
-      <button class="pill" id="btnCalNew" type="button">Nueva actividad</button>
-    </div>
-  </div>
-
   <div class="muted tiny" id="calendarStatus"></div>
 
   <div class="table-wrap" id="calendarContainer">Cargando…</div>
@@ -1271,6 +1265,24 @@
 <div class="modal-box__actions">
 <button class="pill" id="notesLeaveDiscard" type="button">Salir sin guardar</button>
 <button class="pill pill--primary" id="notesLeaveSave" type="button">Guardar</button>
+</div>
+</div>
+</div>
+
+<!-- Modal: link de Waze de una zona (Mis 12) -->
+<div class="modal-overlay is-hidden" id="mdWazeModal">
+<div aria-labelledby="mdWazeModalTitle" aria-modal="true" class="modal-box" role="dialog">
+<div class="modal-box__title" id="mdWazeModalTitle">Link de Waze</div>
+<div class="modal-box__body">
+<div class="field">
+<label class="field__label" for="mdWazeInput">Pega el link de Waze de esta zona</label>
+<input class="input" id="mdWazeInput" placeholder="https://waze.com/ul/..." type="url">
+</div>
+</div>
+<div class="modal-box__actions">
+<button class="pill" id="mdWazeRemove" type="button">Quitar link</button>
+<button class="pill" id="mdWazeCancel" type="button">Cancelar</button>
+<button class="pill pill--primary" id="mdWazeSave" type="button">Guardar</button>
 </div>
 </div>
 </div>

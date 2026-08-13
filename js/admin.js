@@ -758,15 +758,42 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   // `materials.folder_id` referencia esa tabla (null = raíz).
 
   const MAT_TYPE_ICON = {
-    folder:       "fa-solid fa-folder",
-    word:         "fa-solid fa-file-word",
-    image:        "fa-solid fa-image",
-    pdf:          "fa-solid fa-file-pdf",
-    ppt:          "fa-solid fa-file-powerpoint",
-    link:         "fa-solid fa-link",
-    link_spotify: "fa-brands fa-spotify",
-    link_youtube: "fa-brands fa-youtube",
+    folder: "fa-solid fa-folder",
+    word:   "fa-solid fa-file-word",
+    image:  "fa-solid fa-image",
+    pdf:    "fa-solid fa-file-pdf",
+    ppt:    "fa-solid fa-file-powerpoint",
   };
+
+  // Detección de plataforma para el ícono del enlace (chip clickeable
+  // aparte del archivo, o ícono principal si el material es solo enlace).
+  const LINK_ICON_RULES = [
+    { re: /spotify\.com/i,                    icon: "fa-brands fa-spotify" },
+    { re: /youtube\.com|youtu\.be/i,          icon: "fa-brands fa-youtube" },
+    { re: /tiktok\.com/i,                     icon: "fa-brands fa-tiktok" },
+    { re: /wa\.me|whatsapp\.com/i,            icon: "fa-brands fa-whatsapp" },
+    { re: /facebook\.com|fb\.watch/i,         icon: "fa-brands fa-facebook" },
+    { re: /instagram\.com/i,                  icon: "fa-brands fa-instagram" },
+  ];
+  function inferLinkIcon(url) {
+    const u = String(url || "");
+    const rule = LINK_ICON_RULES.find(r => r.re.test(u));
+    return rule ? rule.icon : "fa-solid fa-link";
+  }
+
+  // Un material puede tener archivo, enlace, o ambos a la vez (ver popup
+  // "Archivo"). `link_url` es la columna dedicada al enlace secundario;
+  // se conserva compatibilidad con filas antiguas que guardaban el enlace
+  // directamente en `image_url` (cuando no tenían archivo).
+  function matHasFile(r) {
+    return !!(r && r.file_name && r.image_url);
+  }
+  function matEffectiveLink(r) {
+    if (!r) return "";
+    if (r.link_url) return r.link_url;
+    if (!r.file_name && r.image_url && /^https?:\/\//i.test(r.image_url)) return r.image_url;
+    return "";
+  }
 
   let matFoldersCache = [];
 
@@ -785,31 +812,49 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
     return path;
   }
+  // Id de la carpeta + todas sus subcarpetas (recursivo). Se usa para evitar
+  // mover una carpeta dentro de sí misma o de un descendiente suyo.
+  function getMatFolderDescendantIds(id) {
+    const ids = new Set([id]);
+    let added = true;
+    while (added) {
+      added = false;
+      matFoldersCache.forEach(f => {
+        if (f.parent_id && ids.has(f.parent_id) && !ids.has(f.id)) {
+          ids.add(f.id);
+          added = true;
+        }
+      });
+    }
+    return ids;
+  }
   // Si la carpeta actual ya no existe (p. ej. se eliminó en otra sesión), vuelve a la raíz.
   function ensureValidMatFolder() {
     if (matState.currentFolderId && !getMatFolderById(matState.currentFolderId)) {
       matState.currentFolderId = null;
     }
   }
+  // Tipo de ÍCONO DE ARCHIVO (solo aplica cuando el material tiene archivo;
+  // los enlaces se resuelven aparte con inferLinkIcon/matEffectiveLink).
   function inferMatType(row) {
     const url = row.image_url || "";
-    if (/spotify\.com/i.test(url)) return "link_spotify";
-    if (/youtube\.com|youtu\.be/i.test(url)) return "link_youtube";
     const name = (row.file_name || url || "").toLowerCase();
     if (/\.pdf(\?|$)/.test(name)) return "pdf";
     if (/\.(docx?|rtf)(\?|$)/.test(name)) return "word";
     if (/\.(pptx?|key)(\?|$)/.test(name)) return "ppt";
     if (/\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(name)) return "image";
-    if (/^https?:\/\//i.test(url) && !row.file_name) return "link";
     return "image";
   }
 
   // Construye <option> jerárquicos indentados para los selects de carpeta.
   // selectedId (opcional) marca la opción actual como seleccionada.
-  function buildFolderOptionsHtml(selectedId) {
+  // excludeIds (opcional, Set) omite esas carpetas y todo su subárbol
+  // (se usa al mover una carpeta, para no poder moverla dentro de sí misma).
+  function buildFolderOptionsHtml(selectedId, excludeIds) {
     const sel = selectedId || "";
     const renderLevel = (parentId, depth) => matFoldersCache
       .filter(f => (f.parent_id || null) === (parentId || null))
+      .filter(f => !excludeIds || !excludeIds.has(f.id))
       .map(f => {
         const indent = "\u2003".repeat(depth);
         const isSel = f.id === sel ? " selected" : "";
@@ -820,20 +865,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   }
 
   const matEls = {
-    title: document.getElementById("matTitle"),
-    file: document.getElementById("matFile"),
-    btnPublish: document.getElementById("matBtnPublish"),
     list: document.getElementById("matList"),
-    targetFolder: document.getElementById("matTargetFolder"),
-    kindFile: document.getElementById("matKindFile"),
-    kindLink: document.getElementById("matKindLink"),
-    fileWrap: document.getElementById("matFileWrap"),
-    linkWrap: document.getElementById("matLinkWrap"),
-    linkUrl: document.getElementById("matLinkUrl"),
-    folderName: document.getElementById("matFolderName"),
-    folderParent: document.getElementById("matFolderParent"),
-    btnFolderCreate: document.getElementById("matBtnFolderCreate"),
-    folderList: document.getElementById("matFolderList"),
     breadcrumb: document.getElementById("matBreadcrumb"),
   };
 
@@ -880,111 +912,294 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     setMsg("matMsg", text, !!isError);
   }
 
-  function refreshFolderSelects() {
-    const html = buildFolderOptionsHtml();
-    if (matEls.folderParent) matEls.folderParent.innerHTML = html;
-    if (matEls.targetFolder) matEls.targetFolder.innerHTML = html;
-  }
+  // -----------------------------
+  // Selector de carpeta estilo explorador (Windows-like), compartido por
+  // el popup "Archivo" (campo Carpeta) y el popup "Carpeta" (campo Ubicación).
+  // -----------------------------
+  const matPickerModal = document.getElementById("matFolderPickerModal");
+  const matPickerBreadcrumb = document.getElementById("matPickerBreadcrumb");
+  const matPickerList = document.getElementById("matPickerList");
+  const matPickerCancelBtn = document.getElementById("matPickerCancel");
+  const matPickerSelectBtn = document.getElementById("matPickerSelect");
 
-  function updateMatKindUI() {
-    const isLink = !!matEls.kindLink?.checked;
-    if (matEls.fileWrap) matEls.fileWrap.style.display = isLink ? "none" : "";
-    if (matEls.linkWrap) matEls.linkWrap.style.display = isLink ? "" : "none";
-  }
-  matEls.kindFile?.addEventListener("change", updateMatKindUI);
-  matEls.kindLink?.addEventListener("change", updateMatKindUI);
-  updateMatKindUI();
+  const matPicker = { folderId: null, excludeIds: null, onConfirm: null };
 
-  function renderMatFolderList() {
-    if (!matEls.folderList) return;
-    if (!matFoldersCache.length) {
-      matEls.folderList.innerHTML = '<div class="muted small">No hay carpetas creadas.</div>';
+  function renderMatPicker() {
+    if (!matPickerBreadcrumb || !matPickerList) return;
+
+    const path = getMatFolderPath(matPicker.folderId);
+    let crumbHtml = `<button type="button" class="secondary users-action-btn" data-mat-picker-crumb="">Raíz</button>`;
+    path.forEach(f => {
+      crumbHtml += ` <span class="muted">/</span> <button type="button" class="secondary users-action-btn" data-mat-picker-crumb="${escapeHtml(f.id)}">${escapeHtml(f.name)}</button>`;
+    });
+    matPickerBreadcrumb.innerHTML = crumbHtml;
+
+    const children = getMatFolderChildren(matPicker.folderId)
+      .filter(f => !matPicker.excludeIds || !matPicker.excludeIds.has(f.id));
+
+    if (!children.length) {
+      matPickerList.innerHTML = '<div class="mat-picker-empty">No hay subcarpetas aquí.</div>';
       return;
     }
-    const renderLevel = (parentId, depth) => matFoldersCache
-      .filter(f => (f.parent_id || null) === (parentId || null))
-      .map(f => {
-        const pad = 10 + depth * 18;
-        return `
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);padding-left:${pad}px;">
-          <div style="display:flex;align-items:center;gap:8px;min-width:0;">
-            <i class="fa-solid fa-folder" style="color:var(--accent2);"></i>
-            <span style="font-weight:600;">${escapeHtml(f.name)}</span>
-          </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
-            <button type="button" class="mat-icon-btn" data-mat-folder-action="rename" data-id="${escapeHtml(f.id)}" title="Editar" aria-label="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
-            <button type="button" class="mat-icon-btn" data-mat-folder-action="delete" data-id="${escapeHtml(f.id)}" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
-          </div>
-        </div>` + renderLevel(f.id, depth + 1);
-      }).join("");
-    matEls.folderList.innerHTML = renderLevel(null, 0);
+
+    matPickerList.innerHTML = children.map(f => `
+      <div class="mat-picker-row" data-mat-picker-open="${escapeHtml(f.id)}">
+        <i class="fa-solid fa-folder"></i>
+        <span>${escapeHtml(f.name)}</span>
+      </div>
+    `).join("");
   }
 
-  matEls.btnFolderCreate?.addEventListener("click", async () => {
-    const name = (matEls.folderName?.value || "").trim();
-    if (!name) { setMatMsg("Escribe un nombre de carpeta.", true); return; }
-    const parentId = matEls.folderParent?.value || null;
-
-    const { error } = await supabase
-      .from("material_folders")
-      .insert({ name, parent_id: parentId || null, created_by: user.id });
-
-    if (error) { setMatMsg(error.message, true); return; }
-
-    if (matEls.folderName) matEls.folderName.value = "";
-    setMatMsg("Carpeta creada.", false);
-    await loadMaterials();
+  matPickerList?.addEventListener("click", (ev) => {
+    const row = ev.target?.closest?.("[data-mat-picker-open]");
+    if (!row) return;
+    matPicker.folderId = row.getAttribute("data-mat-picker-open") || null;
+    renderMatPicker();
   });
 
-  matEls.folderList?.addEventListener("click", async (ev) => {
-    const btn = ev.target?.closest?.("button[data-mat-folder-action]");
+  matPickerBreadcrumb?.addEventListener("click", (ev) => {
+    const btn = ev.target?.closest?.("[data-mat-picker-crumb]");
     if (!btn) return;
-    const action = btn.getAttribute("data-mat-folder-action");
-    const id = btn.getAttribute("data-id");
-    const folder = getMatFolderById(id);
-    if (!folder) return;
+    matPicker.folderId = btn.getAttribute("data-mat-picker-crumb") || null;
+    renderMatPicker();
+  });
 
-    if (action === "rename") {
-      const next = window.prompt("Nuevo nombre de la carpeta:", folder.name);
-      if (next === null) return;
-      const trimmed = next.trim();
-      if (!trimmed) return;
+  function openMatFolderPicker({ initialFolderId = null, excludeIds = null, onConfirm } = {}) {
+    matPicker.folderId = initialFolderId || null;
+    matPicker.excludeIds = excludeIds || null;
+    matPicker.onConfirm = typeof onConfirm === "function" ? onConfirm : null;
+    renderMatPicker();
+    matPickerModal?.classList.remove("is-hidden");
+  }
+  function closeMatFolderPicker() {
+    matPickerModal?.classList.add("is-hidden");
+  }
+  matPickerCancelBtn?.addEventListener("click", closeMatFolderPicker);
+  matPickerModal?.addEventListener("click", (ev) => {
+    if (ev.target === matPickerModal) closeMatFolderPicker();
+  });
+  matPickerSelectBtn?.addEventListener("click", () => {
+    const folderId = matPicker.folderId || null;
+    const cb = matPicker.onConfirm;
+    closeMatFolderPicker();
+    if (cb) cb(folderId);
+  });
 
-      const { error } = await supabase
-        .from("material_folders")
-        .update({ name: trimmed })
-        .eq("id", id);
+  function folderLabelFor(folderId) {
+    if (!folderId) return "— Raíz —";
+    const f = getMatFolderById(folderId);
+    return f ? f.name : "— Raíz —";
+  }
 
-      if (error) { setMatMsg(error.message, true); return; }
-      setMatMsg("Carpeta renombrada.", false);
-      await loadMaterials();
+  // -----------------------------
+  // Popup: subir Archivo y/o Enlace
+  // -----------------------------
+  const matFileModal = document.getElementById("matFileModal");
+  const matModalTitleInput = document.getElementById("matModalTitle");
+  const matModalFilePickBtn = document.getElementById("matModalFilePickBtn");
+  const matModalFileInput = document.getElementById("matModalFileInput");
+  const matModalFileName = document.getElementById("matModalFileName");
+  const matModalLinkUrl = document.getElementById("matModalLinkUrl");
+  const matModalFolderPickBtn = document.getElementById("matModalFolderPickBtn");
+  const matModalFolderName = document.getElementById("matModalFolderName");
+  const matFileModalCancelBtn = document.getElementById("matFileModalCancel");
+  const matFileModalSaveBtn = document.getElementById("matFileModalSave");
+
+  const matFileModalState = { folderId: null };
+
+  function setMatFileModalMsg(text, isError) {
+    setMsg("matFileModalMsg", text, !!isError);
+  }
+
+  function openMatFileModal() {
+    if (matModalTitleInput) matModalTitleInput.value = "";
+    if (matModalFileInput) matModalFileInput.value = "";
+    if (matModalFileName) matModalFileName.textContent = "Seleccionar archivo…";
+    if (matModalLinkUrl) matModalLinkUrl.value = "";
+    matFileModalState.folderId = matState.currentFolderId || null;
+    if (matModalFolderName) matModalFolderName.textContent = folderLabelFor(matFileModalState.folderId);
+    setMatFileModalMsg("", false);
+    matFileModal?.classList.remove("is-hidden");
+  }
+  function closeMatFileModal() {
+    matFileModal?.classList.add("is-hidden");
+  }
+
+  document.getElementById("matBtnOpenFileModal")?.addEventListener("click", openMatFileModal);
+  matFileModalCancelBtn?.addEventListener("click", closeMatFileModal);
+  matFileModal?.addEventListener("click", (ev) => {
+    if (ev.target === matFileModal) closeMatFileModal();
+  });
+
+  matModalFilePickBtn?.addEventListener("click", () => matModalFileInput?.click());
+  matModalFileInput?.addEventListener("change", () => {
+    const file = matModalFileInput.files?.[0] || null;
+    if (matModalFileName) matModalFileName.textContent = file ? file.name : "Seleccionar archivo…";
+  });
+
+  matModalFolderPickBtn?.addEventListener("click", () => {
+    openMatFolderPicker({
+      initialFolderId: matFileModalState.folderId,
+      onConfirm: (folderId) => {
+        matFileModalState.folderId = folderId;
+        if (matModalFolderName) matModalFolderName.textContent = folderLabelFor(folderId);
+      },
+    });
+  });
+
+  function setMatFileModalSaveLoading(isLoading) {
+    if (!matFileModalSaveBtn) return;
+    matFileModalSaveBtn.disabled = isLoading;
+    matFileModalSaveBtn.textContent = isLoading ? "Procesando…" : "Subir";
+  }
+
+  matFileModalSaveBtn?.addEventListener("click", async () => {
+    if (matBusy) return;
+
+    const title = (matModalTitleInput?.value || "").trim();
+    const linkUrl = (matModalLinkUrl?.value || "").trim();
+    const file = matModalFileInput?.files?.[0] || null;
+    const targetFolderId = matFileModalState.folderId || null;
+
+    if (!file && !linkUrl) {
+      setMatFileModalMsg("Selecciona un archivo o ingresa un enlace.", true);
       return;
     }
 
-    if (action === "delete") {
-      const ok = await showMatConfirm({
-        title: "Eliminar carpeta",
-        body: `¿Eliminar la carpeta "${folder.name}"? Las subcarpetas también se eliminarán. Los materiales dentro no se borran: quedarán en la carpeta raíz.`,
-        confirmLabel: "Eliminar",
-      });
-      if (!ok) return;
+    matBusy = true;
+    setMatFileModalSaveLoading(true);
+    setMatFileModalMsg(file ? "Subiendo archivo…" : "Guardando enlace…", false);
 
-      const { error } = await supabase
-        .from("material_folders")
-        .delete()
-        .eq("id", id);
+    try {
+      let imageUrl = null;
+      let fileName = null;
 
-      if (error) { setMatMsg(error.message, true); return; }
+      if (file) {
+        const ext = (file.name || "").split(".").pop() || "bin";
+        const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "bin";
+        const filePath = `mat_${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
 
-      setMatMsg("Carpeta eliminada.", false);
+        const { error: upErr } = await supabase
+          .storage
+          .from("materials")
+          .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
+
+        if (upErr) {
+          setMatFileModalMsg(upErr.message, true);
+          return;
+        }
+
+        const url = await getPublicOrSignedUrl("materials", filePath);
+        if (!url) {
+          setMatFileModalMsg("No se pudo obtener URL del archivo en Storage.", true);
+          return;
+        }
+
+        imageUrl = url;
+        fileName = file.name || null;
+      }
+
+      const { error: insErr } = await supabase
+        .from("materials")
+        .insert({
+          title: title || null,
+          image_url: imageUrl,
+          file_name: fileName,
+          link_url: linkUrl || null,
+          folder_id: targetFolderId || null,
+        });
+
+      if (insErr) {
+        setMatFileModalMsg(insErr.message, true);
+        return;
+      }
+
+      closeMatFileModal();
+      setMatMsg("Material publicado.", false);
       await loadMaterials();
+    } finally {
+      setMatFileModalSaveLoading(false);
+      matBusy = false;
     }
   });
 
+  // -----------------------------
+  // Popup: nueva Carpeta
+  // -----------------------------
+  const matFolderModal = document.getElementById("matFolderModal");
+  const matModalFolderNameInput = document.getElementById("matModalFolderNameInput");
+  const matModalLocationPickBtn = document.getElementById("matModalLocationPickBtn");
+  const matModalLocationName = document.getElementById("matModalLocationName");
+  const matFolderModalCancelBtn = document.getElementById("matFolderModalCancel");
+  const matFolderModalSaveBtn = document.getElementById("matFolderModalSave");
+
+  const matFolderModalState = { locationId: null };
+
+  function setMatFolderModalMsg(text, isError) {
+    setMsg("matFolderModalMsg", text, !!isError);
+  }
+
+  function openMatFolderModal() {
+    if (matModalFolderNameInput) matModalFolderNameInput.value = "";
+    matFolderModalState.locationId = matState.currentFolderId || null;
+    if (matModalLocationName) matModalLocationName.textContent = folderLabelFor(matFolderModalState.locationId);
+    setMatFolderModalMsg("", false);
+    matFolderModal?.classList.remove("is-hidden");
+  }
+  function closeMatFolderModal() {
+    matFolderModal?.classList.add("is-hidden");
+  }
+
+  document.getElementById("matBtnOpenFolderModal")?.addEventListener("click", openMatFolderModal);
+  matFolderModalCancelBtn?.addEventListener("click", closeMatFolderModal);
+  matFolderModal?.addEventListener("click", (ev) => {
+    if (ev.target === matFolderModal) closeMatFolderModal();
+  });
+
+  matModalLocationPickBtn?.addEventListener("click", () => {
+    openMatFolderPicker({
+      initialFolderId: matFolderModalState.locationId,
+      onConfirm: (folderId) => {
+        matFolderModalState.locationId = folderId;
+        if (matModalLocationName) matModalLocationName.textContent = folderLabelFor(folderId);
+      },
+    });
+  });
+
+  matFolderModalSaveBtn?.addEventListener("click", async () => {
+    if (matBusy) return;
+    const name = (matModalFolderNameInput?.value || "").trim();
+    if (!name) { setMatFolderModalMsg("Escribe un nombre de carpeta.", true); return; }
+    const parentId = matFolderModalState.locationId || null;
+
+    matBusy = true;
+    matFolderModalSaveBtn.disabled = true;
+    matFolderModalSaveBtn.textContent = "Procesando…";
+
+    try {
+      const { error } = await supabase
+        .from("material_folders")
+        .insert({ name, parent_id: parentId || null, created_by: user.id });
+
+      if (error) { setMatFolderModalMsg(error.message, true); return; }
+
+      closeMatFolderModal();
+      setMatMsg("Carpeta creada.", false);
+      await loadMaterials();
+    } finally {
+      matFolderModalSaveBtn.disabled = false;
+      matFolderModalSaveBtn.textContent = "Crear";
+      matBusy = false;
+    }
+  });
+
+  // -----------------------------
+  // Contenido: breadcrumb + lista unificada (carpetas + materiales)
+  // -----------------------------
   function renderMatBreadcrumb() {
     if (!matEls.breadcrumb) return;
     const path = getMatFolderPath(matState.currentFolderId);
-    let html = `<button type="button" class="secondary users-action-btn" data-mat-crumb="">Material</button>`;
+    let html = `<button type="button" class="secondary users-action-btn" data-mat-crumb="">Principal</button>`;
     path.forEach(f => {
       html += ` <span class="muted">/</span> <button type="button" class="secondary users-action-btn" data-mat-crumb="${escapeHtml(f.id)}">${escapeHtml(f.name)}</button>`;
     });
@@ -1010,30 +1225,52 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       return;
     }
 
-    const folderCards = folders.map(f => `
-      <div data-mat-open-folder="${escapeHtml(f.id)}" style="border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;cursor:pointer;">
-        <i class="fa-solid fa-folder" style="color:var(--accent2);font-size:18px;"></i>
-        <span style="font-weight:700;">${escapeHtml(f.name)}</span>
-      </div>
-    `).join("");
+    // Carpetas y subcarpetas: ver (abrir) / mover / eliminar.
+    // "Descargar" no aplica a una carpeta (Storage no arma un zip de su contenido).
+    const folderCards = folders.map(f => {
+      const id = escapeHtml(f.id);
+      const descendantIds = getMatFolderDescendantIds(f.id);
+      return `
+      <div class="mat-row" data-mat-folder-row="${id}">
+        <div class="mat-row__name" data-mat-open-folder="${id}" style="cursor:pointer;">
+          <i class="fa-solid fa-folder" style="font-size:16px;color:var(--accent2);flex-shrink:0;"></i>
+          <div style="min-width:0;">
+            <div class="mat-row__title">${escapeHtml(f.name)}</div>
+          </div>
+        </div>
+        <div class="mat-row__actions">
+          <button type="button" class="mat-icon-btn" data-mat-open-folder="${id}" title="Abrir" aria-label="Abrir"><i class="fa-solid fa-eye"></i></button>
+          <button type="button" class="mat-icon-btn" data-mat-folder-toggle-move data-id="${id}" title="Mover" aria-label="Mover"><i class="fa-solid fa-up-down-left-right"></i></button>
+          <select class="mat-move-select is-hidden" data-mat-folder-move-select data-id="${id}" title="Carpeta destino">${buildFolderOptionsHtml(f.parent_id || "", descendantIds)}</select>
+          <button type="button" class="mat-icon-btn" data-mat-folder-action="delete" data-id="${id}" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>`;
+    }).join("");
 
     const itemCards = itemsHere.map(r => {
       const title = escapeHtml(r.title || "(Sin título)");
       const created = r.created_at ? new Date(r.created_at).toLocaleString() : "";
       const url = r.image_url || "";
       const safeUrl = escapeHtml(url);
-      const fileName = (r.file_name || (url ? parseFileNameFromUrl(url) : "")) || "";
+      const fileName = (r.file_name || "") || "";
       const id = r.id;
-      const type = inferMatType(r);
-      const iconClass = MAT_TYPE_ICON[type] || MAT_TYPE_ICON.image;
-      const isLink = type === "link" || type === "link_spotify" || type === "link_youtube";
+      const hasFile = matHasFile(r);
+      const link = matEffectiveLink(r);
+      const safeLink = escapeHtml(link);
 
-      const viewBtn = url
+      const iconClass = hasFile ? (MAT_TYPE_ICON[inferMatType(r)] || MAT_TYPE_ICON.image) : inferLinkIcon(link);
+
+      const viewBtn = hasFile
         ? `<a href="${safeUrl}" target="_blank" rel="noopener" class="mat-icon-btn" title="Ver" aria-label="Ver"><i class="fa-solid fa-eye"></i></a>`
+        : (link ? `<a href="${safeLink}" target="_blank" rel="noopener" class="mat-icon-btn" title="Ver" aria-label="Ver"><i class="fa-solid fa-eye"></i></a>` : "");
+
+      const downloadBtn = hasFile
+        ? `<a href="${safeUrl}" download class="mat-icon-btn" title="Descargar" aria-label="Descargar"><i class="fa-solid fa-cloud-arrow-down"></i></a>`
         : "";
 
-      const downloadBtn = (url && !isLink)
-        ? `<a href="${safeUrl}" download class="mat-icon-btn" title="Descargar" aria-label="Descargar"><i class="fa-solid fa-cloud-arrow-down"></i></a>`
+      // Chip del enlace: solo aparece aparte cuando el material tiene archivo Y enlace a la vez.
+      const linkChip = (hasFile && link)
+        ? `<a href="${safeLink}" target="_blank" rel="noopener" class="mat-link-chip" title="Abrir enlace" aria-label="Abrir enlace"><i class="${inferLinkIcon(link)}"></i></a>`
         : "";
 
       return `
@@ -1046,6 +1283,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
             </div>
           </div>
           <div class="mat-row__actions">
+            ${linkChip}
             ${viewBtn}
             ${downloadBtn}
             <button type="button" class="mat-icon-btn" data-mat-toggle-move data-id="${escapeHtml(id)}" title="Mover" aria-label="Mover"><i class="fa-solid fa-up-down-left-right"></i></button>
@@ -1059,8 +1297,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     matEls.list.innerHTML = folderCards + itemCards;
   }
 
-  // Abre/cierra el dropdown de "mover" para un material específico
-  // (solo uno visible a la vez).
+  // Abrir carpeta (click en la fila o en el ícono "ver" de una carpeta)
+  matEls.list?.addEventListener("click", (ev) => {
+    if (ev.target?.closest?.("select") || ev.target?.closest?.("[data-mat-toggle-move], [data-mat-folder-toggle-move]")) return;
+    const openTarget = ev.target?.closest?.("[data-mat-open-folder]");
+    if (!openTarget) return;
+    matState.currentFolderId = openTarget.getAttribute("data-mat-open-folder");
+    renderMatBreadcrumb();
+    renderMatList();
+  });
+
+  // Mover MATERIAL: abre/cierra el dropdown (uno visible a la vez)
   matEls.list?.addEventListener("click", (ev) => {
     const toggleBtn = ev.target?.closest?.("[data-mat-toggle-move]");
     if (!toggleBtn) return;
@@ -1069,7 +1316,26 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     if (!select) return;
 
     const wasHidden = select.classList.contains("is-hidden");
-    matEls.list.querySelectorAll("select[data-mat-move-select]")
+    matEls.list.querySelectorAll("select[data-mat-move-select], select[data-mat-folder-move-select]")
+      .forEach(s => s.classList.add("is-hidden"));
+
+    if (wasHidden) {
+      select.classList.remove("is-hidden");
+      select.focus();
+      try { select.click(); } catch {}
+    }
+  });
+
+  // Mover CARPETA: abre/cierra el dropdown (uno visible a la vez)
+  matEls.list?.addEventListener("click", (ev) => {
+    const toggleBtn = ev.target?.closest?.("[data-mat-folder-toggle-move]");
+    if (!toggleBtn) return;
+    const id = toggleBtn.getAttribute("data-id");
+    const select = matEls.list.querySelector(`select[data-mat-folder-move-select][data-id="${CSS.escape(id)}"]`);
+    if (!select) return;
+
+    const wasHidden = select.classList.contains("is-hidden");
+    matEls.list.querySelectorAll("select[data-mat-move-select], select[data-mat-folder-move-select]")
       .forEach(s => s.classList.add("is-hidden"));
 
     if (wasHidden) {
@@ -1081,11 +1347,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
   // Cierra cualquier dropdown de "mover" abierto al hacer click fuera de él
   document.addEventListener("click", (ev) => {
-    if (ev.target.closest?.("[data-mat-toggle-move]") || ev.target.closest?.("select[data-mat-move-select]")) return;
-    matEls.list?.querySelectorAll("select[data-mat-move-select]").forEach(s => s.classList.add("is-hidden"));
+    if (ev.target.closest?.("[data-mat-toggle-move]") || ev.target.closest?.("[data-mat-folder-toggle-move]")
+      || ev.target.closest?.("select[data-mat-move-select]") || ev.target.closest?.("select[data-mat-folder-move-select]")) return;
+    matEls.list?.querySelectorAll("select[data-mat-move-select], select[data-mat-folder-move-select]")
+      .forEach(s => s.classList.add("is-hidden"));
   });
 
-  // Al elegir una carpeta en el dropdown, mueve el material de inmediato
+  // Al elegir carpeta destino para un MATERIAL, se mueve de inmediato
   matEls.list?.addEventListener("change", async (ev) => {
     const select = ev.target?.closest?.("select[data-mat-move-select]");
     if (!select) return;
@@ -1103,10 +1371,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .update({ folder_id: targetFolderId })
         .eq("id", id);
 
-      if (error) {
-        setMatMsg(error.message, true);
-        return;
-      }
+      if (error) { setMatMsg(error.message, true); return; }
 
       setMatMsg("Material movido.", false);
       await loadMaterials();
@@ -1115,178 +1380,72 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
   });
 
-  matEls.list?.addEventListener("click", (ev) => {
-    if (ev.target?.closest?.("button")) return;
-    const folderCard = ev.target?.closest?.("[data-mat-open-folder]");
-    if (!folderCard) return;
-    matState.currentFolderId = folderCard.getAttribute("data-mat-open-folder");
-    renderMatBreadcrumb();
-    renderMatList();
-  });
+  // Al elegir carpeta destino para una CARPETA, se mueve de inmediato
+  // (reasigna su parent_id; ya excluye su propio subárbol en las opciones).
+  matEls.list?.addEventListener("change", async (ev) => {
+    const select = ev.target?.closest?.("select[data-mat-folder-move-select]");
+    if (!select) return;
+    const id = select.getAttribute("data-id");
+    const targetFolderId = select.value || null;
+    if (!id) return;
 
-  async function loadMaterials() {
     if (matBusy) return;
     matBusy = true;
-    try {
-      if (matEls.list) matEls.list.innerHTML = '<div class="muted">Cargando…</div>';
-
-      const [foldersRes, materialsRes] = await Promise.all([
-        supabase
-          .from("material_folders")
-          .select("id, name, parent_id")
-          .order("name", { ascending: true }),
-        supabase
-          .from("materials")
-          .select("id, title, image_url, file_name, created_at, folder_id")
-          .order("created_at", { ascending: false }),
-      ]);
-
-      if (foldersRes.error) {
-        setMatMsg(foldersRes.error.message, true);
-        matFoldersCache = [];
-        matRows = [];
-        renderMatFolderList();
-        renderMatList();
-        return;
-      }
-      if (materialsRes.error) {
-        setMatMsg(materialsRes.error.message, true);
-        matRows = [];
-        renderMatList();
-        return;
-      }
-
-      matFoldersCache = Array.isArray(foldersRes.data) ? foldersRes.data : [];
-      matRows = Array.isArray(materialsRes.data) ? materialsRes.data : [];
-      ensureValidMatFolder();
-      refreshFolderSelects();
-      renderMatFolderList();
-      renderMatBreadcrumb();
-      renderMatList();
-      setMatMsg("", false);
-    } finally {
-      matBusy = false;
-    }
-  }
-
-  function setMatPublishLoading(isLoading) {
-    if (!matEls.btnPublish) return;
-    if (!matEls.btnPublish.dataset.originalText) {
-      matEls.btnPublish.dataset.originalText = matEls.btnPublish.textContent || "Publicar material";
-    }
-
-    if (!isLoading) {
-      matEls.btnPublish.disabled = false;
-      matEls.btnPublish.textContent = matEls.btnPublish.dataset.originalText;
-      return;
-    }
-
-    matEls.btnPublish.disabled = true;
-    matEls.btnPublish.textContent = "Procesando…";
-  }
-
-  matEls.btnPublish?.addEventListener("click", async () => {
-    if (matBusy) return;
-
-    const title = (matEls.title?.value || "").trim();
-    const targetFolderId = matEls.targetFolder?.value || null;
-    const isLinkKind = !!matEls.kindLink?.checked;
-
-    if (isLinkKind) {
-      const linkUrl = (matEls.linkUrl?.value || "").trim();
-      if (!linkUrl) {
-        setMatMsg("Ingresa la URL del enlace.", true);
-        return;
-      }
-
-      matBusy = true;
-      setMatPublishLoading(true);
-      setMatMsg("Publicando enlace…", false);
-
-      try {
-        const { error: insErr } = await supabase
-          .from("materials")
-          .insert({
-            title: title || null,
-            image_url: linkUrl,
-            file_name: null,
-            folder_id: targetFolderId || null,
-          });
-
-        if (insErr) {
-          setMatMsg(insErr.message, true);
-          return;
-        }
-
-        if (matEls.title) matEls.title.value = "";
-        if (matEls.linkUrl) matEls.linkUrl.value = "";
-
-        setMatMsg("Enlace publicado.", false);
-        await loadMaterials();
-      } finally {
-        setMatPublishLoading(false);
-        matBusy = false;
-      }
-      return;
-    }
-
-    const file = matEls.file?.files?.[0] || null;
-
-    if (!file) {
-      setMatMsg("Selecciona un archivo.", true);
-      return;
-    }
-
-    matBusy = true;
-    setMatPublishLoading(true);
-    setMatMsg("Subiendo material…", false);
+    select.disabled = true;
 
     try {
-      const ext = (file.name || "").split(".").pop() || "bin";
-      const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "bin";
-      const filePath = `mat_${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
+      const { error } = await supabase
+        .from("material_folders")
+        .update({ parent_id: targetFolderId })
+        .eq("id", id);
 
-      const { error: upErr } = await supabase
-        .storage
-        .from("materials")
-        .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
+      if (error) { setMatMsg(error.message, true); return; }
 
-      if (upErr) {
-        setMatMsg(upErr.message, true);
-        return;
-      }
-
-      const url = await getPublicOrSignedUrl("materials", filePath);
-      if (!url) {
-        setMatMsg("No se pudo obtener URL del archivo en Storage.", true);
-        return;
-      }
-
-      const { error: insErr } = await supabase
-        .from("materials")
-        .insert({
-          title: title || null,
-          image_url: url,
-          file_name: file.name || null,
-          folder_id: targetFolderId || null,
-        });
-
-      if (insErr) {
-        setMatMsg(insErr.message, true);
-        return;
-      }
-
-      if (matEls.title) matEls.title.value = "";
-      if (matEls.file) matEls.file.value = "";
-
-      setMatMsg("Material publicado.", false);
+      setMatMsg("Carpeta movida.", false);
       await loadMaterials();
     } finally {
-      setMatPublishLoading(false);
       matBusy = false;
     }
   });
 
+  // Eliminar CARPETA (desde Contenido)
+  matEls.list?.addEventListener("click", async (ev) => {
+    const btn = ev.target?.closest?.("button[data-mat-folder-action]");
+    if (!btn) return;
+    const action = btn.getAttribute("data-mat-folder-action");
+    const id = btn.getAttribute("data-id");
+    if (action !== "delete" || !id) return;
+    const folder = getMatFolderById(id);
+    if (!folder) return;
+
+    if (matBusy) return;
+    const ok = await showMatConfirm({
+      title: "Eliminar carpeta",
+      body: `¿Eliminar la carpeta "${folder.name}"? Las subcarpetas también se eliminarán. Los materiales dentro no se borran: quedarán en la carpeta raíz.`,
+      confirmLabel: "Eliminar",
+    });
+    if (!ok) return;
+
+    matBusy = true;
+    btn.disabled = true;
+
+    try {
+      const { error } = await supabase
+        .from("material_folders")
+        .delete()
+        .eq("id", id);
+
+      if (error) { setMatMsg(error.message, true); return; }
+
+      setMatMsg("Carpeta eliminada.", false);
+      await loadMaterials();
+    } finally {
+      btn.disabled = false;
+      matBusy = false;
+    }
+  });
+
+  // Eliminar MATERIAL (desde Contenido)
   matEls.list?.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button[data-mat-action]");
     if (!btn) return;
@@ -1311,10 +1470,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .delete()
         .eq("id", id);
 
-      if (error) {
-        setMatMsg(error.message, true);
-        return;
-      }
+      if (error) { setMatMsg(error.message, true); return; }
 
       setMatMsg("Material eliminado.", false);
       await loadMaterials();
@@ -1323,6 +1479,46 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       matBusy = false;
     }
   });
+
+  async function loadMaterials() {
+    if (matBusy) return;
+    matBusy = true;
+    try {
+      if (matEls.list) matEls.list.innerHTML = '<div class="muted">Cargando…</div>';
+
+      const [foldersRes, materialsRes] = await Promise.all([
+        supabase
+          .from("material_folders")
+          .select("id, name, parent_id")
+          .order("name", { ascending: true }),
+        supabase
+          .from("materials")
+          .select("id, title, image_url, file_name, link_url, created_at, folder_id")
+          .order("created_at", { ascending: false }),
+      ]);
+
+      // Carpetas y materiales se procesan por separado: un error en una
+      // consulta no debe ocultar los resultados válidos de la otra
+      // (p. ej. si falta una columna nueva en `materials`, las carpetas
+      // igual deben verse).
+      matFoldersCache = foldersRes.error ? [] : (Array.isArray(foldersRes.data) ? foldersRes.data : []);
+      matRows = materialsRes.error ? [] : (Array.isArray(materialsRes.data) ? materialsRes.data : []);
+
+      ensureValidMatFolder();
+      renderMatBreadcrumb();
+      renderMatList();
+
+      if (foldersRes.error) {
+        setMatMsg(foldersRes.error.message, true);
+      } else if (materialsRes.error) {
+        setMatMsg(materialsRes.error.message, true);
+      } else {
+        setMatMsg("", false);
+      }
+    } finally {
+      matBusy = false;
+    }
+  }
 
 
   // -----------------------------

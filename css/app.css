@@ -26,6 +26,13 @@
   --green-bg:#EEF8F3;
   --green-border: rgba(59,139,103,.18);
 
+  /* Azul suave: mismo tono/luminosidad/saturación que --green, solo rotado
+     a azul. Usado para marcar la semana ACTUAL en Notas (ver .week.is-current),
+     manteniendo la armonía de la paleta (mismo "peso" visual que el verde). */
+  --blue:#3B668B;
+  --blue-bg:#EEF3F8;
+  --blue-border: rgba(59,102,139,.18);
+
   --red:#C65B4A;
   --red-bg:#FDF0EC;
   --red-border: rgba(198,91,74,.18);
@@ -76,6 +83,11 @@
   --green:#4CAF7D;
   --green-bg: rgba(76,175,125,0.12);
   --green-border: rgba(76,175,125,0.35);
+
+  /* Azul suave: mismo tono/luminosidad/saturación que --green (tema oscuro). */
+  --blue:#4C81AF;
+  --blue-bg: rgba(76,129,175,0.12);
+  --blue-border: rgba(76,129,175,0.35);
 
   --red:#E0685A;
   --red-bg: rgba(224,104,90,0.12);
@@ -496,6 +508,15 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 
 
 /* Notas - botones por actividad + semana completada */
+/* Semana ACTUAL (calendario real): azul suave, mismo tono que "completada".
+   Si la semana actual también está completada, .week.is-done (declarado
+   después) gana por orden de cascada. */
+.week.is-current{
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+  color: var(--blue);
+}
+.week.is-current:hover{border-color: var(--blue)}
 .week.is-done{
   background: var(--green-bg);
   border-color: var(--green-border);
@@ -878,6 +899,19 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .cal-actions{
   white-space: nowrap;
+}
+/* Anuncios: fila cuya fecha cae dentro de la semana actual (verde suave,
+   misma paleta que .week.is-done) y fila cuya fecha ya expiró (tachada,
+   ver .cal-row--expired más abajo / ordenamiento en app.js). */
+.cal-row--current td{
+  background: var(--green-bg);
+}
+.cal-row--expired td{
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.cal-row--expired td.cal-actions{
+  text-decoration: none;
 }
 .dc-table__just{width:160px}
 .dc-table__date{width:160px}

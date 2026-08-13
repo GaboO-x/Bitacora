@@ -567,6 +567,11 @@
             background: var(--bg2); border: 1px solid var(--border);
             border-radius: 10px; padding: 12px 18px; flex: 1; min-width: 100px;
             text-align: center; box-shadow: var(--shadow);
+            cursor: pointer; font-family: inherit; transition: all 0.2s;
+        }
+        .rstat:hover { border-color: var(--accent-border); transform: translateY(-1px); }
+        .rstat.active {
+            border-color: var(--gold2); box-shadow: 0 0 0 2px var(--accent-bg), var(--shadow);
         }
         .rstat .rstat-num { font-family: var(--font-serif); font-size: 1.6em; color: var(--text); }
         .rstat .rstat-label { font-size: 0.75em; color: var(--text3); margin-top: 2px; }
@@ -665,17 +670,6 @@
         @media (max-width: 580px) {
             .tabbar { padding: 0 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
             .tab { padding: 13px 12px; font-size: 0.83em; }
-            /* La barra de "Mis Versículos" tiene 5 botones (vs 4 en Aprender):
-               achicamos antes para que siempre quepan en una sola línea. */
-            .difficulty-selector.five-btn { gap: 5px; }
-            .difficulty-selector.five-btn .diff-btn { padding: 9px 2px; font-size: 0.74em; }
-        }
-        @media (max-width: 460px) {
-            /* En "Agregar"/"Reiniciar" se oculta el texto y queda solo el
-               ícono, así Fácil/Medio/Difícil conservan su texto legible
-               y las 5 pastillas siguen en una sola línea horizontal. */
-            .difficulty-selector.five-btn .diff-btn .btn-label { display: none; }
-            .difficulty-selector.five-btn .diff-btn { padding: 9px 0; }
         }
         @media (max-width: 400px) {
             .tab { padding: 12px 9px; font-size: 0.78em; gap: 5px; }
@@ -706,28 +700,22 @@
 
 <!-- LEARN PAGE -->
 <div class="page active" id="page-learn">
-    <div class="difficulty-selector" id="difficulty-selector-learn">
+    <div class="difficulty-selector practice-diff-selector" id="difficulty-selector-learn">
         <button class="diff-btn" data-level="1" onclick="setDifficulty(1)">Fácil</button>
         <button class="diff-btn" data-level="2" onclick="setDifficulty(2)">Medio</button>
         <button class="diff-btn" data-level="3" onclick="setDifficulty(3)">Difícil</button>
-        <button class="diff-btn" onclick="requestResetAll()">
-            <i class="fas fa-undo"></i> <span class="btn-label">Reiniciar</span>
-        </button>
     </div>
     <div id="months-wrapper"></div>
 </div>
 
 <!-- MIS VERSÍCULOS PAGE -->
 <div class="page" id="page-mine">
-    <div class="difficulty-selector five-btn" id="difficulty-selector-mine">
+    <div class="difficulty-selector practice-diff-selector" id="difficulty-selector-mine">
         <button class="diff-btn" data-level="1" onclick="setDifficulty(1)">Fácil</button>
         <button class="diff-btn" data-level="2" onclick="setDifficulty(2)">Medio</button>
         <button class="diff-btn" data-level="3" onclick="setDifficulty(3)">Difícil</button>
         <button class="diff-btn diff-btn-accent" id="add-toggle-btn" onclick="toggleAddForm()">
             <i class="fas fa-plus"></i> <span class="btn-label">Agregar</span>
-        </button>
-        <button class="diff-btn" onclick="requestResetAllMine()">
-            <i class="fas fa-undo"></i> <span class="btn-label">Reiniciar</span>
         </button>
     </div>
 
@@ -754,49 +742,28 @@
 
 <!-- RANDOM PAGE -->
 <div class="page" id="page-random">
+    <div class="difficulty-selector" id="difficulty-selector-random">
+        <button class="diff-btn" data-level="1" onclick="setRandomDifficulty(1)">Fácil</button>
+        <button class="diff-btn" data-level="2" onclick="setRandomDifficulty(2)">Medio</button>
+        <button class="diff-btn active" data-level="3" onclick="setRandomDifficulty(3)">Difícil</button>
+    </div>
     <p class="section-title">Práctica aleatoria</p>
-    <p class="section-sub">Versículos que ya aprendiste, en orden aleatorio.</p>
+    <p class="section-sub">Tocá Disponible / Aprendido / Repasar para elegir qué practicar.</p>
     <div class="random-stats">
-        <div class="rstat">
+        <button type="button" class="rstat active" id="rf-disponible" data-filter="disponible" onclick="setRandomFilter('disponible')">
             <div class="rstat-num" id="rs-total">0</div>
-            <div class="rstat-label">Disponibles</div>
-        </div>
-        <div class="rstat">
+            <div class="rstat-label">Disponible</div>
+        </button>
+        <button type="button" class="rstat" id="rf-aprendido" data-filter="aprendido" onclick="setRandomFilter('aprendido')">
             <div class="rstat-num" id="rs-session-ok" style="color:var(--green)">0</div>
-            <div class="rstat-label">Lo supe hoy</div>
-        </div>
-        <div class="rstat">
+            <div class="rstat-label">Aprendido</div>
+        </button>
+        <button type="button" class="rstat" id="rf-repasar" data-filter="repasar" onclick="setRandomFilter('repasar')">
             <div class="rstat-num" id="rs-session-no" style="color:var(--red)">0</div>
-            <div class="rstat-label">A repasar</div>
-        </div>
+            <div class="rstat-label">Repasar</div>
+        </button>
     </div>
     <div id="random-area"></div>
-</div>
-
-<!-- Modal de confirmación: reiniciar todo el progreso (meses) -->
-<div class="modal-overlay" id="reset-modal-overlay" onclick="if(event.target===this) closeResetModal()">
-    <div class="modal-box">
-        <div class="modal-icon"><i class="fas fa-triangle-exclamation"></i></div>
-        <h2 class="modal-title">¿Reiniciar todo el progreso?</h2>
-        <p class="modal-text">Se borra el avance de los 12 meses (Aprender). No afecta a "Mis Versículos". Esta acción no se puede deshacer.</p>
-        <div class="modal-actions">
-            <button class="modal-btn modal-btn-cancel" onclick="closeResetModal()">Cancelar</button>
-            <button class="modal-btn modal-btn-danger" onclick="confirmResetAll()">Sí, reiniciar</button>
-        </div>
-    </div>
-</div>
-
-<!-- Modal de confirmación: reiniciar todo el progreso de "Mis Versículos" -->
-<div class="modal-overlay" id="reset-mine-modal-overlay" onclick="if(event.target===this) closeResetMineModal()">
-    <div class="modal-box">
-        <div class="modal-icon"><i class="fas fa-triangle-exclamation"></i></div>
-        <h2 class="modal-title">¿Reiniciar Mis Versículos?</h2>
-        <p class="modal-text">Se borra el avance de memorización de todos tus versículos propios (no se eliminan los versículos, solo su progreso). No afecta a los meses. Esta acción no se puede deshacer.</p>
-        <div class="modal-actions">
-            <button class="modal-btn modal-btn-cancel" onclick="closeResetMineModal()">Cancelar</button>
-            <button class="modal-btn modal-btn-danger" onclick="confirmResetAllMine()">Sí, reiniciar</button>
-        </div>
-    </div>
 </div>
 
 <!-- Modal: editar versículo propio -->
@@ -868,7 +835,7 @@ function setDifficulty(level) {
     try { localStorage.setItem('verso_difficulty', String(level)); } catch(e) {}
     // Por clase (no por ID): así ambas barras — Aprender y Mis Versículos —
     // quedan sincronizadas, son el mismo control compartido en 2 lugares.
-    document.querySelectorAll('.difficulty-selector .diff-btn[data-level]')
+    document.querySelectorAll('.practice-diff-selector .diff-btn[data-level]')
         .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === level));
     // el dominio por chip depende de la dificultad activa, se actualiza en TODOS los meses
     // (esten abiertos o no, porque los chips se ven igual en el header colapsado)
@@ -1174,6 +1141,10 @@ function deleteMyVerse(id) {
     // cambien de sección/posición al recalcularse getMySections().
     delete myProgress[id];
     saveMyProgress();
+    // También borra su marca de Disponible/Aprendido/Repasar en Aleatorio
+    // (la clave "myv::id" es estable, no depende de la posición).
+    delete verseMarks[`myv::${id}`];
+    saveVerseMarks();
     return true;
 }
 
@@ -1277,47 +1248,127 @@ function persistState(id) {
     }
 }
 
-// ── Which verses count as "learned"?
-// A verse is learned when its nextLevel has reached 4 (passed level 4 successfully)
-// OR if the month is completed. More precisely: nextLevel[i] >= 4 means they passed level 3.
-// We'll consider a verse "learned" when nextLevel[i] >= 4.
-function getLearnedVerses() {
-    const result = []; // { monthId, verseIdx, text, reference, monthName }
-    for (const id in versesData) {
-        const st = monthState[id];
-        if (!st) continue;
-        versesData[id].forEach((v, i) => {
-            if (st.nextLevel[i] >= LEVEL_MAX || st.completed) {
-                result.push({ monthId: id, verseIdx: i, text: v.text, reference: v.reference, monthName: monthNames[id] });
-            }
-        });
+// ═══════════════════════════════════════════
+// MARCAS UNIFICADAS: Disponible / Aprendido / Repasar
+// Un solo store para las 3 pestañas (Aprender, Mis Versículos, Aleatorio):
+// marcar "Lo sé" en CUALQUIER modo pasa ese versículo a Aprendido, y
+// "No lo sé" lo pasa a Repasar. "Disponible" es la unión de ambos —
+// todo versículo que ya practicaste al menos una vez, en cualquier modo.
+// Persiste en localStorage (no hay botón "Guardar" en la app: cada clic
+// se guarda solo). La clave es "idDeSección::índiceDelVersículo" — sirve
+// tanto para meses como para secciones propias porque getVerses(id) ya
+// sabe resolver ambos casos (ver capa común más arriba).
+// ═══════════════════════════════════════════
+const VERSE_MARKS_KEY = 'verso_verse_marks_v1';
+let verseMarks = {}; // { key: 'aprendido' | 'repasar' } — ver verseMarkKey() para el formato de key
+
+// Para meses (fijos, nunca cambian de posición): "monthId::índice".
+// Para "Mis Versículos" (la lista puede reordenarse al eliminar otro
+// versículo): "myv::idDelVersículo" — clave estable ligada al versículo
+// mismo, no a dónde está sentado hoy dentro de su sección.
+function verseMarkKey(id, verseIdx) {
+    if (isMineId(id)) {
+        const v = getVerses(id)[verseIdx];
+        if (v && v._uid) return `myv::${v._uid}`;
     }
-    // También incluye versículos propios ya dominados. Se lee directo de
-    // myProgress (sin crear entradas nuevas) para no ensuciar el store
-    // con progreso "en cero" de versículos que nunca se practicaron.
-    const mySections = getMySections();
-    for (const id in mySections) {
-        mySections[id].forEach((v, i) => {
-            const p = myProgress[v._uid];
-            if (p && p.nextLevel >= LEVEL_MAX) {
-                result.push({ monthId: id, verseIdx: i, text: v.text, reference: v.reference, monthName: mySectionLabel(id) });
+    return `${id}::${verseIdx}`;
+}
+
+function saveVerseMarks() {
+    try { localStorage.setItem(VERSE_MARKS_KEY, JSON.stringify(verseMarks)); } catch (e) {}
+}
+
+function loadVerseMarks() {
+    try {
+        const raw = localStorage.getItem(VERSE_MARKS_KEY);
+        verseMarks = raw ? JSON.parse(raw) : {};
+    } catch (e) { verseMarks = {}; }
+}
+
+// Llamar desde CUALQUIER lugar donde se marque "Lo sé"/"No lo sé":
+// mark() (Aprender + Mis Versículos) y markRandom() (Aleatorio).
+function setVerseMark(id, verseIdx, knew) {
+    verseMarks[verseMarkKey(id, verseIdx)] = knew ? 'aprendido' : 'repasar';
+    saveVerseMarks();
+}
+
+// Reconstruye un versículo marcado a partir de su clave. Si el versículo
+// ya no existe (p. ej. se eliminó de "Mis Versículos"), devuelve null y
+// se descarta solo — no hace falta limpiar la marca a mano.
+function resolveMarkedItem(key) {
+    if (key.startsWith('myv::')) {
+        const uid = key.slice(5);
+        const sections = getMySections();
+        for (const secId in sections) {
+            const idx = sections[secId].findIndex(v => v._uid === uid);
+            if (idx !== -1) {
+                const v = sections[secId][idx];
+                return { monthId: secId, verseIdx: idx, text: v.text, reference: v.reference, monthName: mySectionLabel(secId) };
             }
-        });
+        }
+        return null; // el versículo fue eliminado
+    }
+    const sep = key.lastIndexOf('::');
+    if (sep === -1) return null;
+    const id = key.slice(0, sep);
+    const verseIdx = Number(key.slice(sep + 2));
+    const verses = getVerses(id);
+    const v = verses && verses[verseIdx];
+    if (!v) return null;
+    return { monthId: id, verseIdx, text: v.text, reference: v.reference, monthName: monthNames[id] };
+}
+
+// status: 'aprendido' | 'repasar' | null (null = todos, "Disponible")
+function getMarkedVerses(status) {
+    const result = [];
+    for (const key in verseMarks) {
+        if (status && verseMarks[key] !== status) continue;
+        const item = resolveMarkedItem(key);
+        if (item) result.push(item);
     }
     return result;
 }
 
 // ── Random session state ──────────────────
-let randomQueue   = [];   // shuffled learned verses
-let randomPointer = 0;
-let randomSessionOk = 0;
-let randomSessionNo = 0;
+let randomQueue      = [];   // shuffled pool actualmente activo (según randomFilter)
+let randomPointer    = 0;
+let randomDifficulty = 3;    // Difícil por defecto cada vez que se entra a Aleatorio
+let randomFilter     = 'disponible'; // 'disponible' | 'aprendido' | 'repasar'
+
+// El pool activo depende de qué botón (Disponible/Aprendido/Repasar) está
+// seleccionado — así el usuario elige específicamente qué repasar.
+function currentRandomPool() {
+    if (randomFilter === 'aprendido') return getMarkedVerses('aprendido');
+    if (randomFilter === 'repasar')   return getMarkedVerses('repasar');
+    return getMarkedVerses(null); // 'disponible' = aprendido ∪ repasar
+}
 
 function buildRandomQueue() {
-    const learned = getLearnedVerses();
-    randomQueue = [...learned];
+    randomQueue = [...currentRandomPool()];
     shuffleArr(randomQueue);
     randomPointer = 0;
+}
+
+function setRandomFilter(filter) {
+    randomFilter = filter;
+    document.querySelectorAll('.rstat').forEach(el => {
+        el.classList.toggle('active', el.dataset.filter === filter);
+    });
+    buildRandomQueue();
+    renderRandomVerse();
+}
+
+function setRandomDifficulty(level) {
+    randomDifficulty = level;
+    document.querySelectorAll('#difficulty-selector-random .diff-btn[data-level]')
+        .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === level));
+    renderRandomVerse();
+}
+
+function randomEmptyMessage() {
+    if (randomFilter === 'aprendido') return 'Todavía no marcaste ningún versículo como "Lo sé".';
+    if (randomFilter === 'repasar')   return 'Todavía no tenés versículos marcados para repasar.';
+    return 'Aún no marcaste versículos.<br>Marca "Lo sé" o "No lo sé" en Aprender, Mis Versículos o acá mismo para que aparezcan.';
 }
 
 // ═══════════════════════════════════════════
@@ -1640,6 +1691,9 @@ function mark(id, knew) {
         st.nextLevel[vi]=1;
         st.mastered[vi][practiceDifficulty]=false;
     }
+    // Alimenta Disponible/Aprendido/Repasar de Aleatorio: da igual el modo
+    // (mes, Mis Versículos) o la dificultad — "Lo sé"/"No lo sé" cuenta acá.
+    setVerseMark(id, vi, knew);
     ctrlDisabled(id,true);
     const card=document.getElementById(`da-${id}`)?.querySelector('.verse-card');
     const advance=()=>{ st.queue.shift(); renderCurrent(id); updateBadge(id); persistState(id); };
@@ -1715,41 +1769,49 @@ function ctrlDisabled(id,dis) {
 // RANDOM PAGE
 // ═══════════════════════════════════════════
 function initRandomPage() {
+    randomDifficulty = 3; // siempre arranca en Difícil; el usuario la puede cambiar
+    randomFilter = 'disponible';
+    // verseMarks ya está cargado desde el INIT general de la app (loadVerseMarks());
+    // no hace falta releerlo acá — es el mismo store que alimentan Aprender/Mis Versículos.
+
+    document.querySelectorAll('#difficulty-selector-random .diff-btn[data-level]')
+        .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === randomDifficulty));
+    document.querySelectorAll('.rstat').forEach(el => {
+        el.classList.toggle('active', el.dataset.filter === randomFilter);
+    });
+
     buildRandomQueue();
-    randomSessionOk = 0;
-    randomSessionNo = 0;
     renderRandomStats();
     renderRandomVerse();
 }
 
 function renderRandomStats() {
-    const learned = getLearnedVerses();
-    document.getElementById('rs-total').textContent    = learned.length;
-    document.getElementById('rs-session-ok').textContent = randomSessionOk;
-    document.getElementById('rs-session-no').textContent = randomSessionNo;
+    document.getElementById('rs-total').textContent      = getMarkedVerses(null).length;
+    document.getElementById('rs-session-ok').textContent = getMarkedVerses('aprendido').length;
+    document.getElementById('rs-session-no').textContent = getMarkedVerses('repasar').length;
 }
 
 function renderRandomVerse() {
     const area = document.getElementById('random-area');
-    const learned = getLearnedVerses();
+    const pool = currentRandomPool();
 
-    if (learned.length === 0) {
+    if (pool.length === 0) {
         area.innerHTML = `
           <div class="random-empty">
             <i class="fas fa-book"></i>
-            <p>Aún no tienes versículos aprendidos.<br>¡Completa algunos meses primero!</p>
+            <p>${randomEmptyMessage()}</p>
           </div>`;
         return;
     }
 
     if (randomPointer >= randomQueue.length) {
-        // Reshuffled another round
+        // Reshuffled another round (con el pool actual, según el filtro activo)
         buildRandomQueue();
     }
 
     const item = randomQueue[randomPointer];
-    const level = 4; // always hardest in random mode
-    const hasHidden = true;
+    const level = randomDifficulty;
+    const hasHidden = level > 1;
 
     const wrap = document.createElement('div');
     wrap.className = 'random-card-wrap';
@@ -1758,10 +1820,10 @@ function renderRandomVerse() {
         <div class="random-month-chip"><i class="fas fa-calendar-alt"></i> ${item.monthName}</div>
         <span class="random-reference">${item.reference}</span>
         <div class="random-text">${buildVerseHTML(item.text, level)}</div>
-        <div class="random-hint-row">
+        ${hasHidden?`<div class="random-hint-row">
           <span class="reveal-hint"><i class="fas fa-hand-pointer"></i> Toca cada espacio para revelar</span>
           <button class="btn-reveal-all" onclick="revealAll(this)"><i class="fas fa-eye"></i> Revelar todo</button>
-        </div>
+        </div>`:''}
       </div>
       <div class="random-controls">
         <button class="dont-know" onclick="markRandom(false)"><i class="fas fa-times"></i> No lo sé</button>
@@ -1774,8 +1836,12 @@ function renderRandomVerse() {
 }
 
 function markRandom(knew) {
-    if (knew === true)  randomSessionOk++;
-    if (knew === false) randomSessionNo++;
+    const item = randomQueue[randomPointer];
+    if (item && knew !== null) {
+        // Mismo store unificado que usan Aprender y Mis Versículos —
+        // se guarda solo, sin botón "Guardar".
+        setVerseMark(item.monthId, item.verseIdx, knew);
+    }
     randomPointer++;
     renderRandomStats();
 
@@ -1798,6 +1864,7 @@ function markRandom(knew) {
 // RESET
 // ═══════════════════════════════════════════
 function resetMonth(id) {
+    const n = getVerses(id).length; // se lee ANTES de resetear, para limpiar sus marcas
     if (isMineId(id)) {
         // Reinicia SOLO esta sección: borra el progreso (por id) de sus
         // versículos, sin afectar a otros versículos propios ni a los meses.
@@ -1807,42 +1874,19 @@ function resetMonth(id) {
     } else {
         monthState[id] = makeState(id);
     }
+    // También limpia las marcas de Disponible/Aprendido/Repasar de estos
+    // versículos en Aleatorio, para no dejar un "Aprendido" fantasma sobre
+    // un progreso que se acaba de borrar.
+    for (let i = 0; i < n; i++) delete verseMarks[verseMarkKey(id, i)];
+    saveVerseMarks();
     updateBadge(id);
     if (document.getElementById(`mc-${id}`)?.classList.contains('open')) renderCurrent(id);
     saveState();
 }
-function requestResetAll() {
-    document.getElementById('reset-modal-overlay').classList.add('open');
-}
-function closeResetModal() {
-    document.getElementById('reset-modal-overlay').classList.remove('open');
-}
-function confirmResetAll() {
-    closeResetModal();
-    resetAllProgress();
-}
-function resetAllProgress() {
-    for (const id in versesData) monthState[id]=makeState(id);
-    saveState(); location.reload();
-}
-
-// ── Reiniciar TODO el progreso de "Mis Versículos" (independiente de los meses) ──
-function requestResetAllMine() {
-    document.getElementById('reset-mine-modal-overlay').classList.add('open');
-}
-function closeResetMineModal() {
-    document.getElementById('reset-mine-modal-overlay').classList.remove('open');
-}
-function confirmResetAllMine() {
-    closeResetMineModal();
-    resetAllMineProgress();
-}
-function resetAllMineProgress() {
-    myVerses.forEach(v => { myProgress[v.id] = makeVerseProgress(); });
-    saveMyProgress();
-    mySectionState = {};
-    buildMyUI();
-}
+// Nota: el reinicio "general" (todos los meses / toda Mis Versículos de una
+// sola vez) se eliminó a propósito — cada tarjeta ya tiene su propio botón
+// de reiniciar (ícono ↺ en el header), que cubre el mismo caso de uso con
+// menos riesgo de un borrado accidental masivo y menos botones en pantalla.
 
 // ═══════════════════════════════════════════
 // PERSISTENCE
@@ -1876,12 +1920,13 @@ buildUI();
 loadState();
 loadMyVerses();
 loadMyProgress();
+loadVerseMarks();
 buildMyUI();
 try {
     const savedDiff = Number(localStorage.getItem('verso_difficulty'));
     if ([1,2,3].includes(savedDiff)) practiceDifficulty = savedDiff;
 } catch(e) {}
-document.querySelectorAll('.difficulty-selector .diff-btn[data-level]')
+document.querySelectorAll('.practice-diff-selector .diff-btn[data-level]')
     .forEach(b => b.classList.toggle('active', Number(b.dataset.level) === practiceDifficulty));
 for (const id in versesData) { updateBadge(id); updateVerseChipMastery(id); }
 </script>

@@ -329,12 +329,19 @@ h1{
 .split{display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start}
 
 /* ---- Material de apoyo: breadcrumb + carpetas/archivos ---- */
+.material-toolbar-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+  margin: -6px 0 16px;
+}
 .material-breadcrumb{
   display:flex;
   flex-wrap:wrap;
   align-items:center;
   gap:4px;
-  margin: -6px 0 16px;
   font-family: var(--font-sans);
   font-size:13px;
 }
@@ -363,16 +370,33 @@ h1{
 .material-crumb.is-current:hover{background: var(--panel2); color: var(--text-primary)}
 .material-crumb-sep{color:var(--muted); opacity:.6; font-size:12px}
 
-.material-grid{grid-template-columns: repeat(auto-fill,minmax(180px,1fr))}
+#supportGrid.material-grid{grid-template-columns: repeat(auto-fill,minmax(220px,1fr))}
+
+/* Título de división dentro de la grilla (Carpetas/PDF/WORD/...). Ocupa
+   todo el ancho (grid-column:1/-1, inline en el HTML) para no romper las
+   columnas de tarjetas que vienen después. */
+.material-section-title{
+  font-family: var(--font-sans);
+  font-weight:700;
+  font-size:12px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  color: var(--muted);
+  padding-bottom:4px;
+  margin-top:6px;
+  border-bottom:1px solid var(--line);
+}
+.material-section-title:first-child{margin-top:0;}
+
 .material-card{
   border:1px solid var(--line);
   background: var(--panel);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding:14px;
+  padding:12px 14px;
   display:flex;
-  flex-direction:column;
-  gap:10px;
+  align-items:center;
+  gap:12px;
   transition: box-shadow .2s ease, border-color .2s ease;
 }
 .material-card:hover{box-shadow: var(--shadow2); border-color: var(--border-strong)}
@@ -380,21 +404,35 @@ h1{
 .material-card--folder{
   cursor:pointer;
   text-align:left;
-  align-items:flex-start;
 }
 .material-card--folder:hover{border-color: var(--accent-border)}
 .material-card--folder:focus{outline:2px solid var(--accent-border); outline-offset:2px}
 
+/* Ícono a la izquierda de la tarjeta, con alto ~2.5 líneas de texto */
 .material-icon{
-  width:38px; height:38px;
-  border-radius:10px;
+  width:60px; height:60px;
+  border-radius:14px;
   display:inline-flex; align-items:center; justify-content:center;
   background: var(--accent-bg);
   color: var(--accent);
-  font-size:16px;
+  font-size:24px;
   flex-shrink:0;
 }
 .material-card--folder .material-icon{color: var(--accent)}
+
+.material-card__link{
+  display:flex; align-items:center; flex-shrink:0;
+  text-decoration:none; color:inherit;
+}
+
+/* Lado derecho de la tarjeta: nombre (línea 1) + acciones (línea 2) */
+.material-card__info{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-width:0;
+  flex:1;
+}
 
 .material-name{
   font-family: var(--font-sans);
@@ -406,18 +444,28 @@ h1{
 a.material-name{
   background:none; border:none; padding:0; text-align:left;
   cursor:pointer; text-decoration:none;
+  display:block;
 }
 a.material-name:hover{color: var(--accent); text-decoration:underline}
 
-.material-card__title-row{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-}
-
 .material-actions{
-  display:flex; gap:8px; align-items:center; flex-wrap:wrap;
-  margin-top:auto;
+  display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+}
+/* Descarga/Compartir dentro de la tarjeta: sin el círculo de fondo (ahorra
+   espacio) y un poco más pequeños que el estilo .pill--icon por defecto. */
+.material-actions .pill--icon{
+  width:28px; height:28px;
+  border:none;
+  background:transparent;
+  font-size:14px;
+}
+.material-actions .pill--icon:hover{background: var(--accent-bg); color: var(--accent);}
+/* Acción no disponible para este material (p. ej. descargar un enlace sin
+   archivo): el ícono se conserva siempre visible, pero atenuado e inerte. */
+.material-actions .pill--icon.is-disabled{
+  opacity:.35;
+  cursor:default;
+  pointer-events:none;
 }
 .panel{
   border:1px solid var(--line);

@@ -12,6 +12,8 @@
   --line:#E8DDD0;
   --surface-alt:#F7F1E8;
   --green:#3B8B67;
+  --green-bg:#EEF8F3;
+  --green-border: rgba(59,139,103,.18);
   --red:#C65B4A;
   --font-sans:'Inter', sans-serif;
   --font-serif:'Fraunces', serif;
@@ -29,6 +31,8 @@
   --line:#333B54;
   --surface-alt:#20263A;
   --green:#4CAF7D;
+  --green-bg: rgba(76,175,125,0.12);
+  --green-border: rgba(76,175,125,0.35);
   --red:#E0685A;
 }
 
@@ -68,3 +72,17 @@ button.secondary{background:var(--card); color:var(--text);}
   background: var(--card); color: var(--accent); cursor:pointer;
 }
 .theme-toggle:hover{filter:brightness(1.05);}
+
+/* Anuncios (admin): fila cuya fecha cae dentro de la semana actual (verde
+   suave, misma paleta que en app.css) y fila cuya fecha ya expiró (tachada).
+   Mismos nombres de clase que usa app.css para mantener el ecosistema visual. */
+.ann-row--current td{
+  background: var(--green-bg);
+}
+.ann-row--expired td{
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.ann-row--expired td.ann-actions{
+  text-decoration: none;
+}

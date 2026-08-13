@@ -212,13 +212,13 @@ btnBack?.addEventListener('click', () => {
       if (view === 'notas') { updateNotesCrumb(); updateNotesHeaderActions(); }
       closeSidebarOnMobile();
 
-      if (view === 'calendario') {
-        // Carga/refresh del calendario al entrar en la vista
-        loadCalendar();
+      if (view === 'anuncios') {
+        // Carga/refresh de las actividades al entrar en la vista
+        loadAnuncios();
       }
 
-      if (view === 'anuncios') {
-        loadAnnouncements();
+      if (view === 'calendario') {
+        loadCalendarioPosts();
       }
 
       if (view === 'material') {
@@ -428,14 +428,14 @@ btnBack?.addEventListener('click', () => {
 
 
     // ---- Calendario (tabla tipo “Excel”) - Supabase calendar_activities
-    const calendarContainer = qs('#calendarContainer');
-    const calendarStatus = qs('#calendarStatus');
-    let calendarRowsCache = [];
+    const anuncioContainer = qs('#anuncioContainer');
+    const anuncioStatus = qs('#anuncioStatus');
+    let anuncioRowsCache = [];
 
     // Ordena la tabla de Anuncios: activos primero (los más próximos primero),
     // vencidos (fecha < hoy) al final (el más recientemente vencido arriba
-    // dentro de ese grupo). Ver .cal-row--expired para el tachado visual.
-    const sortCalendarActivities = (rows) => {
+    // dentro de ese grupo). Ver .ann-row--expired para el tachado visual.
+    const sortAnuncioActivities = (rows) => {
       const todayStr = todayISO();
       const active = [];
       const expired = [];
@@ -849,17 +849,17 @@ btnBack?.addEventListener('click', () => {
 
 
     // ---- Anuncios (tabla announcements + Storage bucket announcements)
-    const announcementsList = qs('#announcementsList');
+    const calendarioList = qs('#calendarioList');
 
-    const renderAnnouncements = (rows) => {
-      if (!announcementsList) return;
+    const renderCalendarioList = (rows) => {
+      if (!calendarioList) return;
       const data = Array.isArray(rows) ? rows : [];
       if (!data.length) {
-        announcementsList.innerHTML = '<div class="muted">No hay anuncios.</div>';
+        calendarioList.innerHTML = '<div class="muted">No hay anuncios.</div>';
         return;
       }
 
-      announcementsList.innerHTML = data.map(r => {
+      calendarioList.innerHTML = data.map(r => {
         const title = escapeHtml(r.title || 'Anuncio');
         const url = r.image_url || '';
         const safeUrl = escapeHtml(url);
@@ -896,9 +896,9 @@ btnBack?.addEventListener('click', () => {
       }).join('');
     };
 
-    const loadAnnouncements = async () => {
-      if (!announcementsList) return;
-      announcementsList.textContent = 'Cargando…';
+    const loadCalendarioPosts = async () => {
+      if (!calendarioList) return;
+      calendarioList.textContent = 'Cargando…';
 
       const { data, error } = await supabase
         .from('announcements')
@@ -906,11 +906,11 @@ btnBack?.addEventListener('click', () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        announcementsList.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+        calendarioList.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
         return;
       }
 
-      renderAnnouncements(data);
+      renderCalendarioList(data);
     };
 
 
@@ -1093,15 +1093,15 @@ btnBack?.addEventListener('click', () => {
     // Rango (ISO YYYY-MM-DD) lunes–domingo de la semana actual, para resaltar
     // en la tabla de Anuncios los registros cuya fecha caiga dentro de ella
     // (mismo criterio de "semana actual" que usa Notas — ver getCurrentWeekNumber).
-    const calCurrentWeekRangeISO = () => {
+    const anuncioCurrentWeekRangeISO = () => {
       const weekNum = getCurrentWeekNumber();
       if (!weekNum) return null;
       const { monday, sunday } = getWeekRange(weekNum);
       return { mondayISO: monday.toISOString().slice(0, 10), sundayISO: sunday.toISOString().slice(0, 10) };
     };
 
-    const renderCalendarTable = (rows, isAdmin) => {
-      if (!calendarContainer) return;
+    const renderAnuncioTable = (rows, isAdmin) => {
+      if (!anuncioContainer) return;
 
       const headCells = [
         '<th>Actividad</th>',
@@ -1109,10 +1109,10 @@ btnBack?.addEventListener('click', () => {
         '<th>Encargado</th>',
         '<th>#Contacto</th>',
         '<th>Inversión</th>',
-        '<th class="cal-actions">Acciones</th>',
+        '<th class="ann-actions">Acciones</th>',
       ];
 
-      const curRange = calCurrentWeekRangeISO();
+      const curRange = anuncioCurrentWeekRangeISO();
       const todayStr = todayISO();
 
       const body = (rows || []).map(r => {
@@ -1124,31 +1124,31 @@ btnBack?.addEventListener('click', () => {
           `<td>${escapeHtml(r.owner_name)}</td>`,
           `<td>${escapeHtml(r.contact_phone)}</td>`,
           `<td>${escapeHtml(fmtInvestment(r.investment))}</td>`,
-          `<td class="cal-actions">` +
-            `<button type="button" class="pill pill--icon" data-cal-share="${escapeHtml(r.id)}" title="Compartir" aria-label="Compartir">` +
+          `<td class="ann-actions">` +
+            `<button type="button" class="pill pill--icon" data-ann-share="${escapeHtml(r.id)}" title="Compartir" aria-label="Compartir">` +
               `<i class="fa-solid fa-share-from-square"></i></button>` +
           `</td>`,
         ];
         const rowClasses = [
-          inCurrentWeek ? 'cal-row--current' : '',
-          isExpired ? 'cal-row--expired' : '',
+          inCurrentWeek ? 'ann-row--current' : '',
+          isExpired ? 'ann-row--expired' : '',
         ].filter(Boolean).join(' ');
         const rowClassAttr = rowClasses ? ` class="${rowClasses}"` : '';
         return `<tr${rowClassAttr}>${cells.join('')}</tr>`;
       }).join('');
 
-      calendarContainer.innerHTML = `
-        <table class="table cal-table" id="calendarTable">
+      anuncioContainer.innerHTML = `
+        <table class="table ann-table" id="anuncioTable">
           <thead><tr>${headCells.join('')}</tr></thead>
-          <tbody id="calendarBody">${body || ''}</tbody>
+          <tbody id="anuncioBody">${body || ''}</tbody>
         </table>
       `;
     };
 
-    const loadCalendar = async () => {
-      if (!calendarContainer) return;
+    const loadAnuncios = async () => {
+      if (!anuncioContainer) return;
 
-      setStatus(calendarStatus, 'Cargando…');
+      setStatus(anuncioStatus, 'Cargando…');
 
       const role = await getRole();
       const isAdmin = role === 'admin';
@@ -1159,17 +1159,17 @@ btnBack?.addEventListener('click', () => {
         .order('event_date', { ascending: true });
 
       if (error) {
-        setStatus(calendarStatus, 'Error cargando calendario.');
-        calendarContainer.textContent = 'No se pudo cargar.';
+        setStatus(anuncioStatus, 'Error cargando calendario.');
+        anuncioContainer.textContent = 'No se pudo cargar.';
         return;
       }
 
-      calendarRowsCache = sortCalendarActivities(data || []);
-      renderCalendarTable(calendarRowsCache, isAdmin);
-      setStatus(calendarStatus, `Registros: ${calendarRowsCache.length}`);
+      anuncioRowsCache = sortAnuncioActivities(data || []);
+      renderAnuncioTable(anuncioRowsCache, isAdmin);
+      setStatus(anuncioStatus, '');
     };
 
-    const buildCalendarShare = (r) => {
+    const buildAnuncioShare = (r) => {
       const lines = [
         r.activity ? `Actividad: ${r.activity}` : '',
         r.event_date ? `Fecha: ${r.event_date}` : '',
@@ -1181,14 +1181,14 @@ btnBack?.addEventListener('click', () => {
       return lines.filter(Boolean).join('\n');
     };
 
-    calendarContainer?.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-cal-share]');
+    anuncioContainer?.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-ann-share]');
       if (!btn) return;
       e.preventDefault();
-      const id = btn.getAttribute('data-cal-share');
-      const row = calendarRowsCache.find(r => String(r.id) === String(id));
+      const id = btn.getAttribute('data-ann-share');
+      const row = anuncioRowsCache.find(r => String(r.id) === String(id));
       if (!row) return;
-      shareText(buildCalendarShare(row));
+      shareText(buildAnuncioShare(row));
     });
 
 
@@ -2699,7 +2699,7 @@ btnBack?.addEventListener('click', () => {
       const url = btn.dataset.shareUrl || '';
       shareText([title, url].filter(Boolean).join('\n'));
     };
-    announcementsList?.addEventListener('click', handleShareCardClick);
+    calendarioList?.addEventListener('click', handleShareCardClick);
     supportGrid?.addEventListener('click', handleShareCardClick);
 
     const buildShare = (title, temaEl, dateEl, editorEl) => {

@@ -930,9 +930,22 @@ btnBack?.addEventListener('click', () => {
       image:         'fa-solid fa-image',
       pdf:           'fa-solid fa-file-pdf',
       ppt:           'fa-solid fa-file-powerpoint',
-      link:          'fa-solid fa-link',
-      link_spotify:  'fa-brands fa-spotify',
-      link_youtube:  'fa-brands fa-youtube',
+    };
+
+    // Detección de plataforma para el ícono del enlace (aparte del archivo,
+    // o como ícono principal cuando el material es solo un enlace).
+    const MATERIAL_LINK_ICON_RULES = [
+      { re: /spotify\.com/i,            icon: 'fa-brands fa-spotify' },
+      { re: /youtube\.com|youtu\.be/i,  icon: 'fa-brands fa-youtube' },
+      { re: /tiktok\.com/i,             icon: 'fa-brands fa-tiktok' },
+      { re: /wa\.me|whatsapp\.com/i,    icon: 'fa-brands fa-whatsapp' },
+      { re: /facebook\.com|fb\.watch/i, icon: 'fa-brands fa-facebook' },
+      { re: /instagram\.com/i,          icon: 'fa-brands fa-instagram' },
+    ];
+    const inferMaterialLinkIcon = (url) => {
+      const u = String(url || '');
+      const rule = MATERIAL_LINK_ICON_RULES.find(r => r.re.test(u));
+      return rule ? rule.icon : 'fa-solid fa-link';
     };
 
     const getMaterialFolderById = (id) => materialFoldersCache.find(f => f.id === id) || null;
@@ -947,28 +960,42 @@ btnBack?.addEventListener('click', () => {
       }
       return path;
     };
-    // Deriva el tipo de ícono a partir del nombre/URL del archivo.
+    // Deriva el tipo de ÍCONO DE ARCHIVO (solo aplica cuando el material
+    // tiene archivo; el enlace se resuelve aparte con inferMaterialLinkIcon).
     const inferMaterialType = (row) => {
       const url = row.image_url || '';
-      if (/spotify\.com/i.test(url)) return 'link_spotify';
-      if (/youtube\.com|youtu\.be/i.test(url)) return 'link_youtube';
       const name = (row.file_name || url || '').toLowerCase();
       if (/\.pdf(\?|$)/.test(name)) return 'pdf';
       if (/\.(docx?|rtf)(\?|$)/.test(name)) return 'word';
       if (/\.(pptx?|key)(\?|$)/.test(name)) return 'ppt';
       if (/\.(png|jpe?g|gif|webp|svg)(\?|$)/.test(name)) return 'image';
-      if (/^https?:\/\//i.test(url) && !row.file_name) return 'link';
       return 'image';
+    };
+    // Un material puede tener archivo, enlace, o ambos a la vez. `link_url`
+    // es la columna dedicada al enlace; se conserva compatibilidad con
+    // filas antiguas que guardaban el enlace directamente en `image_url`
+    // (cuando no tenían archivo).
+    const materialHasFile = (r) => !!(r && r.file_name && r.image_url);
+    const materialEffectiveLink = (r) => {
+      if (!r) return '';
+      if (r.link_url) return r.link_url;
+      if (!r.file_name && r.image_url && /^https?:\/\//i.test(r.image_url)) return r.image_url;
+      return '';
     };
 
     const renderMaterialBreadcrumb = () => {
       if (!materialBreadcrumbEl) return;
       const path = getMaterialFolderPath(state.materialFolderId);
-      let html = '<button type="button" class="material-crumb' + (!state.materialFolderId ? ' is-current' : '') + '" data-folder-id="">'
-        + '<i class="fa-solid fa-folder-open"></i> Material</button>';
+      // El botón raíz "Material" solo se muestra cuando ya estás dentro de
+      // una carpeta (sirve para volver). En la raíz no aporta nada, así
+      // que se omite para no dejar un indicador estático sin uso.
+      let html = path.length
+        ? '<button type="button" class="material-crumb" data-folder-id="">'
+            + '<i class="fa-solid fa-folder-open"></i> Principal</button>'
+        : '';
       path.forEach((f, i) => {
         const isCurrent = i === path.length - 1;
-        html += '<span class="material-crumb-sep">/</span>'
+        html += (html ? '<span class="material-crumb-sep">/</span>' : '')
           + '<button type="button" class="material-crumb' + (isCurrent ? ' is-current' : '') + '" data-folder-id="' + escapeHtml(f.id) + '">'
           + escapeHtml(f.name) + '</button>';
       });
@@ -984,6 +1011,107 @@ btnBack?.addEventListener('click', () => {
       renderMaterials(materialRowsCache);
     });
 
+    const buildFolderCardHtml = (f) => (
+      '<button type="button" class="material-card material-card--folder" data-open-folder="' + escapeHtml(f.id) + '">'
+        + '<span class="material-icon"><i class="' + MATERIAL_TYPE_ICON.folder + '"></i></span>'
+        + '<span class="material-name">' + escapeHtml(f.name) + '</span>'
+      + '</button>'
+    );
+
+    const buildItemCardHtml = (r) => {
+      const title = escapeHtml(r.title || 'Material');
+      const url = r.image_url || '';
+      const safeUrl = escapeHtml(url);
+      const hasFile = materialHasFile(r);
+      const link = materialEffectiveLink(r);
+      const safeLink = escapeHtml(link);
+
+      const iconClass = hasFile
+        ? (MATERIAL_TYPE_ICON[inferMaterialType(r)] || MATERIAL_TYPE_ICON.image)
+        : inferMaterialLinkIcon(link);
+
+      // Click principal: si hay archivo, abre el archivo (aunque también
+      // tenga enlace, ese queda como chip aparte). Si es solo enlace,
+      // el ícono y el nombre abren el enlace.
+      const primaryHref = hasFile ? safeUrl : safeLink;
+      const iconEl = primaryHref
+        ? '<a class="material-card__link" href="' + primaryHref + '" target="_blank" rel="noopener"><span class="material-icon"><i class="' + iconClass + '"></i></span></a>'
+        : '<span class="material-card__link"><span class="material-icon"><i class="' + iconClass + '"></i></span></span>';
+      const nameEl = primaryHref
+        ? '<a class="material-name" href="' + primaryHref + '" target="_blank" rel="noopener">' + title + '</a>'
+        : '<span class="material-name">' + title + '</span>';
+
+      // Descargar y Compartir siempre están presentes; si la acción no
+      // aplica a este material, el ícono queda atenuado e inerte.
+      const downloadEl = hasFile
+        ? '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar"><i class="fa-solid fa-file-arrow-down"></i></a>'
+        : '<span class="pill pill--icon is-disabled" aria-disabled="true" title="No disponible (sin archivo)"><i class="fa-solid fa-file-arrow-down"></i></span>';
+
+      const shareUrl = hasFile ? safeUrl : safeLink;
+      const shareEl = shareUrl
+        ? '<button type="button" class="pill pill--icon" data-share-title="' + title + '" data-share-url="' + shareUrl + '" title="Compartir" aria-label="Compartir">'
+            + '<i class="fa-solid fa-share-from-square"></i></button>'
+        : '<span class="pill pill--icon is-disabled" aria-disabled="true" title="No disponible"><i class="fa-solid fa-share-from-square"></i></span>';
+
+      // Chip extra del enlace: solo aparece cuando el material tiene archivo Y enlace a la vez.
+      const linkChip = (hasFile && link)
+        ? '<a class="pill pill--icon" href="' + safeLink + '" target="_blank" rel="noopener" title="Abrir enlace" aria-label="Abrir enlace"><i class="' + inferMaterialLinkIcon(link) + '"></i></a>'
+        : '';
+
+      return (
+        '<div class="material-card material-card--item">'
+          + iconEl
+          + '<div class="material-card__info">'
+            + nameEl
+            + '<div class="material-actions">' + downloadEl + shareEl + linkChip + '</div>'
+          + '</div>'
+        + '</div>'
+      );
+    };
+
+    const byNameAsc = (a, b) => String(a.__sortName || '').localeCompare(String(b.__sortName || ''), 'es', { sensitivity: 'base' });
+
+    // Divisiones fijas, en este orden. Si una división queda vacía, ni su
+    // título ni su grilla se muestran.
+    const renderMaterialSections = (folders, itemsHere) => {
+      const sections = [];
+
+      const foldersSorted = [...folders].sort((a, b) => byNameAsc({ __sortName: a.name }, { __sortName: b.name }));
+      if (foldersSorted.length) {
+        sections.push({ title: 'Carpetas', html: foldersSorted.map(buildFolderCardHtml).join('') });
+      }
+
+      const groups = { pdf: [], word: [], ppt: [], image: [], link: [] };
+      itemsHere.forEach(r => {
+        const hasFile = materialHasFile(r);
+        if (hasFile) {
+          const t = inferMaterialType(r);
+          (groups[t] || groups.image).push(r);
+        } else if (materialEffectiveLink(r)) {
+          groups.link.push(r);
+        }
+      });
+
+      const GROUP_DEFS = [
+        { key: 'pdf',   title: 'PDF' },
+        { key: 'word',  title: 'WORD' },
+        { key: 'ppt',   title: 'Presentaciones' },
+        { key: 'image', title: 'Imagenes' },
+        { key: 'link',  title: 'Enlaces' },
+      ];
+
+      GROUP_DEFS.forEach(({ key, title }) => {
+        const list = groups[key];
+        if (!list || !list.length) return;
+        const sorted = [...list].sort((a, b) => byNameAsc({ __sortName: a.title || '' }, { __sortName: b.title || '' }));
+        sections.push({ title, html: sorted.map(buildItemCardHtml).join('') });
+      });
+
+      return sections.map(s =>
+        '<div class="material-section-title" style="grid-column:1 / -1;">' + escapeHtml(s.title) + '</div>' + s.html
+      ).join('');
+    };
+
     const renderMaterials = (rows) => {
       if (!supportGrid) return;
       renderMaterialBreadcrumb();
@@ -997,52 +1125,7 @@ btnBack?.addEventListener('click', () => {
         return;
       }
 
-      const folderCards = folders.map(f => (
-        '<button type="button" class="material-card material-card--folder" data-open-folder="' + escapeHtml(f.id) + '">'
-          + '<div class="material-card__title-row">'
-            + '<span class="material-icon"><i class="' + MATERIAL_TYPE_ICON.folder + '"></i></span>'
-            + '<span class="material-name">' + escapeHtml(f.name) + '</span>'
-          + '</div>'
-        + '</button>'
-      )).join('');
-
-      const itemCards = itemsHere.map(r => {
-        const title = escapeHtml(r.title || 'Material');
-        const url = r.image_url || '';
-        const safeUrl = escapeHtml(url);
-        const type = inferMaterialType(r);
-        const iconClass = MATERIAL_TYPE_ICON[type] || MATERIAL_TYPE_ICON.image;
-        const isLink = type === 'link' || type === 'link_spotify' || type === 'link_youtube';
-
-        const nameEl = url
-          ? '<a class="material-name" href="' + safeUrl + '" target="_blank" rel="noopener">' + title + '</a>'
-          : '<span class="material-name">' + title + '</span>';
-
-        const actions = url
-          ? (
-            '<div class="material-actions">'
-              + (isLink ? '' : (
-                '<a class="pill pill--icon" href="' + safeUrl + '" download title="Descargar" aria-label="Descargar">'
-                  + '<i class="fa-solid fa-file-arrow-down"></i></a>'
-              ))
-              + '<button type="button" class="pill pill--icon" data-share-title="' + title + '" data-share-url="' + safeUrl + '" title="Compartir" aria-label="Compartir">'
-                + '<i class="fa-solid fa-share-from-square"></i></button>'
-            + '</div>'
-          )
-          : '';
-
-        return (
-          '<div class="material-card">'
-            + '<div class="material-card__title-row">'
-              + '<span class="material-icon"><i class="' + iconClass + '"></i></span>'
-              + nameEl
-            + '</div>'
-            + actions
-          + '</div>'
-        );
-      }).join('');
-
-      supportGrid.innerHTML = folderCards + itemCards;
+      supportGrid.innerHTML = renderMaterialSections(folders, itemsHere);
     };
 
     supportGrid?.addEventListener('click', (e) => {
@@ -1063,22 +1146,26 @@ btnBack?.addEventListener('click', () => {
           .order('name', { ascending: true }),
         supabase
           .from('materials')
-          .select('id, title, image_url, file_name, created_at, folder_id')
+          .select('id, title, image_url, file_name, link_url, created_at, folder_id')
           .order('created_at', { ascending: false }),
       ]);
+
+      // Carpetas y materiales se procesan por separado: un error en una
+      // consulta no debe ocultar los resultados válidos de la otra.
+      materialFoldersCache = foldersRes.error ? [] : (Array.isArray(foldersRes.data) ? foldersRes.data : []);
+      materialRowsCache = materialsRes.error ? [] : (Array.isArray(materialsRes.data) ? materialsRes.data : []);
+      state.materialFolderId = null;
 
       if (foldersRes.error) {
         supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(foldersRes.error.message) + '</div>';
         return;
       }
       if (materialsRes.error) {
-        supportGrid.innerHTML = '<div class="msg err">' + escapeHtml(materialsRes.error.message) + '</div>';
+        renderMaterials(materialRowsCache);
+        supportGrid.insertAdjacentHTML('beforeend', '<div class="msg err">' + escapeHtml(materialsRes.error.message) + '</div>');
         return;
       }
 
-      materialFoldersCache = Array.isArray(foldersRes.data) ? foldersRes.data : [];
-      materialRowsCache = Array.isArray(materialsRes.data) ? materialsRes.data : [];
-      state.materialFolderId = null;
       renderMaterials(materialRowsCache);
     };
 

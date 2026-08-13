@@ -888,29 +888,29 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 
 /* Calendario (tabla tipo "Excel") */
-.cal-table{
+.ann-table{
   min-width: 920px;
 }
-.cal-table thead th{
+.ann-table thead th{
   position: sticky;
   top: 0;
   z-index: 2;
   background: var(--panel2);
 }
-.cal-actions{
+.ann-actions{
   white-space: nowrap;
 }
 /* Anuncios: fila cuya fecha cae dentro de la semana actual (verde suave,
    misma paleta que .week.is-done) y fila cuya fecha ya expiró (tachada,
-   ver .cal-row--expired más abajo / ordenamiento en app.js). */
-.cal-row--current td{
+   ver .ann-row--expired más abajo / ordenamiento en app.js). */
+.ann-row--current td{
   background: var(--green-bg);
 }
-.cal-row--expired td{
+.ann-row--expired td{
   color: var(--muted);
   text-decoration: line-through;
 }
-.cal-row--expired td.cal-actions{
+.ann-row--expired td.ann-actions{
   text-decoration: none;
 }
 .dc-table__just{width:160px}

@@ -430,19 +430,22 @@ btnBack?.addEventListener('click', () => {
     // ---- Calendario (tabla tipo “Excel”) - Supabase calendar_activities
     const calendarContainer = qs('#calendarContainer');
     const calendarStatus = qs('#calendarStatus');
-    const btnCalNew = qs('#btnCalNew');
     let calendarRowsCache = [];
 
-    // Ordena por cercanía a la fecha actual (la más próxima primero),
-    // sin importar si el evento ya pasó o está por venir.
-    const sortCalendarByProximity = (rows) => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return [...(rows || [])].sort((a, b) => {
-        const da = a.event_date ? Math.abs(new Date(a.event_date + 'T00:00:00') - today) : Infinity;
-        const db = b.event_date ? Math.abs(new Date(b.event_date + 'T00:00:00') - today) : Infinity;
-        return da - db;
+    // Ordena la tabla de Anuncios: activos primero (los más próximos primero),
+    // vencidos (fecha < hoy) al final (el más recientemente vencido arriba
+    // dentro de ese grupo). Ver .cal-row--expired para el tachado visual.
+    const sortCalendarActivities = (rows) => {
+      const todayStr = todayISO();
+      const active = [];
+      const expired = [];
+      (rows || []).forEach(r => {
+        if (r.event_date && r.event_date < todayStr) expired.push(r);
+        else active.push(r);
       });
+      active.sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''));
+      expired.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+      return [...active, ...expired];
     };
 
     const normalizeProfile = (p) => {
@@ -1087,38 +1090,14 @@ btnBack?.addEventListener('click', () => {
       return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    const readActivityFromPrompts = (seed = {}) => {
-      const activity = prompt('Actividad:', seed.activity || '');
-      if (activity === null) return null;
-
-      const event_date = prompt('Fecha (YYYY-MM-DD):', seed.event_date || '');
-      if (event_date === null) return null;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date.trim())) {
-        alert('Fecha inválida. Usa el formato YYYY-MM-DD.');
-        return null;
-      }
-
-      const owner_name = prompt('Encargado:', seed.owner_name || '');
-      if (owner_name === null) return null;
-
-      const contact_phone = prompt('#Contacto:', seed.contact_phone || '');
-      if (contact_phone === null) return null;
-
-      const invRaw = prompt('Inversión (número):', (seed.investment ?? '') === '' ? '' : String(seed.investment));
-      if (invRaw === null) return null;
-      const investment = invRaw.trim() === '' ? null : Number(invRaw);
-      if (investment !== null && Number.isNaN(investment)) {
-        alert('Inversión inválida. Debe ser un número (o dejar vacío).');
-        return null;
-      }
-
-      return {
-        activity: activity.trim(),
-        event_date: event_date.trim(),
-        owner_name: owner_name.trim(),
-        contact_phone: contact_phone.trim(),
-        investment,
-      };
+    // Rango (ISO YYYY-MM-DD) lunes–domingo de la semana actual, para resaltar
+    // en la tabla de Anuncios los registros cuya fecha caiga dentro de ella
+    // (mismo criterio de "semana actual" que usa Notas — ver getCurrentWeekNumber).
+    const calCurrentWeekRangeISO = () => {
+      const weekNum = getCurrentWeekNumber();
+      if (!weekNum) return null;
+      const { monday, sunday } = getWeekRange(weekNum);
+      return { mondayISO: monday.toISOString().slice(0, 10), sundayISO: sunday.toISOString().slice(0, 10) };
     };
 
     const renderCalendarTable = (rows, isAdmin) => {
@@ -1133,7 +1112,12 @@ btnBack?.addEventListener('click', () => {
         '<th class="cal-actions">Acciones</th>',
       ];
 
+      const curRange = calCurrentWeekRangeISO();
+      const todayStr = todayISO();
+
       const body = (rows || []).map(r => {
+        const inCurrentWeek = !!(curRange && r.event_date && r.event_date >= curRange.mondayISO && r.event_date <= curRange.sundayISO);
+        const isExpired = !!(r.event_date && r.event_date < todayStr);
         const cells = [
           `<td>${escapeHtml(r.activity)}</td>`,
           `<td>${escapeHtml(r.event_date)}</td>`,
@@ -1145,7 +1129,12 @@ btnBack?.addEventListener('click', () => {
               `<i class="fa-solid fa-share-from-square"></i></button>` +
           `</td>`,
         ];
-        return `<tr>${cells.join('')}</tr>`;
+        const rowClasses = [
+          inCurrentWeek ? 'cal-row--current' : '',
+          isExpired ? 'cal-row--expired' : '',
+        ].filter(Boolean).join(' ');
+        const rowClassAttr = rowClasses ? ` class="${rowClasses}"` : '';
+        return `<tr${rowClassAttr}>${cells.join('')}</tr>`;
       }).join('');
 
       calendarContainer.innerHTML = `
@@ -1164,8 +1153,6 @@ btnBack?.addEventListener('click', () => {
       const role = await getRole();
       const isAdmin = role === 'admin';
 
-      if (btnCalNew) btnCalNew.style.display = isAdmin ? '' : 'none';
-
       const { data, error } = await supabase
         .from('calendar_activities')
         .select('*')
@@ -1177,32 +1164,9 @@ btnBack?.addEventListener('click', () => {
         return;
       }
 
-      calendarRowsCache = sortCalendarByProximity(data || []);
+      calendarRowsCache = sortCalendarActivities(data || []);
       renderCalendarTable(calendarRowsCache, isAdmin);
       setStatus(calendarStatus, `Registros: ${calendarRowsCache.length}`);
-    };
-
-    const createCalendarActivity = async () => {
-      const role = await getRole();
-      if (role !== 'admin') return;
-
-      const payload = readActivityFromPrompts({});
-      if (!payload) return;
-
-      setStatus(calendarStatus, 'Guardando…');
-
-      const { error } = await supabase
-        .from('calendar_activities')
-        .insert({ ...payload, created_by: user.id });
-
-      if (error) {
-        setStatus(calendarStatus, 'Error al guardar.');
-        alert('No se pudo crear la actividad.');
-        return;
-      }
-
-      await loadCalendar();
-      setStatus(calendarStatus, 'Actividad creada.');
     };
 
     const buildCalendarShare = (r) => {
@@ -1216,11 +1180,6 @@ btnBack?.addEventListener('click', () => {
       ];
       return lines.filter(Boolean).join('\n');
     };
-
-    btnCalNew?.addEventListener('click', (e) => {
-      e.preventDefault();
-      createCalendarActivity();
-    });
 
     calendarContainer?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-cal-share]');
@@ -1363,6 +1322,7 @@ btnBack?.addEventListener('click', () => {
       const tile = qs(`.week[data-week="${weekNum}"]`, weeksGrid);
       if (!tile) return;
       tile.classList.toggle('is-done', !!completed[String(weekNum)]);
+      tile.classList.toggle('is-current', weekNum === getCurrentWeekNumber());
     };
 
     const updateMeta = () => {
@@ -1459,6 +1419,20 @@ btnBack?.addEventListener('click', () => {
     const weekMondayISO = (weekNum) => {
       const { monday } = getWeekRange(weekNum);
       return monday.toISOString().slice(0, 10);
+    };
+
+    // Número de semana (1–52) cuyo rango lunes–domingo contiene la fecha de
+    // hoy, para resaltar la semana ACTUAL en el calendario de Notas
+    // (ver .week.is-current). null si hoy cae fuera del rango de 52 semanas.
+    const getCurrentWeekNumber = (year = new Date().getFullYear()) => {
+      const todayStr = todayISO();
+      for (let i = 1; i <= 52; i++) {
+        const { monday, sunday } = getWeekRange(i, year);
+        const mondayStr = monday.toISOString().slice(0, 10);
+        const sundayStr = sunday.toISOString().slice(0, 10);
+        if (todayStr >= mondayStr && todayStr <= sundayStr) return i;
+      }
+      return null;
     };
 
     // Día fijo dentro de la semana: offset 0=lunes, 5=sábado, 6=domingo.
@@ -3118,18 +3092,49 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     });
 
     // Botón de Waze en "Zona":
-    //  - Tap corto sin link  -> pide el link y lo guarda (ícono cambia de color).
+    //  - Tap corto sin link  -> abre el modal para pegar el link (ícono cambia de color al guardar).
     //  - Tap corto con link  -> abre esa zona en Waze en pestaña nueva.
-    //  - Mantener presionado -> edita o quita el link (funciona con mouse y touch).
+    //  - Mantener presionado -> abre el modal para editar o quitar el link (funciona con mouse y touch).
     let mdWazePressTimer = null;
     let mdWazeLongPressFired = false;
 
-    const mdWazeEditPrompt = (btn) => {
-      const current = btn.dataset.link || '';
-      const url = window.prompt('Link de Waze para esta zona (vacío para quitarlo):', current);
-      if (url === null) return; // cancelado
-      mdSetWazeLink(btn, url.trim());
+    // Modal de link de Waze: mismo patrón que el resto de los popups de la
+    // Bitácora (modal-overlay/modal-box), en vez de window.prompt del navegador.
+    const mdWazeModal = qs('#mdWazeModal');
+    const mdWazeInput = qs('#mdWazeInput');
+    const mdWazeSaveBtn = qs('#mdWazeSave');
+    const mdWazeRemoveBtn = qs('#mdWazeRemove');
+    const mdWazeCancelBtn = qs('#mdWazeCancel');
+    let mdWazeActiveBtn = null;
+
+    const closeMdWazeModal = () => {
+      mdWazeModal?.classList.add('is-hidden');
+      mdWazeActiveBtn = null;
     };
+
+    const openMdWazeModal = (btn) => {
+      if (!mdWazeModal || !mdWazeInput) return;
+      mdWazeActiveBtn = btn;
+      mdWazeInput.value = btn.dataset.link || '';
+      mdWazeModal.classList.remove('is-hidden');
+      mdWazeInput.focus();
+    };
+
+    mdWazeSaveBtn?.addEventListener('click', () => {
+      if (!mdWazeActiveBtn) { closeMdWazeModal(); return; }
+      mdSetWazeLink(mdWazeActiveBtn, mdWazeInput?.value || '');
+      closeMdWazeModal();
+    });
+    mdWazeRemoveBtn?.addEventListener('click', () => {
+      if (!mdWazeActiveBtn) { closeMdWazeModal(); return; }
+      mdSetWazeLink(mdWazeActiveBtn, '');
+      closeMdWazeModal();
+    });
+    mdWazeCancelBtn?.addEventListener('click', closeMdWazeModal);
+    mdWazeModal?.addEventListener('click', (e) => { if (e.target === mdWazeModal) closeMdWazeModal(); });
+    mdWazeInput?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); mdWazeSaveBtn?.click(); }
+    });
 
     misDoceBody?.addEventListener('pointerdown', (e) => {
       const btn = e.target.closest('.md-waze-btn');
@@ -3138,7 +3143,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       clearTimeout(mdWazePressTimer);
       mdWazePressTimer = setTimeout(() => {
         mdWazeLongPressFired = true;
-        mdWazeEditPrompt(btn);
+        openMdWazeModal(btn);
       }, 550);
     });
 
@@ -3155,8 +3160,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       if (current) {
         window.open(current, '_blank', 'noopener');
       } else {
-        const url = window.prompt('Pega el link de Waze para esta zona:');
-        if (url && url.trim()) mdSetWazeLink(btn, url.trim());
+        openMdWazeModal(btn);
       }
     });
 

@@ -27,8 +27,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   const sections = {
     home: document.getElementById("sectionHome"),
     invite: document.getElementById("sectionInvite"),
-    calendar: document.getElementById("sectionCalendar"),
-    announcements: document.getElementById("sectionAnnouncements"),
+    anuncios: document.getElementById("sectionAnuncios"),
+    calendario: document.getElementById("sectionCalendario"),
     materials: document.getElementById("sectionMaterials"),
     users: document.getElementById("sectionUsers"),
   };
@@ -40,23 +40,23 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   }
 
   const goInvite = () => showSection("invite");
-  const goCalendar = async () => { showSection("calendar"); await loadCalActivities(); };
-  const goAnnouncements = async () => { showSection("announcements"); await loadAnnouncements(); };
+  const goAnuncios = async () => { showSection("anuncios"); await loadAnuncios(); };
+  const goCalendario = async () => { showSection("calendario"); await loadCalendarioPosts(); };
   const goMaterials = async () => { showSection("materials"); await loadMaterials(); };
   const goUsers = async () => { showSection("users"); await loadAllUsers(); };
   const goHome = () => showSection("home");
 
   // Menu buttons (tarjetas de Inicio)
   document.getElementById("navInvite")?.addEventListener("click", goInvite);
-  document.getElementById("navCalendar")?.addEventListener("click", goCalendar);
-  document.getElementById("navAnnouncements")?.addEventListener("click", goAnnouncements);
+  document.getElementById("navAnuncios")?.addEventListener("click", goAnuncios);
+  document.getElementById("navCalendario")?.addEventListener("click", goCalendario);
   document.getElementById("navMaterials")?.addEventListener("click", goMaterials);
   document.getElementById("navUsers")?.addEventListener("click", goUsers);
 
   // Mismos destinos, desde el sidebar
   document.getElementById("sideNavInvite")?.addEventListener("click", goInvite);
-  document.getElementById("sideNavCalendar")?.addEventListener("click", goCalendar);
-  document.getElementById("sideNavAnnouncements")?.addEventListener("click", goAnnouncements);
+  document.getElementById("sideNavAnuncios")?.addEventListener("click", goAnuncios);
+  document.getElementById("sideNavCalendario")?.addEventListener("click", goCalendario);
   document.getElementById("sideNavMaterials")?.addEventListener("click", goMaterials);
   document.getElementById("sideNavUsers")?.addEventListener("click", goUsers);
   document.getElementById("btnGoHome")?.addEventListener("click", goHome);
@@ -64,8 +64,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   function setActiveSideNav(key) {
     const idByKey = {
       invite: "sideNavInvite",
-      calendar: "sideNavCalendar",
-      announcements: "sideNavAnnouncements",
+      anuncios: "sideNavAnuncios",
+      calendario: "sideNavCalendario",
       materials: "sideNavMaterials",
       users: "sideNavUsers",
     };
@@ -76,8 +76,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
   // Back to home buttons
   document.getElementById("backFromInvite")?.addEventListener("click", goHome);
-  document.getElementById("backFromCalendar")?.addEventListener("click", goHome);
-  document.getElementById("backFromAnnouncements")?.addEventListener("click", goHome);
+  document.getElementById("backFromAnuncios")?.addEventListener("click", goHome);
+  document.getElementById("backFromCalendario")?.addEventListener("click", goHome);
   document.getElementById("backFromMaterials")?.addEventListener("click", goHome);
   document.getElementById("backFromUsers")?.addEventListener("click", goHome);
 
@@ -191,37 +191,62 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   });
 
   // -----------------------------
-  // Calendario / Actividades CRUD
+  // Anuncios (actividades: tabla "calendar_activities") — CRUD
   // -----------------------------
-  const calEls = {
-    activity: document.getElementById("calActivity"),
-    eventDate: document.getElementById("calEventDate"),
-    ownerName: document.getElementById("calOwnerName"),
-    contactPhone: document.getElementById("calContactPhone"),
-    investment: document.getElementById("calInvestment"),
-    btnSave: document.getElementById("calBtnSave"),
-    btnCancel: document.getElementById("calBtnCancel"),
-    tbody: document.getElementById("calTbody"),
+  const anuncioEls = {
+    activity: document.getElementById("annActivity"),
+    eventDate: document.getElementById("annEventDate"),
+    ownerName: document.getElementById("annOwnerName"),
+    contactPhone: document.getElementById("annContactPhone"),
+    investment: document.getElementById("annInvestment"),
+    btnSave: document.getElementById("annBtnSave"),
+    btnCancel: document.getElementById("annBtnCancel"),
+    tbody: document.getElementById("annTbody"),
   };
 
-  let calSelectedId = null;
-  let calRows = [];
-  let calBusy = false;
+  let anuncioSelectedId = null;
+  let anuncioRows = [];
+  let anuncioBusy = false;
 
   function safeText(v) {
     return (v ?? "").toString();
   }
 
-  // Ordena por cercanía a la fecha actual (la más próxima primero),
-  // sin importar si el evento ya pasó o está por venir.
-  function sortCalByProximity(rows) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return [...(rows || [])].sort((a, b) => {
-      const da = a.event_date ? Math.abs(new Date(a.event_date + "T00:00:00") - today) : Infinity;
-      const db = b.event_date ? Math.abs(new Date(b.event_date + "T00:00:00") - today) : Infinity;
-      return da - db;
+  function todayISO() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  // Ordena la tabla de Anuncios: activas primero (las más próximas primero),
+  // vencidas (fecha < hoy) al final (la más recientemente vencida arriba
+  // dentro de ese grupo). Mismo criterio que usa app.js (vista de usuario).
+  function sortAnuncioActivities(rows) {
+    const todayStr = todayISO();
+    const active = [];
+    const expired = [];
+    (rows || []).forEach(r => {
+      if (r.event_date && r.event_date < todayStr) expired.push(r);
+      else active.push(r);
     });
+    active.sort((a, b) => (a.event_date || "").localeCompare(b.event_date || ""));
+    expired.sort((a, b) => (b.event_date || "").localeCompare(a.event_date || ""));
+    return [...active, ...expired];
+  }
+
+  // Rango (ISO YYYY-MM-DD) lunes–domingo de la semana actual, para resaltar
+  // en la tabla las actividades cuya fecha caiga dentro de ella.
+  function anuncioCurrentWeekRangeISO() {
+    const now = new Date();
+    const day = now.getDay(); // 0=domingo .. 6=sábado
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(now);
+    monday.setHours(0, 0, 0, 0);
+    monday.setDate(monday.getDate() + diffToMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
+    return {
+      mondayISO: monday.toISOString().slice(0, 10),
+      sundayISO: sunday.toISOString().slice(0, 10),
+    };
   }
 
   function fmtMoney(v) {
@@ -231,76 +256,79 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return num.toLocaleString("es-CR", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
   }
 
-  function setCalMsg(text, isError) {
-    setMsg("calMsg", text, !!isError);
+  function setAnuncioMsg(text, isError) {
+    setMsg("annMsg", text, !!isError);
   }
 
-  function setCalSaveLabel(text) {
-    if (!calEls.btnSave) return;
-    calEls.btnSave.title = text;
-    calEls.btnSave.setAttribute("aria-label", text);
+  function setAnuncioSaveLabel(text) {
+    if (!anuncioEls.btnSave) return;
+    anuncioEls.btnSave.title = text;
+    anuncioEls.btnSave.setAttribute("aria-label", text);
   }
 
-  function setCalSaveLoading(isLoading, idleText) {
-    if (!calEls.btnSave) return;
-    if (!calEls.btnSave.dataset.originalText) {
-      calEls.btnSave.dataset.originalText = calEls.btnSave.title || "Crear actividad";
+  function setAnuncioSaveLoading(isLoading, idleText) {
+    if (!anuncioEls.btnSave) return;
+    if (!anuncioEls.btnSave.dataset.originalText) {
+      anuncioEls.btnSave.dataset.originalText = anuncioEls.btnSave.title || "Crear actividad";
     }
 
     if (!isLoading) {
-      calEls.btnSave.disabled = false;
-      setCalSaveLabel(idleText || calEls.btnSave.dataset.originalText);
+      anuncioEls.btnSave.disabled = false;
+      setAnuncioSaveLabel(idleText || anuncioEls.btnSave.dataset.originalText);
       return;
     }
 
-    calEls.btnSave.disabled = true;
-    setCalSaveLabel("Procesando…");
+    anuncioEls.btnSave.disabled = true;
+    setAnuncioSaveLabel("Procesando…");
   }
 
-  function setCalCancelVisible(isVisible) {
-    if (!calEls.btnCancel) return;
-    calEls.btnCancel.style.display = isVisible ? "" : "none";
+  function setAnuncioCancelVisible(isVisible) {
+    if (!anuncioEls.btnCancel) return;
+    anuncioEls.btnCancel.style.display = isVisible ? "" : "none";
   }
 
-  function resetCalForm() {
-    calSelectedId = null;
-    if (calEls.activity) calEls.activity.value = "";
-    if (calEls.eventDate) calEls.eventDate.value = "";
-    if (calEls.ownerName) calEls.ownerName.value = "";
-    if (calEls.contactPhone) calEls.contactPhone.value = "";
-    if (calEls.investment) calEls.investment.value = "";
-    setCalSaveLabel("Crear actividad");
-    if (calEls.btnSave) calEls.btnSave.dataset.originalText = "Crear actividad";
-    setCalCancelVisible(false);
+  function resetAnuncioForm() {
+    anuncioSelectedId = null;
+    if (anuncioEls.activity) anuncioEls.activity.value = "";
+    if (anuncioEls.eventDate) anuncioEls.eventDate.value = "";
+    if (anuncioEls.ownerName) anuncioEls.ownerName.value = "";
+    if (anuncioEls.contactPhone) anuncioEls.contactPhone.value = "";
+    if (anuncioEls.investment) anuncioEls.investment.value = "";
+    setAnuncioSaveLabel("Crear actividad");
+    if (anuncioEls.btnSave) anuncioEls.btnSave.dataset.originalText = "Crear actividad";
+    setAnuncioCancelVisible(false);
   }
 
-  function readCalForm() {
-    const activity = (calEls.activity?.value || "").trim();
-    const event_date = (calEls.eventDate?.value || "").trim();
-    const owner_name = (calEls.ownerName?.value || "").trim();
-    const contact_phone = (calEls.contactPhone?.value || "").trim();
-    const invRaw = (calEls.investment?.value || "").toString().trim();
+  function readAnuncioForm() {
+    const activity = (anuncioEls.activity?.value || "").trim();
+    const event_date = (anuncioEls.eventDate?.value || "").trim();
+    const owner_name = (anuncioEls.ownerName?.value || "").trim();
+    const contact_phone = (anuncioEls.contactPhone?.value || "").trim();
+    const invRaw = (anuncioEls.investment?.value || "").toString().trim();
     const investment = invRaw === "" ? null : Number(invRaw);
 
     return { activity, event_date, owner_name, contact_phone, investment };
   }
 
-  function validateCalPayload(p) {
+  function validateAnuncioPayload(p) {
     if (!p.activity) return "Falta Actividad.";
     if (!p.event_date) return "Falta Fecha.";
     if (p.investment !== null && Number.isNaN(p.investment)) return "Inversión inválida.";
     return null;
   }
 
-  function renderCalTable() {
-    if (!calEls.tbody) return;
+  function renderAnuncioTable() {
+    if (!anuncioEls.tbody) return;
 
-    if (!Array.isArray(calRows) || calRows.length === 0) {
-      calEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">No hay actividades.</td></tr>';
+    if (!Array.isArray(anuncioRows) || anuncioRows.length === 0) {
+      anuncioEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">No hay actividades.</td></tr>';
       return;
     }
 
-    calEls.tbody.innerHTML = calRows.map(r => {
+    const curRange = anuncioCurrentWeekRangeISO();
+    const todayStr = todayISO();
+
+    anuncioEls.tbody.innerHTML = anuncioRows.map(r => {
       const id = safeText(r.id);
       const activity = safeText(r.activity);
       const date = safeText(r.event_date);
@@ -308,14 +336,22 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       const phone = safeText(r.contact_phone);
       const inv = fmtMoney(r.investment);
 
+      const inCurrentWeek = !!(r.event_date && r.event_date >= curRange.mondayISO && r.event_date <= curRange.sundayISO);
+      const isExpired = !!(r.event_date && r.event_date < todayStr);
+      const rowClasses = [
+        inCurrentWeek ? "ann-row--current" : "",
+        isExpired ? "ann-row--expired" : "",
+      ].filter(Boolean).join(" ");
+      const rowClassAttr = rowClasses ? ` class="${rowClasses}"` : "";
+
       return `
-        <tr data-row-id="${id}">
+        <tr data-row-id="${id}"${rowClassAttr}>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${activity}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${date}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${owner}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${phone}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${inv}</td>
-          <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);white-space:nowrap;">
+          <td class="ann-actions" style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);white-space:nowrap;">
             <button data-action="edit" data-id="${id}" class="mat-icon-btn" style="margin-right:6px;" title="Editar" aria-label="Editar"><i class="fa-solid fa-pen-to-square"></i></button>
             <button data-action="delete" data-id="${id}" class="mat-icon-btn" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
           </td>
@@ -324,12 +360,12 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }).join("");
   }
 
-  async function loadCalActivities() {
-    if (calBusy) return;
-    calBusy = true;
+  async function loadAnuncios() {
+    if (anuncioBusy) return;
+    anuncioBusy = true;
     try {
-      if (calEls.tbody) {
-        calEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+      if (anuncioEls.tbody) {
+        anuncioEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
       }
 
       const { data, error } = await supabase
@@ -338,54 +374,54 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .order("event_date", { ascending: true });
 
       if (error) {
-        setCalMsg(error.message, true);
-        calRows = [];
-        renderCalTable();
+        setAnuncioMsg(error.message, true);
+        anuncioRows = [];
+        renderAnuncioTable();
         return;
       }
 
-      calRows = sortCalByProximity(Array.isArray(data) ? data : []);
-      renderCalTable();
-      setCalMsg("", false);
+      anuncioRows = sortAnuncioActivities(Array.isArray(data) ? data : []);
+      renderAnuncioTable();
+      setAnuncioMsg("", false);
     } finally {
-      calBusy = false;
+      anuncioBusy = false;
     }
   }
 
   function fillFormForEdit(row) {
-    calSelectedId = row.id;
-    if (calEls.activity) calEls.activity.value = row.activity ?? "";
-    if (calEls.eventDate) calEls.eventDate.value = row.event_date ?? "";
-    if (calEls.ownerName) calEls.ownerName.value = row.owner_name ?? "";
-    if (calEls.contactPhone) calEls.contactPhone.value = row.contact_phone ?? "";
-    if (calEls.investment) calEls.investment.value = row.investment ?? "";
+    anuncioSelectedId = row.id;
+    if (anuncioEls.activity) anuncioEls.activity.value = row.activity ?? "";
+    if (anuncioEls.eventDate) anuncioEls.eventDate.value = row.event_date ?? "";
+    if (anuncioEls.ownerName) anuncioEls.ownerName.value = row.owner_name ?? "";
+    if (anuncioEls.contactPhone) anuncioEls.contactPhone.value = row.contact_phone ?? "";
+    if (anuncioEls.investment) anuncioEls.investment.value = row.investment ?? "";
 
-    setCalSaveLabel("Guardar cambios");
-    setCalCancelVisible(true);
+    setAnuncioSaveLabel("Guardar cambios");
+    setAnuncioCancelVisible(true);
 
-    setCalMsg("Editando actividad…", false);
+    setAnuncioMsg("Editando actividad…", false);
   }
 
-  calEls.btnCancel?.addEventListener("click", () => {
-    resetCalForm();
-    setCalMsg("", false);
+  anuncioEls.btnCancel?.addEventListener("click", () => {
+    resetAnuncioForm();
+    setAnuncioMsg("", false);
   });
 
-  calEls.btnSave?.addEventListener("click", async () => {
-    if (calBusy) return;
+  anuncioEls.btnSave?.addEventListener("click", async () => {
+    if (anuncioBusy) return;
 
-    const payload = readCalForm();
-    const err = validateCalPayload(payload);
+    const payload = readAnuncioForm();
+    const err = validateAnuncioPayload(payload);
     if (err) {
-      setCalMsg(err, true);
+      setAnuncioMsg(err, true);
       return;
     }
 
-    calBusy = true;
-    setCalSaveLoading(true);
+    anuncioBusy = true;
+    setAnuncioSaveLoading(true);
 
     try {
-      if (!calSelectedId) {
+      if (!anuncioSelectedId) {
         // INSERT (SIN created_by; lo asigna el trigger)
         const { error } = await supabase
           .from("calendar_activities")
@@ -398,13 +434,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           });
 
         if (error) {
-          setCalMsg(error.message, true);
+          setAnuncioMsg(error.message, true);
           return;
         }
 
-        setCalMsg("Actividad creada.", false);
-        resetCalForm();
-        await loadCalActivities();
+        setAnuncioMsg("Actividad creada.", false);
+        resetAnuncioForm();
+        await loadAnuncios();
         return;
       }
 
@@ -418,24 +454,24 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           contact_phone: payload.contact_phone,
           investment: payload.investment,
         })
-        .eq("id", calSelectedId);
+        .eq("id", anuncioSelectedId);
 
       if (error) {
-        setCalMsg(error.message, true);
+        setAnuncioMsg(error.message, true);
         return;
       }
 
-      setCalMsg("Cambios guardados.", false);
-      resetCalForm();
-      await loadCalActivities();
+      setAnuncioMsg("Cambios guardados.", false);
+      resetAnuncioForm();
+      await loadAnuncios();
     } finally {
-      setCalSaveLoading(false, calSelectedId ? "Guardar cambios" : "Crear actividad");
-      calBusy = false;
+      setAnuncioSaveLoading(false, anuncioSelectedId ? "Guardar cambios" : "Crear actividad");
+      anuncioBusy = false;
     }
   });
 
   // Delegación de acciones (Editar/Eliminar)
-  calEls.tbody?.addEventListener("click", async (ev) => {
+  anuncioEls.tbody?.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button");
     if (!btn) return;
 
@@ -443,7 +479,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     const id = btn.getAttribute("data-id");
     if (!action || !id) return;
 
-    const row = calRows.find(x => String(x.id) === String(id));
+    const row = anuncioRows.find(x => String(x.id) === String(id));
     if (!row) return;
 
     if (action === "edit") {
@@ -452,11 +488,11 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
 
     if (action === "delete") {
-      if (calBusy) return;
+      if (anuncioBusy) return;
       const ok = window.confirm("¿Eliminar esta actividad? Esta acción no se puede deshacer.");
       if (!ok) return;
 
-      calBusy = true;
+      anuncioBusy = true;
       const originalText = btn.textContent;
       btn.disabled = true;
       btn.textContent = "Procesando…";
@@ -468,17 +504,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           .eq("id", id);
 
         if (error) {
-          setCalMsg(error.message, true);
+          setAnuncioMsg(error.message, true);
           return;
         }
 
-        setCalMsg("Actividad eliminada.", false);
-        if (String(calSelectedId) === String(id)) resetCalForm();
-        await loadCalActivities();
+        setAnuncioMsg("Actividad eliminada.", false);
+        if (String(anuncioSelectedId) === String(id)) resetAnuncioForm();
+        await loadAnuncios();
       } finally {
         btn.disabled = false;
         btn.textContent = originalText;
-        calBusy = false;
+        anuncioBusy = false;
       }
     }
   });
@@ -488,20 +524,20 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
 
   // -----------------------------
-  // Anuncios (subir imagen a Storage + registrar en tabla)
+  // Calendario (imágenes/avisos visuales: subir a Storage + registrar en tabla "announcements")
   // -----------------------------
-  const annEls = {
-    title: document.getElementById("annTitle"),
-    file: document.getElementById("annFile"),
-    btnPublish: document.getElementById("annBtnPublish"),
-    list: document.getElementById("annList"),
+  const calEls = {
+    title: document.getElementById("calTitle"),
+    file: document.getElementById("calFile"),
+    btnPublish: document.getElementById("calBtnPublish"),
+    list: document.getElementById("calList"),
   };
 
-  let annBusy = false;
-  let annRows = [];
+  let calBusy = false;
+  let calRows = [];
 
-  function setAnnMsg(text, isError) {
-    setMsg("annMsg", text, !!isError);
+  function setCalMsg(text, isError) {
+    setMsg("calMsg", text, !!isError);
   }
 
   function escapeHtml(s) {
@@ -525,15 +561,15 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
   }
 
-  function renderAnnList() {
-    if (!annEls.list) return;
+  function renderCalList() {
+    if (!calEls.list) return;
 
-    if (!Array.isArray(annRows) || annRows.length === 0) {
-      annEls.list.innerHTML = '<div class="muted">No hay anuncios.</div>';
+    if (!Array.isArray(calRows) || calRows.length === 0) {
+      calEls.list.innerHTML = '<div class="muted">No hay anuncios.</div>';
       return;
     }
 
-    annEls.list.innerHTML = annRows.map(r => {
+    calEls.list.innerHTML = calRows.map(r => {
       const title = escapeHtml(r.title || "(Sin título)");
       const created = r.created_at ? new Date(r.created_at).toLocaleString() : "";
       const url = r.image_url || "";
@@ -555,18 +591,18 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           <div class="mat-row__actions">
             ${viewBtn}
             ${downloadBtn}
-            <button data-ann-action="delete" data-id="${escapeHtml(id)}" class="mat-icon-btn" type="button" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
+            <button data-cal-action="delete" data-id="${escapeHtml(id)}" class="mat-icon-btn" type="button" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
       `;
     }).join("");
   }
 
-  async function loadAnnouncements() {
-    if (annBusy) return;
-    annBusy = true;
+  async function loadCalendarioPosts() {
+    if (calBusy) return;
+    calBusy = true;
     try {
-      if (annEls.list) annEls.list.innerHTML = '<div class="muted">Cargando…</div>';
+      if (calEls.list) calEls.list.innerHTML = '<div class="muted">Cargando…</div>';
 
       const { data, error } = await supabase
         .from("announcements")
@@ -574,34 +610,34 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .order("created_at", { ascending: false });
 
       if (error) {
-        setAnnMsg(error.message, true);
-        annRows = [];
-        renderAnnList();
+        setCalMsg(error.message, true);
+        calRows = [];
+        renderCalList();
         return;
       }
 
-      annRows = Array.isArray(data) ? data : [];
-      renderAnnList();
-      setAnnMsg("", false);
+      calRows = Array.isArray(data) ? data : [];
+      renderCalList();
+      setCalMsg("", false);
     } finally {
-      annBusy = false;
+      calBusy = false;
     }
   }
 
-  function setAnnPublishLoading(isLoading) {
-    if (!annEls.btnPublish) return;
-    if (!annEls.btnPublish.dataset.originalText) {
-      annEls.btnPublish.dataset.originalText = annEls.btnPublish.textContent || "Publicar anuncio";
+  function setCalPublishLoading(isLoading) {
+    if (!calEls.btnPublish) return;
+    if (!calEls.btnPublish.dataset.originalText) {
+      calEls.btnPublish.dataset.originalText = calEls.btnPublish.textContent || "Publicar anuncio";
     }
 
     if (!isLoading) {
-      annEls.btnPublish.disabled = false;
-      annEls.btnPublish.textContent = annEls.btnPublish.dataset.originalText;
+      calEls.btnPublish.disabled = false;
+      calEls.btnPublish.textContent = calEls.btnPublish.dataset.originalText;
       return;
     }
 
-    annEls.btnPublish.disabled = true;
-    annEls.btnPublish.textContent = "Procesando…";
+    calEls.btnPublish.disabled = true;
+    calEls.btnPublish.textContent = "Procesando…";
   }
 
   async function getPublicOrSignedUrl(bucket, path) {
@@ -618,20 +654,20 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return null;
   }
 
-  annEls.btnPublish?.addEventListener("click", async () => {
-    if (annBusy) return;
+  calEls.btnPublish?.addEventListener("click", async () => {
+    if (calBusy) return;
 
-    const title = (annEls.title?.value || "").trim();
-    const file = annEls.file?.files?.[0] || null;
+    const title = (calEls.title?.value || "").trim();
+    const file = calEls.file?.files?.[0] || null;
 
     if (!file) {
-      setAnnMsg("Selecciona una imagen.", true);
+      setCalMsg("Selecciona una imagen.", true);
       return;
     }
 
-    annBusy = true;
-    setAnnPublishLoading(true);
-    setAnnMsg("Subiendo anuncio…", false);
+    calBusy = true;
+    setCalPublishLoading(true);
+    setCalMsg("Subiendo anuncio…", false);
 
     try {
       // Upload a Storage: bucket announcements
@@ -645,13 +681,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
 
       if (upErr) {
-        setAnnMsg(upErr.message, true);
+        setCalMsg(upErr.message, true);
         return;
       }
 
       const url = await getPublicOrSignedUrl("announcements", filePath);
       if (!url) {
-        setAnnMsg("No se pudo obtener URL del archivo en Storage.", true);
+        setCalMsg("No se pudo obtener URL del archivo en Storage.", true);
         return;
       }
 
@@ -664,33 +700,33 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         });
 
       if (insErr) {
-        setAnnMsg(insErr.message, true);
+        setCalMsg(insErr.message, true);
         return;
       }
 
-      if (annEls.title) annEls.title.value = "";
-      if (annEls.file) annEls.file.value = "";
+      if (calEls.title) calEls.title.value = "";
+      if (calEls.file) calEls.file.value = "";
 
-      setAnnMsg("Anuncio publicado.", false);
-      await loadAnnouncements();
+      setCalMsg("Anuncio publicado.", false);
+      await loadCalendarioPosts();
     } finally {
-      setAnnPublishLoading(false);
-      annBusy = false;
+      setCalPublishLoading(false);
+      calBusy = false;
     }
   });
 
-  annEls.list?.addEventListener("click", async (ev) => {
+  calEls.list?.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button");
     if (!btn) return;
-    const action = btn.getAttribute("data-ann-action");
+    const action = btn.getAttribute("data-cal-action");
     const id = btn.getAttribute("data-id");
     if (action !== "delete" || !id) return;
 
-    if (annBusy) return;
+    if (calBusy) return;
     const ok = window.confirm("¿Eliminar este anuncio? Esta acción no se puede deshacer.");
     if (!ok) return;
 
-    annBusy = true;
+    calBusy = true;
     const originalText = btn.textContent;
     btn.disabled = true;
     btn.textContent = "Procesando…";
@@ -702,16 +738,16 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .eq("id", id);
 
       if (error) {
-        setAnnMsg(error.message, true);
+        setCalMsg(error.message, true);
         return;
       }
 
-      setAnnMsg("Anuncio eliminado.", false);
-      await loadAnnouncements();
+      setCalMsg("Anuncio eliminado.", false);
+      await loadCalendarioPosts();
     } finally {
       btn.disabled = false;
       btn.textContent = originalText || "Eliminar";
-      annBusy = false;
+      calBusy = false;
     }
   });
 

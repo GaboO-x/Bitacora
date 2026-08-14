@@ -2876,6 +2876,14 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     // (vía confirmLeaveNotesSheet), igual que los botones equivalentes en pantalla.
     window.addEventListener('popstate', async () => {
       if (!historyGuardArmed) return; // no había trampa armada: dejar que el navegador actúe normal
+
+      // Re-armamos la trampa DE INMEDIATO, antes de cualquier operación asíncrona
+      // (p.ej. el popup de "cambios sin guardar"). Así el historial nunca queda
+      // vacío ni por una fracción de segundo: en Android, la navegación por
+      // gestos ("predictive back") puede decidir cerrar la app si en ese
+      // instante no detecta una entrada de historial disponible.
+      pushGuardState();
+
       handlingPopGesture = true;
       try {
         if (state.notesOpenSheet) {
@@ -2888,10 +2896,11 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         }
 
         const stillAway = state.view !== 'home' || !!state.notesOpenSheet || !!state.selectedWeek;
-        if (stillAway) {
-          pushGuardState(); // re-arma la trampa para el próximo gesto
-        } else {
+        if (!stillAway) {
+          // Ya llegamos a Inicio: quitamos la entrada "trampa" que acabamos
+          // de re-armar arriba, para no dejar una entrada fantasma.
           historyGuardArmed = false;
+          try { history.back(); } catch (e) {}
         }
       } finally {
         handlingPopGesture = false;

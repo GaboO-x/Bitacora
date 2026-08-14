@@ -21,23 +21,29 @@ function toggleLoginSection(show) {
   if (el) el.style.display = show ? "" : "none";
 }
 
-function markInstalled() {
-  const box = document.getElementById("install-button-anchor")?.firstElementChild;
-  if (!box) return;
-  box.classList.add("pwa-ic-installed");
-  box.innerHTML = `
-    <img src="./icons/icon-192.png" alt="" />
-    <h1>Bitácora instalada ✓</h1>
-    <p>Ya tenés acceso rápido desde tu dispositivo.</p>
+function toggleTitle(show) {
+  const el = document.getElementById("app-title");
+  if (el) el.style.display = show ? "" : "none";
+}
+
+function showInstalledLogo() {
+  const anchor = document.getElementById("install-button-anchor");
+  if (!anchor) return;
+  toggleTitle(false);
+  anchor.innerHTML = `
+    <div id="installed-logo">
+      <img src="./icons/icon-192.png" alt="Bitácora" />
+    </div>
   `;
 }
 
 onInstalled(() => {
-  markInstalled();
+  showInstalledLogo();
   toggleLoginSection(true);
 });
 
 function mountBanner() {
+  toggleTitle(true);
   const anchor = document.getElementById("install-button-anchor");
   if (!anchor) return;
 
@@ -55,7 +61,14 @@ function mountBanner() {
 
 export function renderInstallButton() {
   const reveal = () => {
-    if (isStandalone() || isDevBypass()) {
+    if (isStandalone()) {
+      showInstalledLogo();
+      toggleLoginSection(true);
+      return;
+    }
+    if (isDevBypass()) {
+      // Modo desarrollo: no está realmente instalada, solo se salta el banner.
+      toggleTitle(true);
       toggleLoginSection(true);
       return;
     }

@@ -385,6 +385,26 @@ btnBack?.addEventListener('click', () => {
       return false;
     };
 
+    // ---- Gesto "atrás" del sistema (Android/iOS) vía History API
+    // Estrategia: mientras el usuario esté fuera de Inicio (en cualquier vista,
+    // o dentro de Notas en semana/hoja), mantenemos UNA entrada "trampa" en el
+    // historial del navegador. Un gesto/click "atrás" del sistema dispara
+    // popstate; ahí resolvemos UN nivel hacia arriba según el estado actual
+    // (no según el camino recorrido) y, si seguimos fuera de Inicio,
+    // re-armamos la trampa para el próximo gesto.
+    let historyGuardArmed = false;
+    let handlingPopGesture = false;
+
+    const pushGuardState = () => {
+      try { history.pushState({ bitacoraGuard: true }, ''); } catch (e) {}
+    };
+
+    const armHistoryGuard = () => {
+      if (historyGuardArmed) return;
+      historyGuardArmed = true;
+      pushGuardState();
+    };
+
     const navigate = async (view, opts = {}) => {
       if (!(await confirmLeaveNotesSheet())) return;
       const { push = true } = opts;
@@ -392,6 +412,20 @@ btnBack?.addEventListener('click', () => {
         state.history.push(state.view);
       }
       showView(view);
+
+      if (view === 'home') {
+        // Llegada a Inicio: si fue por click/ícono (no por el gesto atrás) y había
+        // una trampa armada, la limpiamos con un history.back() para no dejar
+        // una entrada fantasma en el historial del navegador.
+        if (!handlingPopGesture && historyGuardArmed) {
+          historyGuardArmed = false;
+          try { history.back(); } catch (e) {}
+        } else {
+          historyGuardArmed = false;
+        }
+      } else {
+        armHistoryGuard();
+      }
     };
 
     const goBack = async () => {
@@ -1377,6 +1411,7 @@ btnBack?.addEventListener('click', () => {
 
     const showNoteSheet = (sheetEl) => {
       if (!sheetEl) return;
+      armHistoryGuard();
       notesWeekPicker?.classList.add('is-hidden');
       notesWeekScreen?.classList.add('is-hidden');
       hideAllNoteSheets();
@@ -1436,6 +1471,7 @@ btnBack?.addEventListener('click', () => {
 
     const selectWeek = (weekNum) => {
       state.selectedWeek = weekNum;
+      armHistoryGuard();
 
       qsa('.week', weeksGrid).forEach(w => w.classList.toggle('is-selected', Number(w.dataset.week) === weekNum));
       weekTitle.textContent = `Semana ${weekNum} · ${weekRangeLabel(weekNum)}`;
@@ -2833,6 +2869,34 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     btnNoteTakers?.addEventListener('click', openTakersSheet);
     btnNoteCultos?.addEventListener('click', openCultosSheet);
       btnNoteLideres?.addEventListener('click', openLideresSheet);
+
+    // ---- Gesto "atrás" del sistema: un nivel por gesto, según el estado actual
+    // (no según el camino recorrido). Si hay cambios sin guardar en una hoja de
+    // Notas, las funciones de abajo ya disparan el popup Guardar/Salir sin guardar
+    // (vía confirmLeaveNotesSheet), igual que los botones equivalentes en pantalla.
+    window.addEventListener('popstate', async () => {
+      if (!historyGuardArmed) return; // no había trampa armada: dejar que el navegador actúe normal
+      handlingPopGesture = true;
+      try {
+        if (state.notesOpenSheet) {
+          const action = NOTES_BACK_ACTIONS[state.notesOpenSheet];
+          if (action) await action();
+        } else if (state.selectedWeek) {
+          await backToWeekPicker();
+        } else if (state.view && state.view !== 'home') {
+          await navigate('home');
+        }
+
+        const stillAway = state.view !== 'home' || !!state.notesOpenSheet || !!state.selectedWeek;
+        if (stillAway) {
+          pushGuardState(); // re-arma la trampa para el próximo gesto
+        } else {
+          historyGuardArmed = false;
+        }
+      } finally {
+        handlingPopGesture = false;
+      }
+    });
 
     // ---- Init
     populateWeeks();

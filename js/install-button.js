@@ -17,6 +17,7 @@ window.addEventListener("beforeinstallprompt", (e) => {
 window.addEventListener("appinstalled", () => {
   deferredPrompt = null;
   renderInstalledState();
+  toggleLoginSection(true);
 });
 
 function isStandalone() {
@@ -87,6 +88,11 @@ function injectStyles() {
     }
   `;
   document.head.appendChild(style);
+}
+
+function toggleLoginSection(show) {
+  const el = document.getElementById("login-section");
+  if (el) el.style.display = show ? "" : "none";
 }
 
 function renderInstalledState() {
@@ -166,11 +172,23 @@ function mountButton() {
 }
 
 export function renderInstallButton() {
-  if (isStandalone()) return; // ya instalada, no mostrar nada
+  const reveal = () => {
+    if (isStandalone()) {
+      // Ya corre instalada: mostrar login directo, sin banner de instalación.
+      toggleLoginSection(true);
+      return;
+    }
+    // No instalada: login queda oculto (ya está por defecto vía CSS inline),
+    // solo se muestra el banner de instalación.
+    toggleLoginSection(false);
+    mountButton();
+  };
 
-  const paint = () => mountButton();
-  if (document.getElementById("install-button-anchor")) paint();
-  else document.addEventListener("DOMContentLoaded", paint);
+  if (document.getElementById("install-button-anchor") || document.getElementById("login-section")) {
+    reveal();
+  } else {
+    document.addEventListener("DOMContentLoaded", reveal);
+  }
 }
 
 renderInstallButton();

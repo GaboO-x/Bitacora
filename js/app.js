@@ -386,23 +386,36 @@ btnBack?.addEventListener('click', () => {
     };
 
     // ---- Gesto "atrás" del sistema (Android/iOS) vía History API
-    // Estrategia: mientras el usuario esté fuera de Inicio (en cualquier vista,
-    // o dentro de Notas en semana/hoja), mantenemos UNA entrada "trampa" en el
-    // historial del navegador. Un gesto/click "atrás" del sistema dispara
-    // popstate; ahí resolvemos UN nivel hacia arriba según el estado actual
-    // (no según el camino recorrido) y, si seguimos fuera de Inicio,
-    // re-armamos la trampa para el próximo gesto.
-    let historyGuardArmed = false;
+    // Estrategia: cada nivel de profundidad (Inicio=0, vista principal=1,
+    // semana=2, hoja=3 dentro de Notas) empuja SU entrada al historial en el
+    // momento del clic real que profundiza — NUNCA de forma reactiva dentro
+    // de un evento popstate. Esto evita una falla conocida del gesto de
+    // navegación predictiva de Android: si el pushState llega después de que
+    // el sistema ya evaluó "hasta dónde se puede volver", el siguiente gesto
+    // puede cerrar la app en vez de navegar.
+    let navDepth = 0;
     let handlingPopGesture = false;
+    let suppressPopCount = 0; // popstates que vamos a "tragar" por un salto manual (Inicio, cambio de vista lateral)
 
-    const pushGuardState = () => {
-      try { history.pushState({ bitacoraGuard: true }, ''); } catch (e) {}
-    };
-
-    const armHistoryGuard = () => {
-      if (historyGuardArmed) return;
-      historyGuardArmed = true;
-      pushGuardState();
+    const syncDepth = (targetDepth) => {
+      if (targetDepth === navDepth) return;
+      if (targetDepth > navDepth) {
+        while (navDepth < targetDepth) {
+          navDepth++;
+          try { history.pushState({ d: navDepth }, ''); } catch (e) {}
+        }
+      } else {
+        const diff = navDepth - targetDepth;
+        navDepth = targetDepth;
+        if (!handlingPopGesture) {
+          // Salto manual (click en Inicio, cambio de vista desde el sidebar, etc.):
+          // el navegador aún tiene esas entradas de más, las retiramos nosotros.
+          suppressPopCount += diff;
+          try { history.go(-diff); } catch (e) {}
+        }
+        // si handlingPopGesture es true, el navegador ya hizo el "back" real
+        // (fue el propio gesto), solo sincronizamos el contador.
+      }
     };
 
     const navigate = async (view, opts = {}) => {
@@ -412,20 +425,7 @@ btnBack?.addEventListener('click', () => {
         state.history.push(state.view);
       }
       showView(view);
-
-      if (view === 'home') {
-        // Llegada a Inicio: si fue por click/ícono (no por el gesto atrás) y había
-        // una trampa armada, la limpiamos con un history.back() para no dejar
-        // una entrada fantasma en el historial del navegador.
-        if (!handlingPopGesture && historyGuardArmed) {
-          historyGuardArmed = false;
-          try { history.back(); } catch (e) {}
-        } else {
-          historyGuardArmed = false;
-        }
-      } else {
-        armHistoryGuard();
-      }
+      syncDepth(view === 'home' ? 0 : 1);
     };
 
     const goBack = async () => {
@@ -1411,7 +1411,7 @@ btnBack?.addEventListener('click', () => {
 
     const showNoteSheet = (sheetEl) => {
       if (!sheetEl) return;
-      armHistoryGuard();
+      syncDepth(3);
       notesWeekPicker?.classList.add('is-hidden');
       notesWeekScreen?.classList.add('is-hidden');
       hideAllNoteSheets();
@@ -1471,7 +1471,7 @@ btnBack?.addEventListener('click', () => {
 
     const selectWeek = (weekNum) => {
       state.selectedWeek = weekNum;
-      armHistoryGuard();
+      syncDepth(2);
 
       qsa('.week', weeksGrid).forEach(w => w.classList.toggle('is-selected', Number(w.dataset.week) === weekNum));
       weekTitle.textContent = `Semana ${weekNum} · ${weekRangeLabel(weekNum)}`;
@@ -1489,6 +1489,7 @@ btnBack?.addEventListener('click', () => {
     // Volver del detalle de semana al selector (usada por el botón único Atrás)
     const backToWeekPicker = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
+      syncDepth(1);
       // quitar selección visual
       qsa('.week', weeksGrid).forEach(w => w.classList.remove('is-selected'));
       state.selectedWeek = null;
@@ -2737,6 +2738,7 @@ btnBack?.addEventListener('click', () => {
     // Cierra cada hoja y vuelve a la pantalla de semana (usadas por el botón único Atrás)
     const closeDcSheet = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
+      syncDepth(2);
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
@@ -2744,6 +2746,7 @@ btnBack?.addEventListener('click', () => {
 
     const closeWeekSheet = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
+      syncDepth(2);
       hideAllNoteSheets();
       setWeekScreenVisible(true);
       updateNotesCrumb();
@@ -2874,15 +2877,20 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     // (no según el camino recorrido). Si hay cambios sin guardar en una hoja de
     // Notas, las funciones de abajo ya disparan el popup Guardar/Salir sin guardar
     // (vía confirmLeaveNotesSheet), igual que los botones equivalentes en pantalla.
+    // Un gesto/click "atrás" del sistema dispara popstate. Resolvemos UN nivel
+    // hacia arriba según el estado actual (no según el camino recorrido),
+    // reutilizando las mismas funciones que los botones en pantalla (por lo
+    // que el popup de "cambios sin guardar" sigue apareciendo igual). No se
+    // toca el historial aquí: syncDepth() dentro de cada función solo
+    // sincroniza el contador, porque el navegador ya hizo el "back" real.
     window.addEventListener('popstate', async () => {
-      if (!historyGuardArmed) return; // no había trampa armada: dejar que el navegador actúe normal
-
-      // Re-armamos la trampa DE INMEDIATO, antes de cualquier operación asíncrona
-      // (p.ej. el popup de "cambios sin guardar"). Así el historial nunca queda
-      // vacío ni por una fracción de segundo: en Android, la navegación por
-      // gestos ("predictive back") puede decidir cerrar la app si en ese
-      // instante no detecta una entrada de historial disponible.
-      pushGuardState();
+      if (suppressPopCount > 0) {
+        // Este popstate es eco de un history.go() que disparamos nosotros
+        // (salto manual a Inicio/otra vista), no un gesto real del usuario.
+        suppressPopCount--;
+        return;
+      }
+      if (navDepth <= 0) return; // ya estábamos en Inicio: comportamiento normal del navegador
 
       handlingPopGesture = true;
       try {
@@ -2892,15 +2900,9 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         } else if (state.selectedWeek) {
           await backToWeekPicker();
         } else if (state.view && state.view !== 'home') {
-          await navigate('home');
-        }
-
-        const stillAway = state.view !== 'home' || !!state.notesOpenSheet || !!state.selectedWeek;
-        if (!stillAway) {
-          // Ya llegamos a Inicio: quitamos la entrada "trampa" que acabamos
-          // de re-armar arriba, para no dejar una entrada fantasma.
-          historyGuardArmed = false;
-          try { history.back(); } catch (e) {}
+          await navigate('home', { push: false });
+        } else {
+          navDepth = Math.max(0, navDepth - 1);
         }
       } finally {
         handlingPopGesture = false;

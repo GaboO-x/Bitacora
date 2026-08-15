@@ -154,13 +154,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
     const role = (document.querySelector('input[name="inviteRole"]:checked')?.value || "user").trim();
 
-    const divisions = Array.from(document.querySelectorAll('input[name="inviteDivision"]:checked'))
-      .map(x => (x.value || "").trim())
-      .filter(Boolean);
-
     const squads = Array.from(document.querySelectorAll('input[name="inviteSquad"]:checked'))
       .map(x => (x.value || "").trim())
       .filter(Boolean);
+
+    // División ya no se pide en el form: se deriva del sufijo del squad
+    // (...M = makers, ...T = takers). Mismo contrato que espera bright-task.
+    const divisions = Array.from(new Set(
+      squads
+        .map(s => s.endsWith("M") ? "makers" : (s.endsWith("T") ? "takers" : null))
+        .filter(Boolean)
+    ));
 
     if (!email) return setMsg("msg", "Falta email.", true);
     if (!full_name) return setMsg("msg", "Falta nombre completo.", true);

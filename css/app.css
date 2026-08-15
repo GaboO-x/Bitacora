@@ -37,6 +37,13 @@
   --red-bg:#FDF0EC;
   --red-border: rgba(198,91,74,.18);
 
+  /* Naranja suave: mismo procedimiento que --blue (misma saturación/luminosidad
+     que --green, rotado a naranja). Usado para marcar semana SUPERVISADA en
+     Notas (ver .week.is-reviewed). */
+  --orange:#8B633B;
+  --orange-bg:#F8F3EE;
+  --orange-border: rgba(139,99,59,.18);
+
   --shadow: 0 4px 18px rgba(97,69,44,.06);
   --shadow2: 0 10px 32px rgba(97,69,44,.10);
 
@@ -556,13 +563,17 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 
 
 /* Notas - botones por actividad + semana completada */
-/* Semana ACTUAL (calendario real): azul suave, mismo tono que "completada".
-   Si la semana actual también está completada, .week.is-done (declarado
-   después) gana por orden de cascada. */
+/* Semana ACTUAL (calendario real): azul, con más contraste que el resto de
+   semanas (borde sólido + texto en negrita) para que resalte de un vistazo,
+   mientras el resto de estados mantienen el tono suave ya usado.
+   Prioridad visual (gana la declarada más abajo si coinciden varias):
+   is-current < is-done < is-reviewed. Es decir: supervisada > completada > actual. */
 .week.is-current{
   background: var(--blue-bg);
-  border-color: var(--blue-border);
+  border-color: var(--blue);
   color: var(--blue);
+  font-weight:700;
+  box-shadow: 0 0 0 2px var(--blue-border) inset;
 }
 .week.is-current:hover{border-color: var(--blue)}
 .week.is-done{
@@ -571,6 +582,12 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
   color: var(--green);
 }
 .week.is-done:hover{border-color: var(--green)}
+.week.is-reviewed{
+  background: var(--orange-bg);
+  border-color: var(--orange-border);
+  color: var(--orange);
+}
+.week.is-reviewed:hover{border-color: var(--orange)}
 .week-tools{display:flex; align-items:center; justify-content:flex-start; margin:6px 0 12px}
 .check{display:flex; gap:10px; align-items:center; user-select:none; color: var(--text)}
 .check input{width:18px; height:18px; accent-color: var(--accent)}

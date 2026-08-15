@@ -500,6 +500,8 @@ btnBack?.addEventListener('click', () => {
     const navReviewNotes = qs('#navReviewNotes');
     const cardReviewNotes = qs('#cardReviewNotes');
 
+    const reviewSquadTitle = qs('#reviewSquadTitle');
+    const reviewSquadSelect = qs('#reviewSquadSelect');
     const reviewUserSelect = qs('#reviewUserSelect');
     const reviewUserStatus = qs('#reviewUserStatus');
     const reviewWeeksGrid = qs('#reviewWeeksGrid');
@@ -608,7 +610,7 @@ btnBack?.addEventListener('click', () => {
 	      // auth user id and profile id, and to never show leaders/admins here.
 	      const res = await supabase
 	        .from('profiles')
-	        .select('id, full_name')
+	        .select('id, full_name, role')
 	        .in('id', ids)
 	        .eq('role', 'user')
 	        .eq('active', true)
@@ -618,23 +620,87 @@ btnBack?.addEventListener('click', () => {
 	      return (res.data || []).filter(Boolean);
 	    };
 
+	    // Admin ve TODO: Lider_de_Escuadron + Lider_de_Célula activos.
+	    // squadCode opcional: filtra usando leader_squads (dueño del escuadrón)
+	    // y user_squads (sus líderes de célula). Cubierto por profiles_select_admin_all.
+	    const loadAllActiveUsersForAdmin = async (squadCode) => {
+	      let allowedIds = null;
+	      if (squadCode) {
+	        const [leadersRes, usersRes] = await Promise.all([
+	          supabase.from('leader_squads').select('leader_id').eq('squad_code', squadCode),
+	          supabase.from('user_squads').select('user_id').eq('squad_code', squadCode),
+	        ]);
+	        const ids = [
+	          ...((leadersRes.data || []).map(r => r.leader_id)),
+	          ...((usersRes.data || []).map(r => r.user_id)),
+	        ].filter(Boolean);
+	        allowedIds = Array.from(new Set(ids));
+	        if (!allowedIds.length) return [];
+	      }
+
+	      let q = supabase
+	        .from('profiles')
+	        .select('id, full_name, role')
+	        .in('role', ['leader', 'user'])
+	        .eq('active', true)
+	        .neq('id', user.id)
+	        .order('full_name', { ascending: true });
+	      if (allowedIds) q = q.in('id', allowedIds);
+
+	      const res = await q;
+	      if (res.error) return [];
+	      return (res.data || []).filter(Boolean);
+	    };
+
+	    // Lider_de_Escuadron primero (alfabético), luego Lider_de_Célula (alfabético).
+	    const sortReviewUsers = (users) => {
+	      const rank = (r) => (r === 'leader' ? 0 : 1);
+	      return [...users].sort((a, b) => {
+	        const ra = rank(a.role), rb = rank(b.role);
+	        if (ra !== rb) return ra - rb;
+	        return (a.full_name || '').localeCompare(b.full_name || '', 'es');
+	      });
+	    };
+
+	    const renderReviewUserOptions = (users) => {
+	      reviewUserSelect.innerHTML = '<option value="">Selecciona…</option>';
+	      const sorted = sortReviewUsers(users);
+	      const hasLeaders = sorted.some(u => u.role === 'leader');
+	      const hasUsers = sorted.some(u => u.role === 'user');
+	      const mixed = hasLeaders && hasUsers;
+
+	      const groupLeaders = mixed ? document.createElement('optgroup') : null;
+	      const groupUsers = mixed ? document.createElement('optgroup') : null;
+	      if (groupLeaders) groupLeaders.label = 'Líderes de Escuadrón';
+	      if (groupUsers) groupUsers.label = 'Líderes de Célula';
+	      if (groupLeaders) reviewUserSelect.appendChild(groupLeaders);
+
+	      sorted.forEach(u => {
+	        const opt = document.createElement('option');
+	        opt.value = u.id;
+	        opt.textContent = u.full_name || u.id;
+	        if (mixed && u.role === 'leader') groupLeaders.appendChild(opt);
+	        else if (mixed && u.role === 'user') groupUsers.appendChild(opt);
+	        else reviewUserSelect.appendChild(opt);
+	      });
+
+	      if (groupUsers && groupUsers.childElementCount) reviewUserSelect.appendChild(groupUsers);
+	    };
+
     const loadReviewUsers = async () => {
       if (!reviewUserSelect) return;
-      reviewUserSelect.innerHTML = '<option value="">Selecciona…</option>';
+      reviewUserSelect.innerHTML = '<option value="">Cargando…</option>';
       setReviewStatus('Cargando usuarios…');
 
-      const squadCodes = await loadLeaderSquadCodes();
-      const userIds = await loadUsersInSquads(squadCodes);
-      const users = await loadProfilesByIds(userIds);
+      const role = await getRole();
+      const users = (role === 'admin')
+        ? await loadAllActiveUsersForAdmin(reviewSquadSelect?.value || '')
+        : await loadProfilesByIds(await loadUsersInSquads(await loadLeaderSquadCodes()));
 
-      users.forEach(u => {
-        const opt = document.createElement('option');
-        opt.value = u.id;
-        opt.textContent = u.full_name || u.id;
-        reviewUserSelect.appendChild(opt);
-      });
+      renderReviewUserOptions(users);
 
-      setReviewStatus(users.length ? '' : 'No tienes usuarios asignados.');
+      const emptyMsg = (role === 'admin') ? 'No hay usuarios registrados.' : 'No tienes usuarios asignados.';
+      setReviewStatus(users.length ? '' : emptyMsg);
     };
 
     const loadUserWeekDoneMap = async (targetUserId) => {
@@ -833,24 +899,34 @@ btnBack?.addEventListener('click', () => {
       await loadReviewComments();
     });
 
-    // Mostrar acceso "Revisión de Notas" solo a leaders
+    // Mostrar acceso "Revisión de Notas" solo a Líder de Escuadrón y Admin del App
     (async () => {
       try {
         const role = await getRole();
-        if (role === 'leader') {
+        if (role === 'leader' || role === 'admin') {
           navReviewNotes?.classList.remove('is-hidden');
           cardReviewNotes?.classList.remove('is-hidden');
         }
       } catch {}
     })();
 
+    // El filtro de Escuadrón solo aplica a admin (un leader ya solo ve su propio
+    // escuadrón por RLS/scope). El listener se registra una sola vez.
+    reviewSquadSelect?.addEventListener('change', () => {
+      loadReviewUsers();
+    });
+
     const initReviewView = async () => {
       try {
         const role = await getRole();
-        if (role !== 'leader') {
-          setReviewStatus('Solo disponible para líderes.');
+        if (role !== 'leader' && role !== 'admin') {
+          setReviewStatus('Solo disponible para líderes y administradores.');
           return;
         }
+        const isAdminRole = (role === 'admin');
+        reviewSquadTitle?.classList.toggle('is-hidden', !isAdminRole);
+        reviewSquadSelect?.classList.toggle('is-hidden', !isAdminRole);
+
         if (reviewWeeksGrid && !reviewWeeksGrid.dataset.ready) {
           populateReviewWeeks();
           reviewWeeksGrid.dataset.ready = '1';
@@ -1366,6 +1442,24 @@ btnBack?.addEventListener('click', () => {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(completed)); } catch {}
     };
 
+    // Semanas propias marcadas como "supervisadas" por un líder/admin.
+    // A diferencia de `completed` (local), esto sí viene de Supabase
+    // (note_reviews), gracias a la policy note_reviews_select_own.
+    const myWeeksReviewed = {};
+
+    const loadMyWeeksReviewedMap = async () => {
+      const res = await supabase
+        .from('note_reviews')
+        .select('week, review_done')
+        .eq('user_id', user.id)
+        .eq('review_done', true);
+      if (res.error) return;
+      (res.data || []).forEach(r => {
+        if (r && r.week != null) myWeeksReviewed[String(r.week)] = true;
+      });
+      qsa('.week', weeksGrid).forEach(w => markWeekTile(Number(w.dataset.week)));
+    };
+
     const setWeekScreenVisible = (visible) => {
       notesWeekPicker.classList.toggle('is-hidden', visible);
       notesWeekScreen.classList.toggle('is-hidden', !visible);
@@ -1431,6 +1525,7 @@ btnBack?.addEventListener('click', () => {
       if (!tile) return;
       tile.classList.toggle('is-done', !!completed[String(weekNum)]);
       tile.classList.toggle('is-current', weekNum === getCurrentWeekNumber());
+      tile.classList.toggle('is-reviewed', !!myWeeksReviewed[String(weekNum)]);
     };
 
     const updateMeta = () => {
@@ -2920,6 +3015,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     // ---- Init
     populateWeeks();
+    loadMyWeeksReviewedMap();
     setWeekScreenVisible(false);
     showView('home');
     try { history.replaceState({ view: 'home' }, ''); } catch (e) {}

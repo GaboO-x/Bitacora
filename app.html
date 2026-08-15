@@ -192,7 +192,7 @@
 <span class="nav-btn__text">Notas</span>
 </button>
 	<button class="nav-btn is-hidden" data-view="revision" id="navReviewNotes" type="button">
-	<span class="nav-btn__icon">✅</span>
+	<span class="nav-btn__icon"><i class="fa-solid fa-clipboard-check"></i></span>
 	<span class="nav-btn__text">Revisión de Notas</span>
 	</button>
 <button class="nav-btn" data-view="lectura" type="button">
@@ -243,7 +243,7 @@
 <p class="muted">Accesos directos:</p>
 	<div class="cards">
 		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas (1–52)</div></button>
-		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title">✅ Revisión de Notas</div><div class="card__body">Solo líderes</div></button>
+		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title"><i class="fa-solid fa-clipboard-check"></i> Revisión de Notas</div><div class="card__body">Líderes y Admin</div></button>
 		<button class="card card--action" data-view="lectura" type="button"><div class="card__title"><i class="fa-solid fa-book-open-reader"></i> Lectura Bíblica</div><div class="card__body">Plan de lectura diaria.</div></button>
 		<button class="card card--action" data-view="memorizar" type="button"><div class="card__title"><i class="fa-solid fa-graduation-cap"></i> Memorizar</div><div class="card__body">Versículos para memorizar.</div></button>
 		<button class="card card--action" data-view="biblia360" type="button"><div class="card__title"><i class="fa-solid fa-church"></i> Biblia360</div><div class="card__body">Recorrido bíblico.</div></button>
@@ -265,7 +265,22 @@
   </div>
 
   <div class="panel">
-    <div class="panel__title">Usuario a revisar</div>
+    <div class="panel__title is-hidden" id="reviewSquadTitle">Escuadrón</div>
+    <select class="input is-hidden" id="reviewSquadSelect">
+      <option value="">Todos los escuadrones</option>
+      <option value="URT">🔴 URTAKER</option>
+      <option value="URM">🔴 URMAKER</option>
+      <option value="UAZT">🔵 UAZTAKER</option>
+      <option value="UAZM">🔵 UAZMAKER</option>
+      <option value="UAT">🟡 UATAKER</option>
+      <option value="UAM">🟡 UAMAKER</option>
+      <option value="UNT">🟠 UNTAKER</option>
+      <option value="UNM">🟠 UNMAKER</option>
+      <option value="UVT">🟢 UVTAKER</option>
+      <option value="UVM">🟢 UVMAKER</option>
+    </select>
+
+    <div class="panel__title" style="margin-top:12px;">Usuario a revisar</div>
     <select class="input" id="reviewUserSelect">
       <option value="">Cargando…</option>
     </select>

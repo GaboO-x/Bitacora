@@ -386,36 +386,20 @@ btnBack?.addEventListener('click', () => {
     };
 
     // ---- Gesto "atrás" del sistema (Android/iOS) vía History API
-    // Estrategia: cada nivel de profundidad (Inicio=0, vista principal=1,
-    // semana=2, hoja=3 dentro de Notas) empuja SU entrada al historial en el
-    // momento del clic real que profundiza — NUNCA de forma reactiva dentro
-    // de un evento popstate. Esto evita una falla conocida del gesto de
-    // navegación predictiva de Android: si el pushState llega después de que
-    // el sistema ya evaluó "hasta dónde se puede volver", el siguiente gesto
-    // puede cerrar la app en vez de navegar.
-    let navDepth = 0;
-    let handlingPopGesture = false;
-    let suppressPopCount = 0; // popstates que vamos a "tragar" por un salto manual (Inicio, cambio de vista lateral)
+    // Estrategia: retraceo literal del camino recorrido (como las flechas
+    // atrás/adelante de cualquier navegador). Cada clic que cambia de
+    // pantalla (cambiar de vista, elegir semana, abrir/cerrar una hoja de
+    // Notas, entrar/salir de una carpeta en Material) empuja SU propia
+    // entrada al historial EN EL MOMENTO DEL CLIC — nunca de forma reactiva
+    // dentro de un evento popstate (eso es lo que falla con el gesto de
+    // navegación predictiva de Android). El gesto atrás simplemente restaura
+    // la pantalla anterior tal cual, un paso a la vez, hasta llegar a Inicio;
+    // desde Inicio, un back adicional sale de la app con normalidad.
+    let isRestoring = false;
 
-    const syncDepth = (targetDepth) => {
-      if (targetDepth === navDepth) return;
-      if (targetDepth > navDepth) {
-        while (navDepth < targetDepth) {
-          navDepth++;
-          try { history.pushState({ d: navDepth }, ''); } catch (e) {}
-        }
-      } else {
-        const diff = navDepth - targetDepth;
-        navDepth = targetDepth;
-        if (!handlingPopGesture) {
-          // Salto manual (click en Inicio, cambio de vista desde el sidebar, etc.):
-          // el navegador aún tiene esas entradas de más, las retiramos nosotros.
-          suppressPopCount += diff;
-          try { history.go(-diff); } catch (e) {}
-        }
-        // si handlingPopGesture es true, el navegador ya hizo el "back" real
-        // (fue el propio gesto), solo sincronizamos el contador.
-      }
+    const pushScreen = (descriptor) => {
+      if (isRestoring) return; // estamos reproduciendo un popstate: no volver a empujar
+      try { history.pushState(descriptor, ''); } catch (e) {}
     };
 
     const navigate = async (view, opts = {}) => {
@@ -425,7 +409,7 @@ btnBack?.addEventListener('click', () => {
         state.history.push(state.view);
       }
       showView(view);
-      syncDepth(view === 'home' ? 0 : 1);
+      pushScreen({ view });
     };
 
     const goBack = async () => {
@@ -1043,6 +1027,7 @@ btnBack?.addEventListener('click', () => {
       if (id === (state.materialFolderId || null)) return;
       state.materialFolderId = id || null;
       renderMaterials(materialRowsCache);
+      pushScreen({ view: 'material', folderId: state.materialFolderId });
     });
 
     const buildFolderCardHtml = (f) => (
@@ -1167,6 +1152,7 @@ btnBack?.addEventListener('click', () => {
       if (!folderBtn) return;
       state.materialFolderId = folderBtn.dataset.openFolder;
       renderMaterials(materialRowsCache);
+      pushScreen({ view: 'material', folderId: state.materialFolderId });
     });
 
     const loadMaterials = async () => {
@@ -1411,7 +1397,6 @@ btnBack?.addEventListener('click', () => {
 
     const showNoteSheet = (sheetEl) => {
       if (!sheetEl) return;
-      syncDepth(3);
       notesWeekPicker?.classList.add('is-hidden');
       notesWeekScreen?.classList.add('is-hidden');
       hideAllNoteSheets();
@@ -1424,6 +1409,7 @@ btnBack?.addEventListener('click', () => {
       else if (sheetEl === notesSheetLideres) state.notesOpenSheet = 'lideres';
       else state.notesOpenSheet = null;
       updateNotesFullHeightMode();
+      pushScreen({ view: 'notas', week: state.selectedWeek, sheet: state.notesOpenSheet });
     };
 
     const setSheetVisible = (visible) => {
@@ -1471,7 +1457,7 @@ btnBack?.addEventListener('click', () => {
 
     const selectWeek = (weekNum) => {
       state.selectedWeek = weekNum;
-      syncDepth(2);
+      pushScreen({ view: 'notas', week: weekNum });
 
       qsa('.week', weeksGrid).forEach(w => w.classList.toggle('is-selected', Number(w.dataset.week) === weekNum));
       weekTitle.textContent = `Semana ${weekNum} · ${weekRangeLabel(weekNum)}`;
@@ -1489,7 +1475,6 @@ btnBack?.addEventListener('click', () => {
     // Volver del detalle de semana al selector (usada por el botón único Atrás)
     const backToWeekPicker = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
-      syncDepth(1);
       // quitar selección visual
       qsa('.week', weeksGrid).forEach(w => w.classList.remove('is-selected'));
       state.selectedWeek = null;
@@ -1498,6 +1483,7 @@ btnBack?.addEventListener('click', () => {
       updateMeta();
       updateNotesCrumb();
       updateNotesHeaderActions();
+      pushScreen({ view: 'notas' });
     };
 
     // Marcar semana como completada (solo UI; se mantiene en localStorage)
@@ -2738,19 +2724,19 @@ btnBack?.addEventListener('click', () => {
     // Cierra cada hoja y vuelve a la pantalla de semana (usadas por el botón único Atrás)
     const closeDcSheet = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
-      syncDepth(2);
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
+      pushScreen({ view: 'notas', week: state.selectedWeek });
     };
 
     const closeWeekSheet = async () => {
       if (!(await confirmLeaveNotesSheet())) return;
-      syncDepth(2);
       hideAllNoteSheets();
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
+      pushScreen({ view: 'notas', week: state.selectedWeek });
     };
 
     const markSaved = (statusEl) => {
@@ -2873,39 +2859,62 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     btnNoteCultos?.addEventListener('click', openCultosSheet);
       btnNoteLideres?.addEventListener('click', openLideresSheet);
 
-    // ---- Gesto "atrás" del sistema: un nivel por gesto, según el estado actual
-    // (no según el camino recorrido). Si hay cambios sin guardar en una hoja de
-    // Notas, las funciones de abajo ya disparan el popup Guardar/Salir sin guardar
-    // (vía confirmLeaveNotesSheet), igual que los botones equivalentes en pantalla.
-    // Un gesto/click "atrás" del sistema dispara popstate. Resolvemos UN nivel
-    // hacia arriba según el estado actual (no según el camino recorrido),
-    // reutilizando las mismas funciones que los botones en pantalla (por lo
-    // que el popup de "cambios sin guardar" sigue apareciendo igual). No se
-    // toca el historial aquí: syncDepth() dentro de cada función solo
-    // sincroniza el contador, porque el navegador ya hizo el "back" real.
-    window.addEventListener('popstate', async () => {
-      if (suppressPopCount > 0) {
-        // Este popstate es eco de un history.go() que disparamos nosotros
-        // (salto manual a Inicio/otra vista), no un gesto real del usuario.
-        suppressPopCount--;
+    // Restaura visualmente una pantalla exacta a partir del descriptor guardado
+    // en el historial (ver pushScreen). Reutiliza las mismas funciones que usan
+    // los botones en pantalla, así que el popup de "cambios sin guardar" y la
+    // carga de borradores/datos siguen funcionando igual que al navegar a mano.
+    const applyScreen = async (d) => {
+      d = d || { view: 'home' };
+
+      if (d.view === 'notas') {
+        if (state.view !== 'notas') showView('notas');
+        if (!d.week) {
+          hideAllNoteSheets();
+          setWeekScreenVisible(false);
+          state.selectedWeek = null;
+          qsa('.week', weeksGrid).forEach(w => w.classList.remove('is-selected'));
+          updateMeta();
+          updateNotesCrumb();
+          updateNotesHeaderActions();
+          return;
+        }
+        hideAllNoteSheets();
+        selectWeek(d.week);
+        const openers = {
+          dc: openDinamicaCelular,
+          takers: openTakersSheet,
+          cultos: openCultosSheet,
+          lideres: openLideresSheet,
+        };
+        if (d.sheet && openers[d.sheet]) openers[d.sheet]();
         return;
       }
-      if (navDepth <= 0) return; // ya estábamos en Inicio: comportamiento normal del navegador
 
-      handlingPopGesture = true;
+      if (d.view === 'material') {
+        if (state.view !== 'material') showView('material');
+        state.materialFolderId = d.folderId || null;
+        renderMaterials(materialRowsCache);
+        return;
+      }
+
+      await navigate(d.view || 'home', { push: false });
+    };
+
+    // Gesto/click "atrás" del sistema: dispara popstate. Restauramos la pantalla
+    // anterior tal cual quedó registrada (retraceo literal del camino recorrido,
+    // como las flechas atrás de cualquier navegador), un paso a la vez, hasta
+    // llegar a Inicio. No se empuja nada aquí (isRestoring evita que las
+    // funciones reutilizadas vuelvan a hacer pushState).
+    window.addEventListener('popstate', async (e) => {
+      // Si hay cambios sin guardar en una hoja de Notas, primero el aviso
+      // Guardar/Salir sin guardar (igual que los botones en pantalla).
+      await confirmLeaveNotesSheet();
+
+      isRestoring = true;
       try {
-        if (state.notesOpenSheet) {
-          const action = NOTES_BACK_ACTIONS[state.notesOpenSheet];
-          if (action) await action();
-        } else if (state.selectedWeek) {
-          await backToWeekPicker();
-        } else if (state.view && state.view !== 'home') {
-          await navigate('home', { push: false });
-        } else {
-          navDepth = Math.max(0, navDepth - 1);
-        }
+        await applyScreen(e.state);
       } finally {
-        handlingPopGesture = false;
+        isRestoring = false;
       }
     });
 
@@ -2913,6 +2922,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     populateWeeks();
     setWeekScreenVisible(false);
     showView('home');
+    try { history.replaceState({ view: 'home' }, ''); } catch (e) {}
 
     // ---- Editor RTE (Takers / Cultos / Reunión de Líderes)
     // Menú flotante de formato: aparece al seleccionar texto dentro de cualquier .rte__editor,

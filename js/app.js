@@ -485,6 +485,20 @@ btnBack?.addEventListener('click', () => {
       return (cachedProfile && cachedProfile.role) ? String(cachedProfile.role) : 'user';
     };
 
+    // División actual del usuario (según profiles). Reutiliza el mismo cache
+    // que getRole(); requiere que getRole()/getDivision() se haya llamado al
+    // menos una vez para poblar cachedProfile.
+    const getDivision = async () => {
+      if (!cachedProfile) {
+        try {
+          cachedProfile = normalizeProfile(await getMyProfile(supabase, user.id));
+        } catch {
+          cachedProfile = null;
+        }
+      }
+      return (cachedProfile && cachedProfile.division) ? String(cachedProfile.division) : null;
+    };
+
     const escapeHtml = (s) => {
       const str = (s == null) ? '' : String(s);
       return str
@@ -610,7 +624,7 @@ btnBack?.addEventListener('click', () => {
 	      // auth user id and profile id, and to never show leaders/admins here.
 	      const res = await supabase
 	        .from('profiles')
-	        .select('id, full_name, role')
+	        .select('id, full_name, role, division')
 	        .in('id', ids)
 	        .eq('role', 'user')
 	        .eq('active', true)
@@ -640,7 +654,7 @@ btnBack?.addEventListener('click', () => {
 
 	      let q = supabase
 	        .from('profiles')
-	        .select('id, full_name, role')
+	        .select('id, full_name, role, division')
 	        .in('role', ['leader', 'user'])
 	        .eq('active', true)
 	        .neq('id', user.id)
@@ -679,6 +693,7 @@ btnBack?.addEventListener('click', () => {
 	        const opt = document.createElement('option');
 	        opt.value = u.id;
 	        opt.textContent = u.full_name || u.id;
+	        opt.dataset.division = u.division || '';
 	        if (mixed && u.role === 'leader') groupLeaders.appendChild(opt);
 	        else if (mixed && u.role === 'user') groupUsers.appendChild(opt);
 	        else reviewUserSelect.appendChild(opt);
@@ -737,10 +752,17 @@ btnBack?.addEventListener('click', () => {
       if (!reviewUserSelect) return;
       const id = reviewUserSelect.value || '';
       reviewState.userId = id || null;
-      reviewState.userName = id ? (reviewUserSelect.selectedOptions?.[0]?.textContent || null) : null;
+      const selectedOpt = id ? reviewUserSelect.selectedOptions?.[0] : null;
+      reviewState.userName = selectedOpt ? (selectedOpt.textContent || null) : null;
       reviewState.week = null;
       resetReviewWeekUI();
       paintReviewWeekTiles();
+
+      // Ocultar el pill "Takers" al revisar a un líder/usuario de división
+      // Makers (Takers no aplica a esa división). Sin selección, se muestra
+      // por defecto.
+      const reviewedDivision = selectedOpt ? (selectedOpt.dataset.division || '') : '';
+      btnReviewTakers?.classList.toggle('is-hidden', reviewedDivision === 'makers');
 
       if (!id) {
         setReviewStatus('');
@@ -906,6 +928,20 @@ btnBack?.addEventListener('click', () => {
         if (role === 'leader' || role === 'admin') {
           navReviewNotes?.classList.remove('is-hidden');
           cardReviewNotes?.classList.remove('is-hidden');
+        }
+      } catch {}
+    })();
+
+    // Ocultar la hoja "Takers" en Notas propias a Líder de Célula y Líder de
+    // Escuadrón cuando su división es Makers (Takers solo aplica a división
+    // Takers). Admin del App no se filtra por división aquí.
+    (async () => {
+      try {
+        const role = await getRole();
+        const division = await getDivision();
+        if ((role === 'leader' || role === 'user') && division === 'makers') {
+          const btnNoteTakersEl = qs('#btnNoteTakers');
+          btnNoteTakersEl?.classList.add('is-hidden');
         }
       } catch {}
     })();
@@ -1405,6 +1441,18 @@ btnBack?.addEventListener('click', () => {
     const takersStatus = qs('#takersStatus');
     const cultosStatus = qs('#cultosStatus');
     const lideresStatus = qs('#lideresStatus');
+
+    const cultoAudioAdminBox = qs('#cultoAudioAdminBox');
+    const cultoAudioUrlInput = qs('#cultoAudioUrlInput');
+    const btnCultoAudioSave = qs('#btnCultoAudioSave');
+    const cultoAudioAdminStatus = qs('#cultoAudioAdminStatus');
+    const cultoAudioPlayer = qs('#cultoAudioPlayer');
+    const cultoAudioEl = qs('#cultoAudioEl');
+    const btnCultoAudioPlay = qs('#btnCultoAudioPlay');
+    const cultoAudioPlayIcon = qs('#cultoAudioPlayIcon');
+    const btnCultoAudioBack = qs('#btnCultoAudioBack');
+    const btnCultoAudioForward = qs('#btnCultoAudioForward');
+    const cultoAudioTime = qs('#cultoAudioTime');
     const dcSheetTitle = qs('#dcSheetTitle');
     const dcDate = qs('#dcDate');
     const btnDcRowAdd = qs('#btnDcRowAdd');
@@ -2853,6 +2901,94 @@ btnBack?.addEventListener('click', () => {
       updateNotesHeaderActions();
     };
 
+    // ---- Audio del culto (Notas > Cultos): link público de R2, guardado por
+    // admin en `culto_audio` (RLS: solo admin escribe, cualquier activo lee).
+    const fmtCultoTime = (sec) => {
+      if (!isFinite(sec) || sec < 0) sec = 0;
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    };
+
+    const updateCultoAudioTimeLabel = () => {
+      if (!cultoAudioTime) return;
+      cultoAudioTime.textContent = `${fmtCultoTime(cultoAudioEl.currentTime)} / ${fmtCultoTime(cultoAudioEl.duration)}`;
+    };
+
+    cultoAudioEl?.addEventListener('timeupdate', updateCultoAudioTimeLabel);
+    cultoAudioEl?.addEventListener('loadedmetadata', updateCultoAudioTimeLabel);
+    cultoAudioEl?.addEventListener('play', () => {
+      if (cultoAudioPlayIcon) cultoAudioPlayIcon.className = 'fa-solid fa-pause';
+    });
+    cultoAudioEl?.addEventListener('pause', () => {
+      if (cultoAudioPlayIcon) cultoAudioPlayIcon.className = 'fa-solid fa-play';
+    });
+
+    btnCultoAudioPlay?.addEventListener('click', () => {
+      if (!cultoAudioEl?.src) return;
+      if (cultoAudioEl.paused) cultoAudioEl.play(); else cultoAudioEl.pause();
+    });
+    btnCultoAudioBack?.addEventListener('click', () => {
+      if (!cultoAudioEl?.src) return;
+      cultoAudioEl.currentTime = Math.max(0, cultoAudioEl.currentTime - 15);
+    });
+    btnCultoAudioForward?.addEventListener('click', () => {
+      if (!cultoAudioEl?.src) return;
+      const dur = isFinite(cultoAudioEl.duration) ? cultoAudioEl.duration : Infinity;
+      cultoAudioEl.currentTime = Math.min(dur, cultoAudioEl.currentTime + 15);
+    });
+
+    const loadCultoAudioForWeek = async (week) => {
+      // Reset player al cambiar de semana
+      if (cultoAudioEl) { cultoAudioEl.pause(); cultoAudioEl.removeAttribute('src'); cultoAudioEl.load(); }
+      cultoAudioPlayer?.classList.add('is-hidden');
+      if (cultoAudioPlayIcon) cultoAudioPlayIcon.className = 'fa-solid fa-play';
+      if (cultoAudioTime) cultoAudioTime.textContent = '0:00 / 0:00';
+      if (cultoAudioUrlInput) cultoAudioUrlInput.value = '';
+      if (cultoAudioAdminStatus) cultoAudioAdminStatus.textContent = '';
+
+      const role = await getRole();
+      const isAdminRole = (role === 'admin');
+      if (cultoAudioAdminBox) cultoAudioAdminBox.style.display = isAdminRole ? '' : 'none';
+
+      const res = await supabase
+        .from('culto_audio')
+        .select('public_url')
+        .eq('week', week)
+        .maybeSingle();
+
+      const url = res?.data?.public_url || '';
+      if (url) {
+        if (cultoAudioEl) cultoAudioEl.src = url;
+        cultoAudioPlayer?.classList.remove('is-hidden');
+        if (isAdminRole && cultoAudioUrlInput) cultoAudioUrlInput.value = url;
+      }
+    };
+
+    btnCultoAudioSave?.addEventListener('click', async () => {
+      if (!state.selectedWeek) return;
+      const url = (cultoAudioUrlInput?.value || '').trim();
+      if (!url) { setStatus(cultoAudioAdminStatus, 'Pegá un link antes de guardar.'); return; }
+      if (!/^https:\/\//i.test(url)) { setStatus(cultoAudioAdminStatus, 'El link debe empezar con https://'); return; }
+
+      setStatus(cultoAudioAdminStatus, 'Guardando…');
+      const res = await supabase
+        .from('culto_audio')
+        .upsert({
+          week: state.selectedWeek,
+          public_url: url,
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'week' });
+
+      if (res.error) {
+        setStatus(cultoAudioAdminStatus, 'No se pudo guardar. Intenta de nuevo.');
+        return;
+      }
+      setStatus(cultoAudioAdminStatus, `Guardado: ${nowLabel()}`);
+      await loadCultoAudioForWeek(state.selectedWeek);
+    });
+
     const openCultosSheet = () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
@@ -2861,6 +2997,7 @@ btnBack?.addEventListener('click', () => {
       setDateIfEmpty(cultosDate);
       const draft = getWeekDraft(state.selectedWeek).cultos;
       if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
+      loadCultoAudioForWeek(state.selectedWeek);
       showNoteSheet(notesSheetCultos);
       updateNotesCrumb();
       updateNotesHeaderActions();

@@ -367,6 +367,14 @@
 <button class="big-btn" id="btnNoteLideres" type="button">Reunión de Líderes/Ministerios</button>
 </div>
 <div class="muted tiny" id="notesMeta"></div>
+<!-- Notas de revisión (solo lectura): comentarios del líder/admin sobre esta
+     semana. Solo visible cuando la semana fue marcada como supervisada
+     (note_reviews.review_done = true para este usuario). -->
+<div class="panel is-hidden" id="myReviewNotesBox">
+<div class="panel__title"><i class="fa-solid fa-comment-dots"></i> Notas de revisión</div>
+<div class="muted tiny" id="myReviewNotesStatus"></div>
+<div id="myReviewNotesList"></div>
+</div>
 <div class="placeholder" id="notesPlaceholder">
 <div class="placeholder__title">Siguiente fase</div>
 <div class="placeholder__body">Definimos el diseño de cada “hoja” (editor/lista) y luego lo conectamos con Supabase conservando el orden por semana.</div>
@@ -809,13 +817,12 @@
   </div>
   <div class="sheet-body">
     <div class="note-head">
+      <div class="note-head__field note-head__field--date" aria-label="Fecha">
+        <div class="note-head__date" id="takersMeta"></div>
+      </div>
       <div class="note-head__field">
         <label class="field__label" for="takersTema">Tema</label>
         <input class="input input--tema" id="takersTema" type="text" placeholder="Tema"/>
-      </div>
-      <div class="note-head__field note-head__field--date">
-        <label class="field__label">Fecha</label>
-        <div class="note-head__date" id="takersMeta"></div>
       </div>
     </div>
     <div class="rte">
@@ -834,15 +841,39 @@
   </div>
   <div class="sheet-body">
     <div class="note-head">
+      <div class="note-head__field note-head__field--date" aria-label="Fecha">
+        <div class="note-head__date" id="cultosMeta"></div>
+      </div>
       <div class="note-head__field">
         <label class="field__label" for="cultosTema">Tema</label>
         <input class="input input--tema" id="cultosTema" type="text" placeholder="Tema"/>
       </div>
-      <div class="note-head__field note-head__field--date">
-        <label class="field__label">Fecha</label>
-        <div class="note-head__date" id="cultosMeta"></div>
-      </div>
     </div>
+
+    <!-- Audio del culto: solo admin puede pegar/guardar el link, todos pueden escuchar -->
+    <div class="panel culto-audio" id="cultoAudioAdminBox" style="display:none;">
+      <div class="panel__title">Audio del culto (link público)</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input class="input" id="cultoAudioUrlInput" type="url" placeholder="https://pub-xxxxxxxx.r2.dev/archivo.mp3" style="flex:1; min-width:220px;"/>
+        <button class="pill pill--primary" id="btnCultoAudioSave" type="button">Guardar</button>
+      </div>
+      <div class="muted tiny" id="cultoAudioAdminStatus"></div>
+    </div>
+
+    <div class="culto-audio-player is-hidden" id="cultoAudioPlayer">
+      <button class="culto-audio-player__btn" id="btnCultoAudioBack" type="button" title="Retroceder 15s" aria-label="Retroceder 15 segundos">
+        <i class="fa-solid fa-backward"></i>
+      </button>
+      <button class="culto-audio-player__btn culto-audio-player__btn--play" id="btnCultoAudioPlay" type="button" title="Reproducir" aria-label="Reproducir">
+        <i class="fa-solid fa-play" id="cultoAudioPlayIcon"></i>
+      </button>
+      <button class="culto-audio-player__btn" id="btnCultoAudioForward" type="button" title="Avanzar 15s" aria-label="Avanzar 15 segundos">
+        <i class="fa-solid fa-forward"></i>
+      </button>
+      <div class="culto-audio-player__time muted tiny" id="cultoAudioTime">0:00 / 0:00</div>
+      <audio id="cultoAudioEl" preload="none"></audio>
+    </div>
+
     <div class="rte">
       <div class="rte__editor" id="cultosNotes" contenteditable="true" spellcheck="true"></div>
     </div>
@@ -859,13 +890,12 @@
   </div>
   <div class="sheet-body">
     <div class="note-head">
+      <div class="note-head__field note-head__field--date" aria-label="Fecha">
+        <div class="note-head__date" id="lideresMeta"></div>
+      </div>
       <div class="note-head__field">
         <label class="field__label" for="lideresTema">Tema</label>
         <input class="input input--tema" id="lideresTema" type="text" placeholder="Tema"/>
-      </div>
-      <div class="note-head__field note-head__field--date">
-        <label class="field__label">Fecha</label>
-        <div class="note-head__date" id="lideresMeta"></div>
       </div>
     </div>
     <div class="rte">
@@ -925,6 +955,7 @@
 
   <div class="md-general-bar">
     <span class="md-general-bar__label">General</span>
+    <span class="muted tiny" id="mdSaveStatus"></span>
     <div class="md-general-bar__actions">
       <button class="pill pill--icon" id="btnMdShareAll" type="button" title="Compartir todas las zonas activas" aria-label="Compartir todas las zonas activas"><i class="fa-solid fa-share-from-square"></i></button>
       <button class="pill" id="btnMdAddRow" type="button">+</button>

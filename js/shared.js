@@ -72,7 +72,7 @@ export async function requireSession() {
 export async function getMyProfile(supabase, userId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, division, squad_code, active")
+    .select("id, full_name, role, active")
     .eq("id", userId)
     .single();
   if (error) return { profile: null, error };
@@ -88,9 +88,8 @@ export async function callInviteEdge(supabase, adminEmail, adminPassword, payloa
       role: payload.role,
       divisions: payload.divisions,
       squads: payload.squads,
-      // backward-compatible single fields
-      division: payload.division ?? null,
-      squad_code: payload.squad_code ?? null,
+      // division/squad_code singulares deprecados (Opción A, ago 2026):
+      // bright-task ya no los persiste en profiles.
     },
   });
   return { data, error };

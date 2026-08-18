@@ -8,6 +8,10 @@ import { requireSession, getMyProfile } from "./shared.js";
   }
 
   let cachedProfile = null;
+  // Reasignada más abajo (sección "Mis Doce") con la implementación real.
+  // Declarada acá arriba porque showView() la llama y showView() se define
+  // (y se invoca durante el init) antes de que exista esa sección del script.
+  let flushMisDoceSave = async () => {};
 
   const user = session.user;
 
@@ -15,6 +19,9 @@ import { requireSession, getMyProfile } from "./shared.js";
   const doLogout = async () => {
     const ok = confirm('Seguro que deseas salir?');
     if (!ok) return;
+    try {
+      await flushMisDoceSave();
+    } catch {}
     try {
       await supabase.auth.signOut();
     } catch {}
@@ -187,6 +194,7 @@ btnBack?.addEventListener('click', () => {
     attInfoModal?.addEventListener('click', (e) => { if (e.target === attInfoModal) closeAttInfoModal(); });
 
     const showView = (view) => {
+      if (state.view === 'misdoce' && view !== 'misdoce') flushMisDoceSave();
       state.view = view;
       qsa('.view').forEach(v => v.classList.remove('is-visible'));
       const section = qs(`#view-${view}`);
@@ -485,18 +493,35 @@ btnBack?.addEventListener('click', () => {
       return (cachedProfile && cachedProfile.role) ? String(cachedProfile.role) : 'user';
     };
 
-    // División actual del usuario (según profiles). Reutiliza el mismo cache
-    // que getRole(); requiere que getRole()/getDivision() se haya llamado al
-    // menos una vez para poblar cachedProfile.
-    const getDivision = async () => {
-      if (!cachedProfile) {
-        try {
-          cachedProfile = normalizeProfile(await getMyProfile(supabase, user.id));
-        } catch {
-          cachedProfile = null;
-        }
+    // División(es) reales del usuario, derivadas de sus escuadrones asignados
+    // (leader_squads para leader, user_squads para user), NO de
+    // profiles.division/squad_code — esas columnas quedaron deprecadas
+    // (Opción A, ago 2026): solo guardaban el PRIMER escuadrón del array,
+    // así que eran incorrectas para cualquiera con más de un escuadrón
+    // (ej. un Líder de Escuadrón que maneja un squad Maker y uno Taker).
+    // División se deriva del sufijo del squad_code: T→takers, M→makers.
+    const divisionFromSquadCode = (code) => {
+      if (!code) return null;
+      const c = String(code).toUpperCase();
+      if (c.endsWith('T')) return 'takers';
+      if (c.endsWith('M')) return 'makers';
+      return null;
+    };
+
+    let cachedMyDivisions = null;
+    const getMyDivisions = async () => {
+      if (cachedMyDivisions) return cachedMyDivisions;
+      const role = await getRole();
+      let codes = [];
+      if (role === 'leader') {
+        const res = await supabase.from('leader_squads').select('squad_code').eq('leader_id', user.id);
+        codes = (res.data || []).map(r => r.squad_code).filter(Boolean);
+      } else if (role === 'user') {
+        const res = await supabase.from('user_squads').select('squad_code').eq('user_id', user.id);
+        codes = (res.data || []).map(r => r.squad_code).filter(Boolean);
       }
-      return (cachedProfile && cachedProfile.division) ? String(cachedProfile.division) : null;
+      cachedMyDivisions = new Set(codes.map(divisionFromSquadCode).filter(Boolean));
+      return cachedMyDivisions;
     };
 
     const escapeHtml = (s) => {
@@ -516,6 +541,11 @@ btnBack?.addEventListener('click', () => {
 
     const reviewSquadTitle = qs('#reviewSquadTitle');
     const reviewSquadSelect = qs('#reviewSquadSelect');
+    // Copia del listado completo de escuadrones (el que ve Admin del App),
+    // capturada tal cual viene en el HTML, para poder reconstruir un
+    // subconjunto de opciones cuando un Líder de Escuadrón maneja varios
+    // escuadrones (ver configureReviewSquadFilter).
+    const reviewSquadSelectFullHTML = reviewSquadSelect ? reviewSquadSelect.innerHTML : '';
     const reviewUserSelect = qs('#reviewUserSelect');
     const reviewUserStatus = qs('#reviewUserStatus');
     const reviewWeeksGrid = qs('#reviewWeeksGrid');
@@ -574,12 +604,14 @@ btnBack?.addEventListener('click', () => {
 
     const paintReviewWeekTiles = () => {
       if (!reviewWeeksGrid) return;
+      const currentWeekNum = getCurrentWeekNumber();
       qsa('.week', reviewWeeksGrid).forEach(w => {
         const n = Number(w.dataset.week);
         w.classList.toggle('is-done', !!reviewState.userWeeksDone[String(n)]);
         const reviewed = !!reviewState.weeksReviewed[String(n)];
         w.classList.toggle('is-selected', reviewState.week === n);
         w.classList.toggle('is-reviewed', reviewed);
+        w.classList.toggle('is-current', currentWeekNum != null && n === currentWeekNum);
       });
     };
 
@@ -624,7 +656,7 @@ btnBack?.addEventListener('click', () => {
 	      // auth user id and profile id, and to never show leaders/admins here.
 	      const res = await supabase
 	        .from('profiles')
-	        .select('id, full_name, role, division')
+	        .select('id, full_name, role')
 	        .in('id', ids)
 	        .eq('role', 'user')
 	        .eq('active', true)
@@ -654,7 +686,7 @@ btnBack?.addEventListener('click', () => {
 
 	      let q = supabase
 	        .from('profiles')
-	        .select('id, full_name, role, division')
+	        .select('id, full_name, role')
 	        .in('role', ['leader', 'user'])
 	        .eq('active', true)
 	        .neq('id', user.id)
@@ -676,6 +708,43 @@ btnBack?.addEventListener('click', () => {
 	      });
 	    };
 
+	    // Adjunta a cada candidato de "Usuario a revisar" un flag hideTakers,
+	    // derivado de sus escuadrones REALES (leader_squads para role=leader,
+	    // user_squads para role=user) — no de profiles.division (deprecado).
+	    // hideTakers = true solo si tiene al menos un escuadrón asignado y
+	    // NINGUNO es Taker (es decir, es 100% Maker). Sin escuadrones asignados
+	    // (caso raro/edge), no se oculta por defecto.
+	    const attachHideTakersFlag = async (users) => {
+	      if (!users.length) return users;
+	      const leaderIds = users.filter(u => u.role === 'leader').map(u => u.id);
+	      const userIds = users.filter(u => u.role === 'user').map(u => u.id);
+
+	      const [leaderRes, userRes] = await Promise.all([
+	        leaderIds.length
+	          ? supabase.from('leader_squads').select('leader_id, squad_code').in('leader_id', leaderIds)
+	          : Promise.resolve({ data: [] }),
+	        userIds.length
+	          ? supabase.from('user_squads').select('user_id, squad_code').in('user_id', userIds)
+	          : Promise.resolve({ data: [] }),
+	      ]);
+
+	      const divisionsById = new Map();
+	      const addCode = (id, code) => {
+	        const div = divisionFromSquadCode(code);
+	        if (!div || !id) return;
+	        if (!divisionsById.has(id)) divisionsById.set(id, new Set());
+	        divisionsById.get(id).add(div);
+	      };
+	      (leaderRes.data || []).forEach(r => addCode(r.leader_id, r.squad_code));
+	      (userRes.data || []).forEach(r => addCode(r.user_id, r.squad_code));
+
+	      return users.map(u => {
+	        const divs = divisionsById.get(u.id);
+	        const hideTakers = !!(divs && divs.size > 0 && !divs.has('takers'));
+	        return { ...u, hideTakers };
+	      });
+	    };
+
 	    const renderReviewUserOptions = (users) => {
 	      reviewUserSelect.innerHTML = '<option value="">Selecciona…</option>';
 	      const sorted = sortReviewUsers(users);
@@ -693,7 +762,7 @@ btnBack?.addEventListener('click', () => {
 	        const opt = document.createElement('option');
 	        opt.value = u.id;
 	        opt.textContent = u.full_name || u.id;
-	        opt.dataset.division = u.division || '';
+	        opt.dataset.hideTakers = u.hideTakers ? '1' : '0';
 	        if (mixed && u.role === 'leader') groupLeaders.appendChild(opt);
 	        else if (mixed && u.role === 'user') groupUsers.appendChild(opt);
 	        else reviewUserSelect.appendChild(opt);
@@ -702,16 +771,67 @@ btnBack?.addEventListener('click', () => {
 	      if (groupUsers && groupUsers.childElementCount) reviewUserSelect.appendChild(groupUsers);
 	    };
 
+    // Configura visibilidad/opciones del selector "Escuadrón" en Revisión de
+    // Notas según el rol:
+    // - Admin del App: ve el listado completo de los 10 escuadrones (como siempre).
+    // - Líder de Escuadrón: solo ve el selector si administra MÁS DE UN
+    //   escuadrón (leader_squads), y en ese caso solo se listan sus propios
+    //   escuadrones — nunca los de otros líderes. Con un solo escuadrón
+    //   asignado, el selector se oculta (ya está implícitamente filtrado).
+    // - Líder de Célula: no debería llegar a esta vista (bloqueado antes).
+    const configureReviewSquadFilter = async (role) => {
+      if (!reviewSquadTitle || !reviewSquadSelect) return;
+
+      if (role === 'admin') {
+        reviewSquadSelect.innerHTML = reviewSquadSelectFullHTML;
+        reviewSquadTitle.classList.remove('is-hidden');
+        reviewSquadSelect.classList.remove('is-hidden');
+        return;
+      }
+
+      if (role === 'leader') {
+        const mySquads = await loadLeaderSquadCodes();
+        if (mySquads.length > 1) {
+          const tmp = document.createElement('select');
+          tmp.innerHTML = reviewSquadSelectFullHTML;
+          const mine = Array.from(tmp.options).filter(o => mySquads.includes(o.value));
+
+          reviewSquadSelect.innerHTML = '';
+          const optAll = document.createElement('option');
+          optAll.value = '';
+          optAll.textContent = 'Todos mis escuadrones';
+          reviewSquadSelect.appendChild(optAll);
+          mine.forEach(o => reviewSquadSelect.appendChild(o.cloneNode(true)));
+
+          reviewSquadTitle.classList.remove('is-hidden');
+          reviewSquadSelect.classList.remove('is-hidden');
+          return;
+        }
+      }
+
+      // Un solo escuadrón (o rol sin escuadrones múltiples): ocultar filtro.
+      reviewSquadSelect.value = '';
+      reviewSquadTitle.classList.add('is-hidden');
+      reviewSquadSelect.classList.add('is-hidden');
+    };
+
     const loadReviewUsers = async () => {
       if (!reviewUserSelect) return;
       reviewUserSelect.innerHTML = '<option value="">Cargando…</option>';
       setReviewStatus('Cargando usuarios…');
 
       const role = await getRole();
-      const users = (role === 'admin')
-        ? await loadAllActiveUsersForAdmin(reviewSquadSelect?.value || '')
-        : await loadProfilesByIds(await loadUsersInSquads(await loadLeaderSquadCodes()));
+      let users;
+      if (role === 'admin') {
+        users = await loadAllActiveUsersForAdmin(reviewSquadSelect?.value || '');
+      } else {
+        const mySquads = await loadLeaderSquadCodes();
+        const selectedSquad = reviewSquadSelect?.value || '';
+        const squadsToQuery = selectedSquad ? [selectedSquad] : mySquads;
+        users = await loadProfilesByIds(await loadUsersInSquads(squadsToQuery));
+      }
 
+      users = await attachHideTakersFlag(users);
       renderReviewUserOptions(users);
 
       const emptyMsg = (role === 'admin') ? 'No hay usuarios registrados.' : 'No tienes usuarios asignados.';
@@ -758,11 +878,11 @@ btnBack?.addEventListener('click', () => {
       resetReviewWeekUI();
       paintReviewWeekTiles();
 
-      // Ocultar el pill "Takers" al revisar a un líder/usuario de división
-      // Makers (Takers no aplica a esa división). Sin selección, se muestra
+      // Ocultar el pill "Takers" al revisar a alguien cuyos escuadrones son
+      // 100% Maker (ver attachHideTakersFlag). Sin selección, se muestra
       // por defecto.
-      const reviewedDivision = selectedOpt ? (selectedOpt.dataset.division || '') : '';
-      btnReviewTakers?.classList.toggle('is-hidden', reviewedDivision === 'makers');
+      const hideTakers = selectedOpt ? (selectedOpt.dataset.hideTakers === '1') : false;
+      btnReviewTakers?.classList.toggle('is-hidden', hideTakers);
 
       if (!id) {
         setReviewStatus('');
@@ -933,21 +1053,28 @@ btnBack?.addEventListener('click', () => {
     })();
 
     // Ocultar la hoja "Takers" en Notas propias a Líder de Célula y Líder de
-    // Escuadrón cuando su división es Makers (Takers solo aplica a división
-    // Takers). Admin del App no se filtra por división aquí.
+    // Escuadrón cuando NINGUNO de sus escuadrones es Taker (Takers solo
+    // aplica a división Takers). Si maneja/pertenece a al menos un escuadrón
+    // Taker (aunque también tenga uno Maker), se muestra igual. Admin del
+    // App no se filtra por división aquí.
     (async () => {
       try {
         const role = await getRole();
-        const division = await getDivision();
-        if ((role === 'leader' || role === 'user') && division === 'makers') {
-          const btnNoteTakersEl = qs('#btnNoteTakers');
-          btnNoteTakersEl?.classList.add('is-hidden');
+        if (role === 'leader' || role === 'user') {
+          const divisions = await getMyDivisions();
+          const hasAnySquad = divisions.size > 0;
+          const hasTakers = divisions.has('takers');
+          if (hasAnySquad && !hasTakers) {
+            const btnNoteTakersEl = qs('#btnNoteTakers');
+            btnNoteTakersEl?.classList.add('is-hidden');
+          }
         }
       } catch {}
     })();
 
-    // El filtro de Escuadrón solo aplica a admin (un leader ya solo ve su propio
-    // escuadrón por RLS/scope). El listener se registra una sola vez.
+    // El filtro de Escuadrón aplica a Admin del App siempre, y a Líder de
+    // Escuadrón solo cuando administra más de un escuadrón (ver
+    // configureReviewSquadFilter). El listener se registra una sola vez.
     reviewSquadSelect?.addEventListener('change', () => {
       loadReviewUsers();
     });
@@ -959,9 +1086,7 @@ btnBack?.addEventListener('click', () => {
           setReviewStatus('Solo disponible para líderes y administradores.');
           return;
         }
-        const isAdminRole = (role === 'admin');
-        reviewSquadTitle?.classList.toggle('is-hidden', !isAdminRole);
-        reviewSquadSelect?.classList.toggle('is-hidden', !isAdminRole);
+        await configureReviewSquadFilter(role);
 
         if (reviewWeeksGrid && !reviewWeeksGrid.dataset.ready) {
           populateReviewWeeks();
@@ -1480,6 +1605,11 @@ btnBack?.addEventListener('click', () => {
     const btnNoteCultos = qs('#btnNoteCultos');
     const btnNoteLideres = qs('#btnNoteLideres');
 
+    // Notas de revisión (solo lectura, dentro de la semana propia)
+    const myReviewNotesBox = qs('#myReviewNotesBox');
+    const myReviewNotesStatus = qs('#myReviewNotesStatus');
+    const myReviewNotesList = qs('#myReviewNotesList');
+
     const STORAGE_KEY = 'bitacora_week_completed_v1';
     const completed = (() => {
       try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
@@ -1506,6 +1636,67 @@ btnBack?.addEventListener('click', () => {
         if (r && r.week != null) myWeeksReviewed[String(r.week)] = true;
       });
       qsa('.week', weeksGrid).forEach(w => markWeekTile(Number(w.dataset.week)));
+    };
+
+    // Muestra "Notas de revisión" (solo lectura) en la pantalla de semana
+    // propia, únicamente cuando esa semana ya fue marcada como supervisada
+    // (myWeeksReviewed). El resto de semanas la mantiene oculta por completo.
+    // Trae los comentarios (note_feedback) de las notas de esa semana; RLS
+    // (note_feedback_select_owner_reviewer_admin_leader) ya permite al dueño
+    // de la nota leer sus propios comentarios.
+    const loadMyReviewNotesForWeek = async (weekNum) => {
+      if (!myReviewNotesBox) return;
+
+      if (!myWeeksReviewed[String(weekNum)]) {
+        myReviewNotesBox.classList.add('is-hidden');
+        if (myReviewNotesList) myReviewNotesList.innerHTML = '';
+        if (myReviewNotesStatus) myReviewNotesStatus.textContent = '';
+        return;
+      }
+
+      myReviewNotesBox.classList.remove('is-hidden');
+      if (myReviewNotesStatus) myReviewNotesStatus.textContent = 'Cargando…';
+      if (myReviewNotesList) myReviewNotesList.innerHTML = '';
+
+      const notesRes = await supabase
+        .from('notes')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('week', weekNum);
+
+      const noteIds = (notesRes.data || []).map(r => r?.id).filter(Boolean);
+      if (notesRes.error || !noteIds.length) {
+        if (myReviewNotesStatus) myReviewNotesStatus.textContent = 'Sin notas de revisión para esta semana.';
+        return;
+      }
+
+      const fbRes = await supabase
+        .from('note_feedback')
+        .select('id, comment, created_at')
+        .in('note_id', noteIds)
+        .order('created_at', { ascending: false });
+
+      if (fbRes.error) {
+        if (myReviewNotesStatus) myReviewNotesStatus.textContent = 'No se pudo cargar las notas de revisión.';
+        return;
+      }
+
+      const rows = fbRes.data || [];
+      if (!rows.length) {
+        if (myReviewNotesStatus) myReviewNotesStatus.textContent = 'Semana marcada como supervisada, sin comentarios aún.';
+        return;
+      }
+
+      if (myReviewNotesStatus) myReviewNotesStatus.textContent = '';
+      if (myReviewNotesList) {
+        myReviewNotesList.innerHTML = rows.map(r => {
+          const d = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+          return `<div class="panel" style="padding:10px; margin:0 0 10px 0;">
+            <div class="muted tiny">${escapeHtml(d)}</div>
+            <div style="white-space:pre-wrap;">${escapeHtml(r.comment || '')}</div>
+          </div>`;
+        }).join('');
+      }
     };
 
     const setWeekScreenVisible = (visible) => {
@@ -1613,6 +1804,7 @@ btnBack?.addEventListener('click', () => {
       updateMeta();
       updateNotesCrumb();
       updateNotesHeaderActions();
+      loadMyReviewNotesForWeek(weekNum);
     };
 
     // Volver del detalle de semana al selector (usada por el botón único Atrás)
@@ -3271,11 +3463,12 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     initRTE();
 
-    // ---- Mis Doce: tabla tipo excel (solo UI; persistencia luego con Supabase)
+    // ---- Mis Doce: tabla tipo excel, persistida en Supabase (tabla mis_doce) ----
     const misDoceBody = qs('#misDoceBody');
     const btnMdAddRow = qs('#btnMdAddRow');
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
     const btnMdShareAll = qs('#btnMdShareAll');
+    const mdSaveStatus = qs('#mdSaveStatus');
 
     // ---- Wheel de DRC (solo visual en móvil) ------------------------------
     // Mismo look que .dc-optwheel ("Asistencia"), pero con su propia clase
@@ -3430,6 +3623,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     const mdClearRow = (tr) => {
       if (!tr) return;
+      delete tr.dataset.mdId; // nunca heredar el id de la fila clonada como template
       qsa('input[type="text"]', tr).forEach(inp => { inp.value = ''; });
       qsa('input[type="checkbox"]', tr).forEach(chk => { chk.checked = false; });
       const sel = qs('select', tr);
@@ -3475,6 +3669,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       misDoceBody.appendChild(tr);
       initDcWheels();
       initDrcWheels();
+      scheduleMisDoceSave();
     };
 
     const mdRemoveRow = () => {
@@ -3482,6 +3677,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       const rows = qsa('tr', misDoceBody);
       if (rows.length <= 1) return;
       rows[rows.length - 1].remove();
+      scheduleMisDoceSave();
     };
 
     btnMdAddRow?.addEventListener('click', mdAddRow);
@@ -3602,19 +3798,205 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
     });
 
-    // Defaults: tabla arranca con 4 filas (HTML). Si quedara en blanco por cambios futuros, garantiza 4.
-    (() => {
+    // ---- Persistencia (tabla mis_doce en Supabase) ----
+    // Estrategia: autosave con debounce sobre TODO lo que cambia dentro de
+    // #misDoceBody (nombre, cumpleaños, plan, DRC, zona) + guardado explícito
+    // al tocar el link de Waze y al agregar/quitar filas. No hay botón
+    // "Guardar": se comporta como una hoja de cálculo (igual filosofía que
+    // el resto de "Mis Doce", que nunca tuvo un flujo de guardado manual).
+    const setMdStatus = (msg) => { if (mdSaveStatus) mdSaveStatus.textContent = msg || ''; };
+
+    let mdKnownIds = new Set(); // ids que existen en el servidor (para detectar borrados)
+    let mdSaveTimer = null;
+    let mdSaving = false;
+    let mdSaveQueued = false;
+
+    const MD_PLAN_CODES = ['LE', 'CN', 'AC', 'LI', 'CC'];
+
+    const mdReadRow = (tr) => {
+      const name = (qs('.md-name', tr)?.value || '').trim();
+      const wheels = qsa('.dc-wheel__value', tr); // [0]=día, [1]=mes (orden del DOM)
+      const dayRaw = wheels[0]?.value || '';
+      const monthRaw = wheels[1]?.value || '';
+      const plans = {};
+      MD_PLAN_CODES.forEach(code => {
+        plans[`plan_${code.toLowerCase()}`] = !!qs(`.md-plan-input[data-plan="${code}"]`, tr)?.checked;
+      });
+      const drc = qs('.md-drc', tr)?.value || 'N/A';
+      const zona = (qs('.md-zona', tr)?.value || '').trim();
+      const wazeBtn = qs('.md-waze-btn', tr);
+      return {
+        name,
+        birthday_day: dayRaw ? Number(dayRaw) : null,
+        birthday_month: monthRaw ? Number(monthRaw) : null,
+        ...plans,
+        drc,
+        zona: zona || null,
+        waze_link: wazeBtn?.dataset.link || null,
+      };
+    };
+
+    const mdCollectRows = () => {
+      if (!misDoceBody) return [];
+      return qsa('tr', misDoceBody).map((tr, idx) => ({
+        tr,
+        id: tr.dataset.mdId || null,
+        position: idx,
+        ...mdReadRow(tr),
+      }));
+    };
+
+    const saveMisDoceNow = async () => {
       if (!misDoceBody) return;
-      const rows = qsa('tr', misDoceBody);
-      if (!rows.length) {
-        for (let i=0; i<4; i++) mdAddRow();
+      if (mdSaving) { mdSaveQueued = true; return; }
+      mdSaving = true;
+      clearTimeout(mdSaveTimer);
+      setMdStatus('Guardando…');
+      try {
+        const rows = mdCollectRows();
+        const currentIds = new Set(rows.filter(r => r.id).map(r => r.id));
+
+        // Filas que existían en el servidor pero ya no están en el DOM (se quitaron con "−").
+        const toDelete = [...mdKnownIds].filter(id => !currentIds.has(id));
+        if (toDelete.length) {
+          const { error } = await supabase.from('mis_doce').delete().in('id', toDelete);
+          if (!error) toDelete.forEach(id => mdKnownIds.delete(id));
+        }
+
+        for (const r of rows) {
+          const payload = {
+            position: r.position,
+            name: r.name,
+            birthday_day: r.birthday_day,
+            birthday_month: r.birthday_month,
+            plan_le: r.plan_le,
+            plan_cn: r.plan_cn,
+            plan_ac: r.plan_ac,
+            plan_li: r.plan_li,
+            plan_cc: r.plan_cc,
+            drc: r.drc,
+            zona: r.zona,
+            waze_link: r.waze_link,
+          };
+          if (r.id) {
+            await supabase.from('mis_doce').update(payload).eq('id', r.id);
+          } else {
+            const { data, error } = await supabase.from('mis_doce').insert(payload).select('id').single();
+            if (!error && data?.id) {
+              r.tr.dataset.mdId = data.id;
+              mdKnownIds.add(data.id);
+            }
+          }
+        }
+        setMdStatus('Guardado.');
+      } catch {
+        setMdStatus('No se pudo guardar.');
+      } finally {
+        mdSaving = false;
+        if (mdSaveQueued) {
+          mdSaveQueued = false;
+          await saveMisDoceNow();
+        }
+      }
+    };
+
+    // Reasigna la implementación real sobre el placeholder declarado al
+    // inicio del script (ver comentario junto a "let flushMisDoceSave").
+    flushMisDoceSave = saveMisDoceNow;
+
+    const scheduleMisDoceSave = () => {
+      setMdStatus('Editando…');
+      clearTimeout(mdSaveTimer);
+      mdSaveTimer = setTimeout(saveMisDoceNow, 700);
+    };
+
+    // Delegado sobre #misDoceBody: cualquier input/change dentro de una fila
+    // agenda un guardado. Cubre nombre, cumpleaños (wheels disparan estos
+    // mismos eventos vía commitDcWheelValue), checkboxes del plan, DRC y zona.
+    misDoceBody?.addEventListener('input', scheduleMisDoceSave);
+    misDoceBody?.addEventListener('change', scheduleMisDoceSave);
+
+    // Guardar/quitar link de Waze no dispara input/change nativo (se maneja
+    // por dataset), así que se agenda el guardado a mano en esos botones.
+    mdWazeSaveBtn?.addEventListener('click', scheduleMisDoceSave);
+    mdWazeRemoveBtn?.addEventListener('click', scheduleMisDoceSave);
+
+    // Vuelca en una fila (ya clonada del template) los datos de un registro
+    // del servidor. Usa asignación directa de .value (NO dispara eventos)
+    // para no generar un guardado innecesario durante la carga inicial.
+    const mdPopulateRow = (tr, row) => {
+      tr.dataset.mdId = row.id;
+
+      const nameInput = qs('.md-name', tr);
+      if (nameInput) nameInput.value = row.name || '';
+
+      const wheels = qsa('.dc-wheel__value', tr);
+      if (wheels[0]) wheels[0].value = row.birthday_day != null ? String(row.birthday_day) : '';
+      if (wheels[1]) wheels[1].value = row.birthday_month != null ? String(row.birthday_month) : '';
+
+      MD_PLAN_CODES.forEach(code => {
+        const chk = qs(`.md-plan-input[data-plan="${code}"]`, tr);
+        if (chk) chk.checked = !!row[`plan_${code.toLowerCase()}`];
+      });
+
+      const drcSelect = qs('.md-drc', tr);
+      if (drcSelect) drcSelect.value = row.drc || 'N/A';
+      syncDrcWheelLabel(tr);
+
+      const zonaInput = qs('.md-zona', tr);
+      if (zonaInput) zonaInput.value = row.zona || '';
+
+      const wazeBtn = qs('.md-waze-btn', tr);
+      mdSetWazeLink(wazeBtn, row.waze_link || '');
+
+      mdUpdateZonaState(tr);
+    };
+
+    const loadMisDoce = async () => {
+      if (!misDoceBody) return;
+      setMdStatus('Cargando…');
+      const { data, error } = await supabase
+        .from('mis_doce')
+        .select('*')
+        .order('position', { ascending: true });
+
+      if (error) {
+        setMdStatus('No se pudo cargar tu lista.');
         return;
       }
-      // Filas ya presentes en el HTML: asegurar estado inicial de Zona y del wheel de DRC.
-      initDrcWheels();
-      rows.forEach(mdUpdateZonaState);
-    })();
 
+      const rows = data || [];
+      mdKnownIds = new Set(rows.map(r => r.id));
+
+      const tpl = qs('tr', misDoceBody);
+      if (!tpl) return;
+      const cleanTpl = tpl.cloneNode(true);
+      mdClearRow(cleanTpl);
+      mdResetClonedWheels(cleanTpl);
+      delete cleanTpl.dataset.mdId;
+
+      misDoceBody.innerHTML = '';
+
+      rows.forEach(row => {
+        const tr = cleanTpl.cloneNode(true);
+        misDoceBody.appendChild(tr);
+        mdResetClonedWheels(tr);
+        mdPopulateRow(tr, row);
+      });
+
+      initDcWheels();
+      initDrcWheels();
+
+      if (!rows.length) {
+        // Cuenta nueva: 4 filas en blanco de arranque (igual que antes),
+        // pero ahora sí se guardan al primer cambio.
+        for (let i = 0; i < 4; i++) mdAddRow();
+      }
+
+      setMdStatus('');
+    };
+
+    loadMisDoce();
 
   })();
 })();

@@ -1027,6 +1027,101 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     });
   }
 
+  // Editar escuadrón(es) de un usuario ya existente: reutiliza el mismo
+  // modal genérico (matConfirmModal) que showMatConfirm/showMatPrompt,
+  // inyectando los mismos checkboxes Makers/Takers que el formulario de
+  // invitar (mismo agrupamiento que ALLOWED_SQUADS en bright-task.ts /
+  // manage-users.ts). Devuelve el array de códigos marcados (puede ser
+  // vacío = sin escuadrón) o null si se canceló.
+  const SQUAD_GROUPS = [
+    { label: "Makers", codes: ["URM", "UVM", "UAM", "UNM", "UAZM"] },
+    { label: "Takers", codes: ["URT", "UVT", "UAT", "UNT", "UAZT"] },
+  ];
+
+  function showMatSquadPicker({ title = "Editar escuadrón", initialSquads = [] } = {}) {
+    return new Promise((resolve) => {
+      if (!matConfirmModal) {
+        resolve(null);
+        return;
+      }
+
+      if (matConfirmModalTitle) matConfirmModalTitle.textContent = title;
+      if (matConfirmModalBody) {
+        matConfirmModalBody.innerHTML = "";
+        const wrap = document.createElement("div");
+        wrap.style.display = "grid";
+        wrap.style.gap = "16px";
+        SQUAD_GROUPS.forEach((group) => {
+          const groupDiv = document.createElement("div");
+          const groupLabel = document.createElement("div");
+          groupLabel.className = "muted small";
+          groupLabel.style.fontWeight = "600";
+          groupLabel.textContent = group.label;
+          groupDiv.appendChild(groupLabel);
+
+          const row = document.createElement("div");
+          row.style.display = "flex";
+          row.style.flexWrap = "wrap";
+          row.style.gap = "16px";
+          row.style.marginTop = "6px";
+
+          group.codes.forEach((code) => {
+            const label = document.createElement("label");
+            label.style.display = "flex";
+            label.style.gap = "8px";
+            label.style.alignItems = "center";
+            label.style.margin = "0";
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.name = "matSquadPick";
+            input.value = code;
+            input.checked = initialSquads.includes(code);
+            const span = document.createElement("span");
+            span.textContent = code;
+            label.appendChild(input);
+            label.appendChild(span);
+            row.appendChild(label);
+          });
+
+          groupDiv.appendChild(row);
+          wrap.appendChild(groupDiv);
+        });
+        matConfirmModalBody.appendChild(wrap);
+      }
+      if (matConfirmModalOk) {
+        matConfirmModalOk.textContent = "Guardar";
+        matConfirmModalOk.classList.remove("mat-modal-btn--danger");
+        matConfirmModalOk.classList.add("mat-modal-btn--primary");
+      }
+      matConfirmModal.classList.remove("is-hidden");
+
+      const restoreOkStyle = () => {
+        matConfirmModalOk?.classList.remove("mat-modal-btn--primary");
+        matConfirmModalOk?.classList.add("mat-modal-btn--danger");
+      };
+      const cleanup = (result) => {
+        matConfirmModal.classList.add("is-hidden");
+        restoreOkStyle();
+        matConfirmModalOk?.removeEventListener("click", onOk);
+        matConfirmModalCancel?.removeEventListener("click", onCancel);
+        matConfirmModal.removeEventListener("click", onOverlay);
+        resolve(result);
+      };
+      const onOk = () => {
+        const checked = Array.from(
+          matConfirmModalBody.querySelectorAll('input[name="matSquadPick"]:checked')
+        ).map((el) => el.value);
+        cleanup(checked);
+      };
+      const onCancel = () => cleanup(null);
+      const onOverlay = (e) => { if (e.target === matConfirmModal) cleanup(null); };
+
+      matConfirmModalOk?.addEventListener("click", onOk);
+      matConfirmModalCancel?.addEventListener("click", onCancel);
+      matConfirmModal.addEventListener("click", onOverlay);
+    });
+  }
+
   const matState = { currentFolderId: null };
 
   let matBusy = false;
@@ -2073,6 +2168,44 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         await loadAllUsers();
       });
       tdActions.appendChild(btnRename);
+
+      // Editar escuadrón: solo aplica a Líder_de_Escuadrón y Líder_de_Célula
+      // (admin/pastor no tienen escuadrón propio, ver notas en bright-task
+      // / manage-users sobre por qué esas tablas quedan vacías para ellos).
+      if (u.role === "leader" || u.role === "user") {
+        const btnSquad = document.createElement("button");
+        btnSquad.type = "button";
+        btnSquad.className = "mat-icon-btn";
+        btnSquad.title = "Editar escuadrón";
+        btnSquad.setAttribute("aria-label", "Editar escuadrón");
+        btnSquad.innerHTML = '<i class="fa-solid fa-people-group"></i>';
+        btnSquad.addEventListener("click", async () => {
+          if (usersBusy) return;
+          const picked = await showMatSquadPicker({
+            title: `Escuadrón de ${u.full_name || u.email}`,
+            initialSquads: u.squads || [],
+          });
+          if (picked === null) return; // cancelado
+
+          usersBusy = true;
+          btnSquad.disabled = true;
+          const { data, error } = await callManageUsersEdge(supabase, {
+            action: "update",
+            user_id: u.id,
+            squads: picked,
+          });
+          usersBusy = false;
+          btnSquad.disabled = false;
+
+          if (error || !data?.ok) {
+            setMsg("usersMsg", (data && data.error) || "No se pudo actualizar el escuadrón.", true);
+            return;
+          }
+          setMsg("usersMsg", "Escuadrón actualizado.", false);
+          await loadAllUsers();
+        });
+        tdActions.appendChild(btnSquad);
+      }
 
       if (!isSelf) {
         const btnDelete = document.createElement("button");

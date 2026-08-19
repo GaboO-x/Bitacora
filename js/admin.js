@@ -958,6 +958,66 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     });
   }
 
+  // Renombrar carpeta/material: reutiliza el mismo modal visual que
+  // showMatConfirm (mismo lenguaje visual que app.html), pero reemplaza el
+  // cuerpo por un <input> y el botón OK pasa de "danger" (Eliminar) a
+  // "primary" (Guardar). Devuelve el nombre nuevo (trim) o null si se
+  // canceló / quedó vacío.
+  function showMatPrompt({ title = "Renombrar", initialValue = "", confirmLabel = "Guardar" } = {}) {
+    return new Promise((resolve) => {
+      if (!matConfirmModal) {
+        const val = window.prompt(title, initialValue);
+        resolve(val === null ? null : val.trim() || null);
+        return;
+      }
+
+      if (matConfirmModalTitle) matConfirmModalTitle.textContent = title;
+      if (matConfirmModalBody) {
+        matConfirmModalBody.innerHTML = "";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.id = "matPromptInput";
+        input.value = initialValue;
+        matConfirmModalBody.appendChild(input);
+      }
+      if (matConfirmModalOk) {
+        matConfirmModalOk.textContent = confirmLabel;
+        matConfirmModalOk.classList.remove("mat-modal-btn--danger");
+        matConfirmModalOk.classList.add("mat-modal-btn--primary");
+      }
+      matConfirmModal.classList.remove("is-hidden");
+
+      const input = document.getElementById("matPromptInput");
+      setTimeout(() => { input?.focus(); input?.select(); }, 0);
+
+      const restoreOkStyle = () => {
+        matConfirmModalOk?.classList.remove("mat-modal-btn--primary");
+        matConfirmModalOk?.classList.add("mat-modal-btn--danger");
+      };
+      const cleanup = (result) => {
+        matConfirmModal.classList.add("is-hidden");
+        restoreOkStyle();
+        matConfirmModalOk?.removeEventListener("click", onOk);
+        matConfirmModalCancel?.removeEventListener("click", onCancel);
+        matConfirmModal.removeEventListener("click", onOverlay);
+        input?.removeEventListener("keydown", onKeydown);
+        resolve(result);
+      };
+      const onOk = () => cleanup((input?.value || "").trim() || null);
+      const onCancel = () => cleanup(null);
+      const onOverlay = (e) => { if (e.target === matConfirmModal) cleanup(null); };
+      const onKeydown = (e) => {
+        if (e.key === "Enter") { e.preventDefault(); onOk(); }
+        if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+      };
+
+      matConfirmModalOk?.addEventListener("click", onOk);
+      matConfirmModalCancel?.addEventListener("click", onCancel);
+      matConfirmModal.addEventListener("click", onOverlay);
+      input?.addEventListener("keydown", onKeydown);
+    });
+  }
+
   const matState = { currentFolderId: null };
 
   let matBusy = false;
@@ -1297,6 +1357,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           <button type="button" class="mat-icon-btn" data-mat-open-folder="${id}" title="Abrir" aria-label="Abrir"><i class="fa-solid fa-eye"></i></button>
           <button type="button" class="mat-icon-btn" data-mat-folder-toggle-move data-id="${id}" title="Mover" aria-label="Mover"><i class="fa-solid fa-up-down-left-right"></i></button>
           <select class="mat-move-select is-hidden" data-mat-folder-move-select data-id="${id}" title="Carpeta destino">${buildFolderOptionsHtml(f.parent_id || "", descendantIds)}</select>
+          <button type="button" class="mat-icon-btn" data-mat-folder-action="rename" data-id="${id}" title="Renombrar" aria-label="Renombrar"><i class="fa-solid fa-pen-to-square"></i></button>
           <button type="button" class="mat-icon-btn" data-mat-folder-action="delete" data-id="${id}" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
         </div>
       </div>`;
@@ -1343,6 +1404,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
             ${downloadBtn}
             <button type="button" class="mat-icon-btn" data-mat-toggle-move data-id="${escapeHtml(id)}" title="Mover" aria-label="Mover"><i class="fa-solid fa-up-down-left-right"></i></button>
             <select class="mat-move-select is-hidden" data-mat-move-select data-id="${escapeHtml(id)}" title="Carpeta destino">${buildFolderOptionsHtml(r.folder_id || "")}</select>
+            <button type="button" class="mat-icon-btn" data-mat-action="rename" data-id="${escapeHtml(id)}" title="Renombrar" aria-label="Renombrar"><i class="fa-solid fa-pen-to-square"></i></button>
             <button type="button" class="mat-icon-btn" data-mat-action="delete" data-id="${escapeHtml(id)}" title="Eliminar" aria-label="Eliminar"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
@@ -1463,15 +1525,45 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
   });
 
-  // Eliminar CARPETA (desde Contenido)
+  // Renombrar / Eliminar CARPETA (desde Contenido)
   matEls.list?.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button[data-mat-folder-action]");
     if (!btn) return;
     const action = btn.getAttribute("data-mat-folder-action");
     const id = btn.getAttribute("data-id");
-    if (action !== "delete" || !id) return;
+    if (!id) return;
     const folder = getMatFolderById(id);
     if (!folder) return;
+
+    if (action === "rename") {
+      if (matBusy) return;
+      const newName = await showMatPrompt({
+        title: "Renombrar carpeta",
+        initialValue: folder.name || "",
+        confirmLabel: "Guardar",
+      });
+      if (!newName || newName === folder.name) return;
+
+      matBusy = true;
+      btn.disabled = true;
+      try {
+        const { error } = await supabase
+          .from("material_folders")
+          .update({ name: newName })
+          .eq("id", id);
+
+        if (error) { setMatMsg(error.message, true); return; }
+
+        setMatMsg("Carpeta renombrada.", false);
+        await loadMaterials();
+      } finally {
+        btn.disabled = false;
+        matBusy = false;
+      }
+      return;
+    }
+
+    if (action !== "delete") return;
 
     if (matBusy) return;
     const ok = await showMatConfirm({
@@ -1500,13 +1592,46 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
   });
 
-  // Eliminar MATERIAL (desde Contenido)
+  // Renombrar / Eliminar MATERIAL (desde Contenido)
   matEls.list?.addEventListener("click", async (ev) => {
     const btn = ev.target?.closest?.("button[data-mat-action]");
     if (!btn) return;
     const action = btn.getAttribute("data-mat-action");
     const id = btn.getAttribute("data-id");
-    if (action !== "delete" || !id) return;
+    if (!id) return;
+
+    if (action === "rename") {
+      if (matBusy) return;
+      const row = matRows.find(r => r.id === id);
+      if (!row) return;
+
+      const newTitle = await showMatPrompt({
+        title: "Renombrar material",
+        initialValue: row.title || "",
+        confirmLabel: "Guardar",
+      });
+      if (!newTitle || newTitle === row.title) return;
+
+      matBusy = true;
+      btn.disabled = true;
+      try {
+        const { error } = await supabase
+          .from("materials")
+          .update({ title: newTitle })
+          .eq("id", id);
+
+        if (error) { setMatMsg(error.message, true); return; }
+
+        setMatMsg("Material renombrado.", false);
+        await loadMaterials();
+      } finally {
+        btn.disabled = false;
+        matBusy = false;
+      }
+      return;
+    }
+
+    if (action !== "delete") return;
 
     if (matBusy) return;
     const ok = await showMatConfirm({

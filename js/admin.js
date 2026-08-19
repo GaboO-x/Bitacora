@@ -2033,6 +2033,71 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       });
       tdActions.appendChild(btnReset);
 
+      const btnRename = document.createElement("button");
+      btnRename.type = "button";
+      btnRename.className = "secondary users-action-btn";
+      btnRename.textContent = "Editar nombre";
+      btnRename.addEventListener("click", async () => {
+        if (usersBusy) return;
+        const newName = await showMatPrompt({
+          title: "Editar nombre",
+          initialValue: u.full_name || "",
+          confirmLabel: "Guardar",
+        });
+        if (!newName || newName === u.full_name) return;
+
+        usersBusy = true;
+        btnRename.disabled = true;
+        const { data, error } = await callManageUsersEdge(supabase, {
+          action: "update",
+          user_id: u.id,
+          full_name: newName,
+        });
+        usersBusy = false;
+        btnRename.disabled = false;
+
+        if (error || !data?.ok) {
+          setMsg("usersMsg", (data && data.error) || "No se pudo actualizar el nombre.", true);
+          return;
+        }
+        setMsg("usersMsg", "Nombre actualizado.", false);
+        await loadAllUsers();
+      });
+      tdActions.appendChild(btnRename);
+
+      if (!isSelf) {
+        const btnDelete = document.createElement("button");
+        btnDelete.type = "button";
+        btnDelete.className = "secondary users-action-btn users-action-btn--danger";
+        btnDelete.textContent = "Eliminar";
+        btnDelete.addEventListener("click", async () => {
+          if (usersBusy) return;
+          const ok = await showMatConfirm({
+            title: "Eliminar usuario definitivamente",
+            body: `¿Eliminar a "${u.full_name || u.email}" (${ROLE_LABELS[u.role] || u.role}) para siempre? Esto borra su cuenta, sus notas propias y su historial de revisión. Esta acción NO se puede deshacer. Si solo querés desactivarlo temporalmente, usá "Block" en vez de esto.`,
+            confirmLabel: "Eliminar definitivamente",
+          });
+          if (!ok) return;
+
+          usersBusy = true;
+          btnDelete.disabled = true;
+          const { data, error } = await callManageUsersEdge(supabase, {
+            action: "delete",
+            user_id: u.id,
+          });
+          usersBusy = false;
+          btnDelete.disabled = false;
+
+          if (error || !data?.ok) {
+            setMsg("usersMsg", (data && data.error) || "No se pudo eliminar el usuario.", true);
+            return;
+          }
+          setMsg("usersMsg", "Usuario eliminado.", false);
+          await loadAllUsers();
+        });
+        tdActions.appendChild(btnDelete);
+      }
+
       tr.appendChild(tdActions);
       tbody.appendChild(tr);
     });

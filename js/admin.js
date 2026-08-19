@@ -169,11 +169,11 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     if (!email) return setMsg("msg", "Falta email.", true);
     if (!full_name) return setMsg("msg", "Falta nombre completo.", true);
 
-    // Backward-compatible fields (si el backend aún espera singular)
-    const division = divisions[0] || null;
-    const squad_code = squads[0] || null;
-
-    const payload = { email, full_name, role, divisions, squads, division, squad_code };
+    // division/squad_code singulares deprecados (Opción A, ago 2026):
+    // bright-task ya no los lee ni los persiste en profiles. Se manda solo
+    // el contrato multi (divisions/squads); la fuente de verdad son
+    // leader_squads/user_squads.
+    const payload = { email, full_name, role, divisions, squads };
 
     setMsg("msg", "Enviando invitación…", false);
     setInviteLoading(true);
@@ -658,6 +658,46 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return null;
   }
 
+  // Reconstruye el path real del objeto en Storage a partir de la URL
+  // guardada en la tabla (image_url). No hay columna que guarde el path
+  // "crudo" (filePath) por separado, así que hay que parsearlo desde la URL.
+  // Cubre tanto URL pública (/object/public/<bucket>/<path>) como firmada
+  // (/object/sign/<bucket>/<path>?token=...), por si algún registro viejo
+  // se guardó con signed URL (fallback de getPublicOrSignedUrl).
+  function extractStoragePathFromUrl(bucket, url) {
+    if (!url) return null;
+    try {
+      const marker = `/object/public/${bucket}/`;
+      const signMarker = `/object/sign/${bucket}/`;
+      let idx = url.indexOf(marker);
+      let raw;
+      if (idx !== -1) {
+        raw = url.slice(idx + marker.length);
+      } else {
+        idx = url.indexOf(signMarker);
+        if (idx === -1) return null;
+        raw = url.slice(idx + signMarker.length).split('?')[0];
+      }
+      return raw ? decodeURIComponent(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Borra el archivo real en Storage si existe. No es fatal si falla (el
+  // registro en la tabla igual se borra) — solo se loguea para no dejar al
+  // usuario colgado con un error de storage al borrar contenido.
+  async function tryDeleteStorageObject(bucket, url) {
+    const path = extractStoragePathFromUrl(bucket, url);
+    if (!path) return;
+    try {
+      const { error } = await supabase.storage.from(bucket).remove([path]);
+      if (error) console.warn(`No se pudo borrar el archivo en Storage (${bucket}/${path}):`, error.message);
+    } catch (e) {
+      console.warn(`Error borrando archivo en Storage (${bucket}/${path}):`, e);
+    }
+  }
+
   calEls.btnPublish?.addEventListener("click", async () => {
     if (calBusy) return;
 
@@ -736,6 +776,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     btn.textContent = "Procesando…";
 
     try {
+      const row = calRows.find(r => r.id === id);
+
       const { error } = await supabase
         .from("announcements")
         .delete()
@@ -745,6 +787,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         setCalMsg(error.message, true);
         return;
       }
+
+      if (row?.image_url) await tryDeleteStorageObject("announcements", row.image_url);
 
       setCalMsg("Anuncio eliminado.", false);
       await loadCalendarioPosts();
@@ -1469,12 +1513,16 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     btn.disabled = true;
 
     try {
+      const row = matRows.find(r => r.id === id);
+
       const { error } = await supabase
         .from("materials")
         .delete()
         .eq("id", id);
 
       if (error) { setMatMsg(error.message, true); return; }
+
+      if (row?.image_url) await tryDeleteStorageObject("materials", row.image_url);
 
       setMatMsg("Material eliminado.", false);
       await loadMaterials();

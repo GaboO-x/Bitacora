@@ -901,6 +901,15 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return "image";
   }
 
+  // Tipo usado para ORDENAR (distinto del ícono): agrupa archivo (por
+  // extensión) o enlace, alfabéticamente. Se usa en renderMatList para
+  // ordenar "primero por tipo, después por nombre".
+  function matSortTypeLabel(row) {
+    if (matHasFile(row)) return inferMatType(row); // 'image' | 'pdf' | 'ppt' | 'word'
+    if (matEffectiveLink(row)) return "link";
+    return "zzz"; // caso raro: sin archivo ni enlace, al final
+  }
+
   // Construye <option> jerárquicos indentados para los selects de carpeta.
   // selectedId (opcional) marca la opción actual como seleccionada.
   // excludeIds (opcional, Set) omite esas carpetas y todo su subárbol
@@ -1127,9 +1136,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   }
 
   function openMatFileModal() {
-    if (matModalTitleInput) matModalTitleInput.value = "";
+    if (matModalTitleInput) {
+      matModalTitleInput.value = "";
+      matModalTitleInput.disabled = false;
+      matModalTitleInput.placeholder = "Ej: Manual de discipulado";
+    }
     if (matModalFileInput) matModalFileInput.value = "";
-    if (matModalFileName) matModalFileName.textContent = "Seleccionar archivo…";
+    if (matModalFileName) matModalFileName.textContent = "Seleccionar o arrastrar archivo(s)…";
     if (matModalLinkUrl) matModalLinkUrl.value = "";
     matFileModalState.folderId = matState.currentFolderId || null;
     if (matModalFolderName) matModalFolderName.textContent = folderLabelFor(matFileModalState.folderId);
@@ -1147,9 +1160,67 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   });
 
   matModalFilePickBtn?.addEventListener("click", () => matModalFileInput?.click());
-  matModalFileInput?.addEventListener("change", () => {
-    const file = matModalFileInput.files?.[0] || null;
-    if (matModalFileName) matModalFileName.textContent = file ? file.name : "Seleccionar archivo…";
+
+  // Actualiza el label del botón y el campo Título según cuántos archivos
+  // hay seleccionados. Con 1 archivo: comportamiento de siempre (título
+  // manual opcional). Con varios: el título se ignora (cada archivo usa su
+  // propio nombre), así que el campo se deshabilita para no confundir.
+  function updateMatModalFileLabel() {
+    const files = matModalFileInput?.files;
+    const count = files ? files.length : 0;
+    if (!matModalFileName) return;
+
+    if (count === 0) {
+      matModalFileName.textContent = "Seleccionar o arrastrar archivo(s)…";
+      if (matModalTitleInput) {
+        matModalTitleInput.disabled = false;
+        matModalTitleInput.placeholder = "Ej: Manual de discipulado";
+      }
+    } else if (count === 1) {
+      matModalFileName.textContent = files[0].name;
+      if (matModalTitleInput) {
+        matModalTitleInput.disabled = false;
+        matModalTitleInput.placeholder = "Ej: Manual de discipulado";
+      }
+    } else {
+      matModalFileName.textContent = `${count} archivos seleccionados`;
+      if (matModalTitleInput) {
+        matModalTitleInput.value = "";
+        matModalTitleInput.disabled = true;
+        matModalTitleInput.placeholder = "Con varios archivos, cada uno usa su propio nombre";
+      }
+    }
+  }
+
+  matModalFileInput?.addEventListener("change", updateMatModalFileLabel);
+
+  // Drag & drop sobre el mismo botón de seleccionar archivo (alternativa a
+  // buscarlo manualmente). Arma un FileList nuevo con DataTransfer y lo
+  // asigna al <input type="file"> real, así el resto del flujo (incluido
+  // el submit) no tiene que distinguir entre selección manual y arrastrada.
+  ["dragenter", "dragover"].forEach((evt) => {
+    matModalFilePickBtn?.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      matModalFilePickBtn.classList.add("is-dragover");
+    });
+  });
+  ["dragleave", "dragend"].forEach((evt) => {
+    matModalFilePickBtn?.addEventListener(evt, (ev) => {
+      ev.preventDefault();
+      matModalFilePickBtn.classList.remove("is-dragover");
+    });
+  });
+  matModalFilePickBtn?.addEventListener("drop", (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    matModalFilePickBtn.classList.remove("is-dragover");
+    const dropped = ev.dataTransfer?.files;
+    if (!dropped || !dropped.length || !matModalFileInput) return;
+    const dt = new DataTransfer();
+    Array.from(dropped).forEach((f) => dt.items.add(f));
+    matModalFileInput.files = dt.files;
+    updateMatModalFileLabel();
   });
 
   matModalFolderPickBtn?.addEventListener("click", () => {
@@ -1171,25 +1242,53 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   matFileModalSaveBtn?.addEventListener("click", async () => {
     if (matBusy) return;
 
-    const title = (matModalTitleInput?.value || "").trim();
+    const titleInput = (matModalTitleInput?.value || "").trim();
     const linkUrl = (matModalLinkUrl?.value || "").trim();
-    const file = matModalFileInput?.files?.[0] || null;
+    const files = matModalFileInput?.files ? Array.from(matModalFileInput.files) : [];
     const targetFolderId = matFileModalState.folderId || null;
 
-    if (!file && !linkUrl) {
-      setMatFileModalMsg("Selecciona un archivo o ingresa un enlace.", true);
+    if (!files.length && !linkUrl) {
+      setMatFileModalMsg("Selecciona uno o más archivos, o ingresa un enlace.", true);
+      return;
+    }
+    if (files.length > 1 && linkUrl) {
+      setMatFileModalMsg("No podés combinar varios archivos con un enlace. Subí el enlace por separado.", true);
       return;
     }
 
     matBusy = true;
     setMatFileModalSaveLoading(true);
-    setMatFileModalMsg(file ? "Subiendo archivo…" : "Guardando enlace…", false);
 
     try {
-      let imageUrl = null;
-      let fileName = null;
+      // Caso: solo enlace, sin archivo — igual que antes.
+      if (!files.length) {
+        setMatFileModalMsg("Guardando enlace…", false);
+        const { error: insErr } = await supabase
+          .from("materials")
+          .insert({
+            title: titleInput || null,
+            image_url: null,
+            file_name: null,
+            link_url: linkUrl || null,
+            folder_id: targetFolderId || null,
+          });
 
-      if (file) {
+        if (insErr) { setMatFileModalMsg(insErr.message, true); return; }
+
+        closeMatFileModal();
+        setMatMsg("Material publicado.", false);
+        await loadMaterials();
+        return;
+      }
+
+      // Caso: uno o más archivos (el enlace, si hay, solo aplica cuando es 1 solo archivo).
+      let uploaded = 0;
+      for (const file of files) {
+        setMatFileModalMsg(
+          files.length > 1 ? `Subiendo ${uploaded + 1} de ${files.length}…` : "Subiendo archivo…",
+          false
+        );
+
         const ext = (file.name || "").split(".").pop() || "bin";
         const safeExt = ext.replace(/[^a-zA-Z0-9]/g, "") || "bin";
         const filePath = `mat_${Date.now()}_${Math.random().toString(16).slice(2)}.${safeExt}`;
@@ -1200,37 +1299,42 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           .upload(filePath, file, { upsert: false, contentType: file.type || undefined });
 
         if (upErr) {
-          setMatFileModalMsg(upErr.message, true);
+          setMatFileModalMsg(`Error subiendo "${file.name}": ${upErr.message}${uploaded ? ` (ya se publicaron ${uploaded})` : ""}`, true);
           return;
         }
 
         const url = await getPublicOrSignedUrl("materials", filePath);
         if (!url) {
-          setMatFileModalMsg("No se pudo obtener URL del archivo en Storage.", true);
+          setMatFileModalMsg(`No se pudo obtener URL de "${file.name}" en Storage.${uploaded ? ` (ya se publicaron ${uploaded})` : ""}`, true);
           return;
         }
 
-        imageUrl = url;
-        fileName = file.name || null;
-      }
+        // Con 1 solo archivo: usa el título escrito (si hay) o el nombre del
+        // archivo. Con varios: siempre el nombre del archivo (el campo
+        // Título queda deshabilitado en ese caso, ver updateMatModalFileLabel).
+        const fallbackTitle = (file.name || "").replace(/\.[^.]+$/, "") || file.name;
+        const rowTitle = (files.length === 1 && titleInput) ? titleInput : fallbackTitle;
 
-      const { error: insErr } = await supabase
-        .from("materials")
-        .insert({
-          title: title || null,
-          image_url: imageUrl,
-          file_name: fileName,
-          link_url: linkUrl || null,
-          folder_id: targetFolderId || null,
-        });
+        const { error: insErr } = await supabase
+          .from("materials")
+          .insert({
+            title: rowTitle || null,
+            image_url: url,
+            file_name: file.name || null,
+            link_url: files.length === 1 ? (linkUrl || null) : null,
+            folder_id: targetFolderId || null,
+          });
 
-      if (insErr) {
-        setMatFileModalMsg(insErr.message, true);
-        return;
+        if (insErr) {
+          setMatFileModalMsg(`Error guardando "${file.name}": ${insErr.message}${uploaded ? ` (ya se publicaron ${uploaded})` : ""}`, true);
+          return;
+        }
+
+        uploaded++;
       }
 
       closeMatFileModal();
-      setMatMsg("Material publicado.", false);
+      setMatMsg(uploaded > 1 ? `${uploaded} materiales publicados.` : "Material publicado.", false);
       await loadMaterials();
     } finally {
       setMatFileModalSaveLoading(false);
@@ -1333,7 +1437,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
     const folders = getMatFolderChildren(matState.currentFolderId);
     const rows = Array.isArray(matRows) ? matRows : [];
-    const itemsHere = rows.filter(r => (r.folder_id || null) === (matState.currentFolderId || null));
+    const itemsHere = rows
+      .filter(r => (r.folder_id || null) === (matState.currentFolderId || null))
+      .sort((a, b) => {
+        const ta = matSortTypeLabel(a), tb = matSortTypeLabel(b);
+        if (ta !== tb) return ta.localeCompare(tb);
+        return (a.title || "").localeCompare(b.title || "", "es", { numeric: true, sensitivity: "base" });
+      });
 
     if (!folders.length && !itemsHere.length) {
       matEls.list.innerHTML = '<div class="muted">No hay materiales en esta carpeta.</div>';

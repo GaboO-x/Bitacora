@@ -90,6 +90,11 @@ export async function callInviteEdge(supabase, adminEmail, adminPassword, payloa
       squads: payload.squads,
       // division/squad_code singulares deprecados (Opción A, ago 2026):
       // bright-task ya no los persiste en profiles.
+      // Brevo/SMTP no resultó confiable para reset/invite (ago 2026): la
+      // app ya no envía correos en ningún flujo administrativo. bright-task
+      // siempre genera el link vía generateLink (nunca inviteUserByEmail);
+      // el admin lo copia y lo envía por fuera (WhatsApp, etc).
+      redirectTo: payload.redirectTo,
     },
   });
   return { data, error };

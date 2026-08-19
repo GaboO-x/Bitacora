@@ -58,6 +58,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   document.getElementById("sideNavAnuncios")?.addEventListener("click", goAnuncios);
   document.getElementById("sideNavCalendario")?.addEventListener("click", goCalendario);
   document.getElementById("sideNavMaterials")?.addEventListener("click", goMaterials);
+
+  // "Bitácora": no es una sección interna del panel (por eso no está en
+  // `sections`), navega de verdad a app.html — mismo patrón que el botón
+  // "Admin" del sidebar de app.html.
+  document.getElementById("navBitacoraLink")?.addEventListener("click", () => {
+    window.location.href = "./app.html";
+  });
   document.getElementById("sideNavUsers")?.addEventListener("click", goUsers);
   document.getElementById("btnGoHome")?.addEventListener("click", goHome);
 
@@ -1579,6 +1586,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   const ROLE_LABELS = {
     user: "Lider_de_Célula",
     leader: "Lider_de_Escuadron",
+    pastor: "Pastor",
     admin: "Admin_del_App",
   };
 
@@ -1796,7 +1804,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   }
 
   function setUsersTabActive(id) {
-    ["usersTabAdmin", "usersTabLeader", "usersTabUser"].forEach((tid) => {
+    ["usersTabAdmin", "usersTabPastor", "usersTabLeader", "usersTabUser"].forEach((tid) => {
       document.getElementById(tid)?.classList.toggle("active", tid === id);
     });
   }
@@ -1804,6 +1812,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   document.getElementById("usersTabAdmin")?.addEventListener("click", () => {
     setUsersTabActive("usersTabAdmin");
     renderUsersTable("admin");
+  });
+  document.getElementById("usersTabPastor")?.addEventListener("click", () => {
+    setUsersTabActive("usersTabPastor");
+    renderUsersTable("pastor");
   });
   document.getElementById("usersTabLeader")?.addEventListener("click", () => {
     setUsersTabActive("usersTabLeader");

@@ -431,6 +431,12 @@ btnBack?.addEventListener('click', () => {
     qsa('.nav-btn[data-view]').forEach(btn => {
       btn.addEventListener('click', () => navigate(btn.dataset.view));
     });
+    // Botón "Admin" del sidebar: no es una vista interna del SPA (por eso no
+    // tiene data-view), navega de verdad a admin.html. Visibilidad la
+    // controla el bloque de abajo (solo role === 'admin').
+    document.getElementById('navAdminPanel')?.addEventListener('click', () => {
+      window.location.href = './admin.html';
+    });
     // ---- Accesos directos (cards en Inicio)
     qsa('.card--action[data-view]').forEach(card => {
       card.addEventListener('click', () => navigate(card.dataset.view));
@@ -782,7 +788,7 @@ btnBack?.addEventListener('click', () => {
     const configureReviewSquadFilter = async (role) => {
       if (!reviewSquadTitle || !reviewSquadSelect) return;
 
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'pastor') {
         reviewSquadSelect.innerHTML = reviewSquadSelectFullHTML;
         reviewSquadTitle.classList.remove('is-hidden');
         reviewSquadSelect.classList.remove('is-hidden');
@@ -822,7 +828,7 @@ btnBack?.addEventListener('click', () => {
 
       const role = await getRole();
       let users;
-      if (role === 'admin') {
+      if (role === 'admin' || role === 'pastor') {
         users = await loadAllActiveUsersForAdmin(reviewSquadSelect?.value || '');
       } else {
         const mySquads = await loadLeaderSquadCodes();
@@ -834,7 +840,7 @@ btnBack?.addEventListener('click', () => {
       users = await attachHideTakersFlag(users);
       renderReviewUserOptions(users);
 
-      const emptyMsg = (role === 'admin') ? 'No hay usuarios registrados.' : 'No tienes usuarios asignados.';
+      const emptyMsg = (role === 'admin' || role === 'pastor') ? 'No hay usuarios registrados.' : 'No tienes usuarios asignados.';
       setReviewStatus(users.length ? '' : emptyMsg);
     };
 
@@ -1041,13 +1047,26 @@ btnBack?.addEventListener('click', () => {
       await loadReviewComments();
     });
 
-    // Mostrar acceso "Revisión de Notas" solo a Líder de Escuadrón y Admin del App
+    // Mostrar acceso "Revisión de Notas" a Líder de Escuadrón, Pastor y Admin del App
     (async () => {
       try {
         const role = await getRole();
-        if (role === 'leader' || role === 'admin') {
+        if (role === 'leader' || role === 'admin' || role === 'pastor') {
           navReviewNotes?.classList.remove('is-hidden');
           cardReviewNotes?.classList.remove('is-hidden');
+        }
+      } catch {}
+    })();
+
+    // Botón "Admin" del sidebar (acceso a admin.html): EXCLUSIVO de
+    // role === 'admin'. Pastor tiene los mismos privilegios que Admin en
+    // todo lo demás (notas, revisión, Mis Doce, perfiles) pero nunca debe
+    // ver ni poder entrar a admin.html — decisión explícita del usuario.
+    (async () => {
+      try {
+        const role = await getRole();
+        if (role === 'admin') {
+          document.getElementById('navAdminPanel')?.classList.remove('is-hidden');
         }
       } catch {}
     })();
@@ -1082,7 +1101,7 @@ btnBack?.addEventListener('click', () => {
     const initReviewView = async () => {
       try {
         const role = await getRole();
-        if (role !== 'leader' && role !== 'admin') {
+        if (role !== 'leader' && role !== 'admin' && role !== 'pastor') {
           setReviewStatus('Solo disponible para líderes y administradores.');
           return;
         }

@@ -156,7 +156,7 @@
     .sidebar__footer #btnLogout{color:var(--red);}
     .sidebar__footer #btnLogout:hover{background:rgba(198,91,74,.1);color:var(--red);}
 
-    .app-shell .nav-btn{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--text);cursor:pointer;text-align:left;font-family:var(--font-sans);font-weight:500;font-size:14px;transition:all .15s ease;margin:0;}
+    .app-shell .nav-btn{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--text-secondary);cursor:pointer;text-align:left;font-family:var(--font-sans);font-weight:500;font-size:14px;transition:all .15s ease;margin:0;}
     .app-shell .nav-btn:hover{background:var(--accent-bg);color:var(--accent);}
     .app-shell .nav-btn.is-active{background:var(--accent-bg);border-color:var(--accent2);color:var(--accent);}
     .nav-btn__icon{width:22px;display:inline-flex;justify-content:center;}
@@ -199,6 +199,10 @@
     <aside class="sidebar" id="sidebar" aria-label="Navegación">
       <div class="sidebar__group">
         <div class="sidebar__label">Menú</div>
+        <button class="nav-btn" id="navBitacoraLink" type="button">
+          <span class="nav-btn__icon"><i class="fa-solid fa-book-bookmark"></i></span>
+          <span class="nav-btn__text">Bitácora</span>
+        </button>
         <button class="nav-btn" id="sideNavAnuncios" data-nav="anuncios" type="button">
           <span class="nav-btn__icon"><i class="fa-solid fa-bell"></i></span>
           <span class="nav-btn__text">Anuncios</span>
@@ -333,6 +337,10 @@
           <label style="display:flex;gap:8px;align-items:center;margin:0;">
             <input type="radio" name="inviteRole" value="leader" />
             <span>Lider_de_Escuadron</span>
+          </label>
+          <label style="display:flex;gap:8px;align-items:center;margin:0;">
+            <input type="radio" name="inviteRole" value="pastor" />
+            <span>Pastor</span>
           </label>
           <label style="display:flex;gap:8px;align-items:center;margin:0;">
             <input type="radio" name="inviteRole" value="admin" />
@@ -492,6 +500,7 @@
       <div class="users-toolbar">
         <button id="backFromUsers" class="secondary mat-icon-btn mat-icon-btn--lg" type="button" title="Volver al inicio" aria-label="Volver al inicio"><i class="fa-solid fa-circle-left"></i></button>
         <button id="usersTabAdmin" class="secondary users-tab active" type="button" data-role="admin">Admins</button>
+        <button id="usersTabPastor" class="secondary users-tab" type="button" data-role="pastor">Pastores</button>
         <button id="usersTabLeader" class="secondary users-tab" type="button" data-role="leader">Principales</button>
         <button id="usersTabUser" class="secondary users-tab" type="button" data-role="user">Líderes</button>
       </div>

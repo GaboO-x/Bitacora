@@ -9,7 +9,7 @@
 // ============================================================================
 
 // Sube este número en cada release. Cambiar la versión invalida el caché viejo.
-const SW_VERSION = "1.0.4";
+const SW_VERSION = "1.0.3";
 const CACHE_NAME = `bitacora-shell-v${SW_VERSION}`;
 
 // Archivos del "app shell": lo mínimo para que la app cargue offline.
@@ -17,7 +17,6 @@ const SHELL_FILES = [
   "./index.html",
   "./app.html",
   "./admin.html",
-  "./Bitacora_index.html",
   "./reset-password.html",
   "./manifest.json",
   "./css/styles.css",

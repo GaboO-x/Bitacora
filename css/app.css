@@ -312,25 +312,25 @@ h1{
   background: var(--panel);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding:16px;
+  padding:22px 16px;
   transition: box-shadow .2s ease, border-color .2s ease;
 }
 .card:hover{box-shadow: var(--shadow2); border-color: var(--border-strong)}
 
-.card--action{cursor:pointer; text-align:left; width:100%}
+.card--action{cursor:pointer; text-align:left; width:100%; display:flex; flex-direction:column; justify-content:center}
 .card--action:hover{border-color: var(--accent-border)}
 .card--action:focus{outline:2px solid var(--accent-border); outline-offset:2px}
-.card__title{font-family: var(--font-serif); font-weight:600; margin-bottom:6px; color:var(--text-primary)}
-.card__title i{color: var(--accent); margin-right:6px; font-size:0.9em}
+.card__title{font-family: var(--font-serif); font-weight:600; font-size:18px; margin-bottom:6px; color:var(--text-primary)}
+.card__title i{color: var(--accent); margin-right:8px; font-size:0.9em}
 .card__body{color:var(--muted); font-size:14px}
 
 @media (max-width: 640px){
-  /* Home compacto: 2 tarjetas por fila y menos espacio entre ellas */
-  .cards{grid-template-columns: 1fr 1fr; gap:8px; margin-top:12px}
-  .card{padding:10px 12px}
-  .card__title{font-size:13px; margin-bottom:3px}
-  .card__title i{font-size:0.85em; margin-right:4px}
-  .card__body{font-size:11px; line-height:1.3}
+  /* Home compacto: 1 tarjeta por fila (lista vertical), menos espacio entre ellas */
+  .cards{grid-template-columns: 1fr; gap:8px; margin-top:12px}
+  .card{padding:12px 14px}
+  .card__title{font-size:16px; margin-bottom:0}
+  .card__title i{font-size:0.9em; margin-right:8px}
+  .card__body{display:none}
 }
 
 .split{display:grid; grid-template-columns: 320px 1fr; gap:16px; align-items:start}

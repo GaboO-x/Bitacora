@@ -124,47 +124,22 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   // -----------------------------
   // Invitar usuario
   // -----------------------------
+  // Único método: generar link (sin correo). Brevo/SMTP no resultó
+  // confiable para esto (ver sesión ago 2026: links de recuperación con
+  // tracking roto, fallas de autenticación) así que se sacó del flujo por
+  // completo — nunca se dispara ningún envío de correo desde acá. El admin
+  // copia el link armado y lo manda por WhatsApp u otro medio.
   const btnInvite = document.getElementById("btnInvite");
-  let inviteLoadingTimer = null;
-
-  function setInviteLoading(isLoading) {
-    if (!btnInvite) return;
-    if (!btnInvite.dataset.originalText) {
-      btnInvite.dataset.originalText = btnInvite.textContent || "Enviar invitación";
-    }
-
-    if (!isLoading) {
-      btnInvite.disabled = false;
-      btnInvite.textContent = btnInvite.dataset.originalText;
-      if (inviteLoadingTimer) {
-        clearInterval(inviteLoadingTimer);
-        inviteLoadingTimer = null;
-      }
-      return;
-    }
-
-    btnInvite.disabled = true;
-    const base = "Enviando";
-    let dots = 0;
-    btnInvite.textContent = base;
-    inviteLoadingTimer = setInterval(() => {
-      dots = (dots + 1) % 4;
-      btnInvite.textContent = base + ".".repeat(dots);
-    }, 350);
-  }
 
   btnInvite?.addEventListener("click", async () => {
     if (btnInvite.disabled) return;
 
     const email = (document.getElementById("inviteEmail")?.value || "").trim().toLowerCase();
     const full_name = (document.getElementById("inviteName")?.value || "").trim();
-
     const role = (document.querySelector('input[name="inviteRole"]:checked')?.value || "user").trim();
-
     const squads = Array.from(document.querySelectorAll('input[name="inviteSquad"]:checked'))
       .map(x => (x.value || "").trim())
       .filter(Boolean);
-
     // División ya no se pide en el form: se deriva del sufijo del squad
     // (...M = makers, ...T = takers). Mismo contrato que espera bright-task.
     const divisions = Array.from(new Set(
@@ -181,23 +156,32 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     // el contrato multi (divisions/squads); la fuente de verdad son
     // leader_squads/user_squads.
     const payload = { email, full_name, role, divisions, squads };
+    const redirectTo = new URL("./reset-password.html", window.location.href).toString();
 
-    setMsg("msg", "Enviando invitación…", false);
-    setInviteLoading(true);
+    setMsg("msg", "Generando link…", false);
+    btnInvite.disabled = true;
 
     try {
-      const { data, error } = await callInviteEdge(supabase, user.email, null, payload);
+      const { data, error } = await callInviteEdge(supabase, user.email, null, {
+        ...payload,
+        redirectTo,
+      });
       if (error) return setMsg("msg", error.message, true);
 
-      try {
-        const parsed = typeof data === "string" ? JSON.parse(data) : data;
-        if (parsed?.ok) setMsg("msg", `Invitación enviada: ${parsed.email}`, false);
-        else setMsg("msg", JSON.stringify(parsed), true);
-      } catch {
-        setMsg("msg", String(data), false);
+      const parsed = typeof data === "string" ? JSON.parse(data) : data;
+      if (!parsed?.ok || !parsed?.invite_link) {
+        setMsg("msg", (parsed && parsed.error) || JSON.stringify(parsed), true);
+        return;
       }
+
+      setMsg("msg", `Cuenta creada: ${parsed.email}`, false);
+      const message = `¡Hola ${full_name}! 👋\n\nTe invitamos a formar parte de la *Bitácora Virtual*. Para activar tu cuenta y crear tu contraseña, entra a este link:\n\n${parsed.invite_link}\n\nCualquier duda, contáctanos. ¡Bienvenido/a!`;
+      await showMatMessagePreview({
+        title: `Link de invitación para ${full_name}`,
+        message,
+      });
     } finally {
-      setInviteLoading(false);
+      btnInvite.disabled = false;
     }
   });
 
@@ -1118,6 +1102,79 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       matConfirmModalOk?.addEventListener("click", onOk);
       matConfirmModalCancel?.addEventListener("click", onCancel);
+      matConfirmModal.addEventListener("click", onOverlay);
+    });
+  }
+
+  // Mostrar un mensaje ya armado (link de invitación / reset generado sin
+  // pasar por correo) en un textarea de solo lectura, con botón "Copiar
+  // mensaje". Reutiliza el mismo modal genérico. El botón OK copia al
+  // portapapeles y NO cierra el modal (por si el admin quiere copiarlo de
+  // nuevo); solo Cancelar/overlay cierra.
+  function showMatMessagePreview({ title = "Mensaje", message = "" } = {}) {
+    return new Promise((resolve) => {
+      if (!matConfirmModal) {
+        resolve(null);
+        return;
+      }
+
+      if (matConfirmModalTitle) matConfirmModalTitle.textContent = title;
+      let textarea = null;
+      if (matConfirmModalBody) {
+        matConfirmModalBody.innerHTML = "";
+        textarea = document.createElement("textarea");
+        textarea.id = "matMessagePreviewText";
+        textarea.readOnly = true;
+        textarea.value = message;
+        textarea.style.width = "100%";
+        textarea.style.minHeight = "160px";
+        textarea.style.boxSizing = "border-box";
+        textarea.style.fontFamily = "inherit";
+        textarea.style.fontSize = "14px";
+        textarea.style.padding = "10px 12px";
+        textarea.style.borderRadius = "10px";
+        textarea.style.border = "1px solid var(--line, #ddd)";
+        matConfirmModalBody.appendChild(textarea);
+      }
+      if (matConfirmModalOk) {
+        matConfirmModalOk.textContent = "Copiar mensaje";
+        matConfirmModalOk.classList.remove("mat-modal-btn--danger");
+        matConfirmModalOk.classList.add("mat-modal-btn--primary");
+      }
+      if (matConfirmModalCancel) matConfirmModalCancel.textContent = "Cerrar";
+      matConfirmModal.classList.remove("is-hidden");
+
+      setTimeout(() => { textarea?.focus(); textarea?.select(); }, 0);
+
+      const restoreStyle = () => {
+        matConfirmModalOk?.classList.remove("mat-modal-btn--primary");
+        matConfirmModalOk?.classList.add("mat-modal-btn--danger");
+        if (matConfirmModalCancel) matConfirmModalCancel.textContent = "Cancelar";
+      };
+      const cleanup = () => {
+        matConfirmModal.classList.add("is-hidden");
+        restoreStyle();
+        matConfirmModalOk?.removeEventListener("click", onCopy);
+        matConfirmModalCancel?.removeEventListener("click", onClose);
+        matConfirmModal.removeEventListener("click", onOverlay);
+        resolve(true);
+      };
+      const onCopy = async () => {
+        try {
+          await navigator.clipboard.writeText(message);
+          if (matConfirmModalOk) matConfirmModalOk.textContent = "¡Copiado!";
+          setTimeout(() => {
+            if (matConfirmModalOk) matConfirmModalOk.textContent = "Copiar mensaje";
+          }, 1200);
+        } catch {
+          textarea?.select();
+        }
+      };
+      const onClose = () => cleanup();
+      const onOverlay = (e) => { if (e.target === matConfirmModal) cleanup(); };
+
+      matConfirmModalOk?.addEventListener("click", onCopy);
+      matConfirmModalCancel?.addEventListener("click", onClose);
       matConfirmModal.addEventListener("click", onOverlay);
     });
   }
@@ -2067,9 +2124,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const tdActions = document.createElement("td");
       tdActions.style.padding = "8px";
-      tdActions.style.display = "flex";
+      // Grid en vez de flex-wrap: garantiza exactamente 3 íconos por fila
+      // sin importar cuántos aplican por usuario (flex-wrap depende del
+      // ancho disponible, no de una cantidad fija).
+      tdActions.style.display = "grid";
+      tdActions.style.gridTemplateColumns = "repeat(5, auto)";
       tdActions.style.gap = "8px";
-      tdActions.style.flexWrap = "wrap";
+      tdActions.style.width = "max-content";
 
       if (!isSelf) {
         const btnToggle = document.createElement("button");
@@ -2107,33 +2168,6 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         });
         tdActions.appendChild(btnToggle);
       }
-
-      const btnReset = document.createElement("button");
-      btnReset.type = "button";
-      btnReset.className = "mat-icon-btn";
-      btnReset.title = "Reset passw";
-      btnReset.setAttribute("aria-label", "Reset passw");
-      btnReset.innerHTML = '<i class="fa-solid fa-key"></i>';
-      btnReset.addEventListener("click", async () => {
-        if (!u.email) {
-          setMsg("usersMsg", "Este usuario no tiene email registrado.", true);
-          return;
-        }
-        const ok = window.confirm(`¿Enviar email de recuperación de contraseña a ${u.email}?`);
-        if (!ok) return;
-
-        btnReset.disabled = true;
-        const redirectTo = new URL("./reset-password.html", window.location.href).toString();
-        const { error } = await supabase.auth.resetPasswordForEmail(u.email, { redirectTo });
-        btnReset.disabled = false;
-
-        if (error) {
-          setMsg("usersMsg", error.message || "No se pudo enviar el email de recuperación.", true);
-          return;
-        }
-        setMsg("usersMsg", `Email de recuperación enviado a ${u.email}.`, false);
-      });
-      tdActions.appendChild(btnReset);
 
       const btnRename = document.createElement("button");
       btnRename.type = "button";
@@ -2206,6 +2240,48 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         });
         tdActions.appendChild(btnSquad);
       }
+
+      // Generar link de reset sin correo (respaldo cuando Brevo falla, ver
+      // sesión ago 2026: link de tracking roto con DNS_PROBE_FINISHED_NXDOMAIN).
+      // Usa manage-users action 'generate_reset_link' ->
+      // auth.admin.generateLink(type:'recovery'), que NUNCA dispara un
+      // envío de correo (no pasa por SMTP/Brevo en absoluto).
+      const btnResetLink = document.createElement("button");
+      btnResetLink.type = "button";
+      btnResetLink.className = "mat-icon-btn";
+      btnResetLink.title = "Generar link de reset";
+      btnResetLink.setAttribute("aria-label", "Generar link de reset sin correo");
+      btnResetLink.innerHTML = '<i class="fa-solid fa-link"></i>';
+      btnResetLink.addEventListener("click", async () => {
+        if (usersBusy) return;
+        if (!u.email) {
+          setMsg("usersMsg", "Este usuario no tiene email registrado.", true);
+          return;
+        }
+
+        usersBusy = true;
+        btnResetLink.disabled = true;
+        const redirectTo = new URL("./reset-password.html", window.location.href).toString();
+        const { data, error } = await callManageUsersEdge(supabase, {
+          action: "generate_reset_link",
+          user_id: u.id,
+          redirectTo,
+        });
+        usersBusy = false;
+        btnResetLink.disabled = false;
+
+        if (error || !data?.ok || !data?.reset_link) {
+          setMsg("usersMsg", (data && data.error) || "No se pudo generar el link.", true);
+          return;
+        }
+
+        const message = `¡Hola ${u.full_name || ""}! 👋\n\nAquí tienes tu link para restablecer tu contraseña de *Bitácora Virtual*:\n\n${data.reset_link}\n\nSi no solicitaste este cambio, ignora este mensaje.`;
+        await showMatMessagePreview({
+          title: `Link de reset para ${u.full_name || u.email}`,
+          message,
+        });
+      });
+      tdActions.appendChild(btnResetLink);
 
       if (!isSelf) {
         const btnDelete = document.createElement("button");

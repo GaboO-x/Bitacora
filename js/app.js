@@ -3484,6 +3484,11 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     // ---- Mis Doce: tabla tipo excel, persistida en Supabase (tabla mis_doce) ----
     const misDoceBody = qs('#misDoceBody');
+    // Respaldo de la fila plantilla tal como viene en el HTML estático, ANTES
+    // de que loadMisDoce() pueda vaciar #misDoceBody (cuenta sin filas
+    // guardadas aún). Sin esto, mdAddRow() se queda sin <tr> que clonar y
+    // el botón "+" deja de funcionar para siempre en cuentas nuevas.
+    const mdStaticRowTemplate = qs('tr', misDoceBody)?.cloneNode(true) || null;
     const btnMdAddRow = qs('#btnMdAddRow');
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
     const btnMdShareAll = qs('#btnMdShareAll');
@@ -3680,7 +3685,10 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     const mdAddRow = () => {
       if (!misDoceBody) return;
-      const tpl = qs('tr', misDoceBody);
+      // Si la tabla está vacía (cuenta sin filas guardadas) no hay <tr> que
+      // clonar dentro de misDoceBody: usamos el respaldo estático capturado
+      // al inicio en su lugar.
+      const tpl = qs('tr', misDoceBody) || mdStaticRowTemplate?.cloneNode(true) || null;
       if (!tpl) return;
       const tr = tpl.cloneNode(true);
       mdClearRow(tr);
@@ -3987,7 +3995,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       const rows = data || [];
       mdKnownIds = new Set(rows.map(r => r.id));
 
-      const tpl = qs('tr', misDoceBody);
+      const tpl = qs('tr', misDoceBody) || mdStaticRowTemplate?.cloneNode(true) || null;
       if (!tpl) return;
       const cleanTpl = tpl.cloneNode(true);
       mdClearRow(cleanTpl);

@@ -44,6 +44,14 @@
     .admin-section{display:none}
     .admin-section.active{display:block}
 
+    /* Administrar Usuarios necesita más ancho (la tabla de acciones va en
+       filas de 5 íconos) — se amplía SOLO el .container mientras esa
+       sección está activa; el resto de la app (incluyendo Invitar usuario)
+       sigue en 980px. */
+    .container:has(#sectionUsers.active){
+      max-width:1280px;
+    }
+
     .admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
     .admin-backlink{display:inline-flex;gap:8px;align-items:center}
 
@@ -375,7 +383,7 @@
           </div>
         </div>
 
-        <button id="btnInvite" style="margin-top:14px;">Enviar invitación</button>
+        <button id="btnInvite" class="mat-modal-btn mat-modal-btn--primary" type="button" style="margin-top:14px;">Generar link de invitación</button>
         <p id="msg" class="msg"></p>
       </div>
     </div>

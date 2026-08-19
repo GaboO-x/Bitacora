@@ -328,7 +328,7 @@ h1{
   /* Home compacto: 1 tarjeta por fila (lista vertical), menos espacio entre ellas */
   .cards{grid-template-columns: 1fr; gap:8px; margin-top:12px}
   .card{padding:12px 14px}
-  .card__title{font-size:16px; margin-bottom:0}
+  .card__title{font-size:18px; margin-bottom:0}
   .card__title i{font-size:0.9em; margin-right:8px}
   .card__body{display:none}
 }

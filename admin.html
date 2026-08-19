@@ -116,6 +116,7 @@
     /* Botón "selector" dentro de un popup (elegir archivo / elegir carpeta):
        se ve como un input pero es clickeable de punta a punta. */
     .mat-picker-trigger{width:100%;margin:0;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer;font-family:var(--font-sans);font-size:14px;display:flex;align-items:center;gap:8px;text-align:left;}
+    .mat-picker-trigger.is-dragover{border-color:var(--accent2);background:var(--accent-bg);color:var(--accent);}
     .mat-picker-trigger:hover{border-color:var(--accent2);}
     .mat-picker-trigger i{color:var(--accent2);flex-shrink:0;}
     .mat-picker-trigger span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -571,11 +572,12 @@
       <label for="matModalTitle">Nombre de archivo</label>
       <input id="matModalTitle" type="text" placeholder="Ej: Manual de discipulado" />
 
-      <label>Archivo (opcional)</label>
+      <label>Archivo(s) (opcional)</label>
       <button type="button" class="mat-picker-trigger" id="matModalFilePickBtn">
-        <i class="fa-solid fa-paperclip"></i> <span id="matModalFileName">Seleccionar archivo…</span>
+        <i class="fa-solid fa-paperclip"></i> <span id="matModalFileName">Seleccionar o arrastrar archivo(s)…</span>
       </button>
-      <input type="file" id="matModalFileInput" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx" style="display:none;" />
+      <input type="file" id="matModalFileInput" accept="image/*,.pdf,.doc,.docx,.ppt,.pptx" multiple style="display:none;" />
+      <div class="muted small" style="margin-top:4px;">Podés seleccionar varios a la vez, o arrastrarlos y soltarlos sobre el botón de arriba. Con más de uno, cada archivo usa su propio nombre como título.</div>
 
       <label for="matModalLinkUrl">Enlace (opcional)</label>
       <input id="matModalLinkUrl" type="url" placeholder="https://..." />

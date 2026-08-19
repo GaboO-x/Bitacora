@@ -1979,8 +1979,13 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       if (!isSelf) {
         const btnToggle = document.createElement("button");
         btnToggle.type = "button";
-        btnToggle.className = "secondary users-action-btn";
-        btnToggle.textContent = u.active ? "Block" : "Activar";
+        btnToggle.className = "mat-icon-btn";
+        const toggleLabel = u.active ? "Suspender" : "Activar";
+        btnToggle.title = toggleLabel;
+        btnToggle.setAttribute("aria-label", toggleLabel);
+        btnToggle.innerHTML = u.active
+          ? '<i class="fa-solid fa-lock"></i>'
+          : '<i class="fa-solid fa-lock-open"></i>';
         btnToggle.addEventListener("click", async () => {
           if (usersBusy) return;
           const newActive = !u.active;
@@ -2010,8 +2015,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const btnReset = document.createElement("button");
       btnReset.type = "button";
-      btnReset.className = "secondary users-action-btn";
-      btnReset.textContent = "Reset passw";
+      btnReset.className = "mat-icon-btn";
+      btnReset.title = "Reset passw";
+      btnReset.setAttribute("aria-label", "Reset passw");
+      btnReset.innerHTML = '<i class="fa-solid fa-key"></i>';
       btnReset.addEventListener("click", async () => {
         if (!u.email) {
           setMsg("usersMsg", "Este usuario no tiene email registrado.", true);
@@ -2035,8 +2042,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const btnRename = document.createElement("button");
       btnRename.type = "button";
-      btnRename.className = "secondary users-action-btn";
-      btnRename.textContent = "Editar nombre";
+      btnRename.className = "mat-icon-btn";
+      btnRename.title = "Editar nombre";
+      btnRename.setAttribute("aria-label", "Editar nombre");
+      btnRename.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
       btnRename.addEventListener("click", async () => {
         if (usersBusy) return;
         const newName = await showMatPrompt({
@@ -2068,8 +2077,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       if (!isSelf) {
         const btnDelete = document.createElement("button");
         btnDelete.type = "button";
-        btnDelete.className = "secondary users-action-btn users-action-btn--danger";
-        btnDelete.textContent = "Eliminar";
+        btnDelete.className = "mat-icon-btn users-action-btn--danger";
+        btnDelete.title = "Eliminar";
+        btnDelete.setAttribute("aria-label", "Eliminar");
+        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i>';
         btnDelete.addEventListener("click", async () => {
           if (usersBusy) return;
           const ok = await showMatConfirm({

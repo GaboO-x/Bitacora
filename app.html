@@ -263,7 +263,7 @@
   <div class="view__header">
     <h1>Revisión de Notas</h1>
     <div class="view__nav">
-      <button class="pill" data-go="back" type="button">Volver</button>
+      <button class="pill pill--icon" data-go="back" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
       <button class="pill" aria-label="Inicio" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
     </div>
   </div>
@@ -300,7 +300,7 @@
     <div class="sheet-header">
       <div class="sheet-title" id="reviewWeekTitle">Semana</div>
       <div class="sheet-actions">
-        <button class="pill" id="btnReviewBackToWeeks" type="button">Volver</button>
+        <button class="pill pill--icon" id="btnReviewBackToWeeks" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
       </div>
     </div>
 
@@ -322,11 +322,11 @@
       <div class="sheet-header">
         <div class="sheet-title" id="reviewSheetTitle">Hoja</div>
         <div class="sheet-actions">
-          <button class="pill" id="btnReviewSheetBack" type="button">Volver</button>
+          <button class="pill pill--icon" id="btnReviewSheetBack" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
         </div>
       </div>
       <div class="muted tiny" id="reviewSheetStatus"></div>
-      <pre class="table-wrap" id="reviewSheetContent" style="white-space:pre-wrap;">Selecciona una hoja…</pre>
+      <div class="review-note" id="reviewSheetContent">Selecciona una hoja…</div>
     </div>
 
     <div class="panel" style="margin-top:12px;">

@@ -12,6 +12,10 @@ import { requireSession, getMyProfile } from "./shared.js";
   // Declarada acá arriba porque showView() la llama y showView() se define
   // (y se invoca durante el init) antes de que exista esa sección del script.
   let flushMisDoceSave = async () => {};
+  // Mismo patrón que flushMisDoceSave: reasignada más abajo (sección Notas)
+  // una vez que saveNotesNow() existe. Fuerza el guardado a Supabase de la
+  // hoja de Notas abierta (si tiene cambios sin guardar) antes de salir.
+  let flushNotesSave = async () => {};
 
   const user = session.user;
 
@@ -19,6 +23,9 @@ import { requireSession, getMyProfile } from "./shared.js";
   const doLogout = async () => {
     const ok = confirm('Seguro que deseas salir?');
     if (!ok) return;
+    try {
+      await flushNotesSave();
+    } catch {}
     try {
       await flushMisDoceSave();
     } catch {}
@@ -346,30 +353,76 @@ btnBack?.addEventListener('click', () => {
       if (editorEl && typeof draft.html === 'string' && draft.html.length) editorEl.innerHTML = draft.html;
     };
 
-    // Guardado manual (botón "Guardar"): fuerza el guardado de la hoja abierta,
-    // sin depender del flag "dirty". Misma persistencia local (localStorage) de siempre.
-    const saveNotesNow = () => {
-      if (!state.selectedWeek || !state.notesOpenSheet) return;
+    // Escribe una hoja de nota en Supabase (tabla notes, upsert por la
+    // UNIQUE(user_id, week, sheet) ya existente en el schema). `week_done`
+    // es opcional: se manda solo cuando saveNotesNow ya sabe el valor
+    // vigente del checkbox "Semana completada" (ver `completed`, más abajo
+    // en el archivo — closure, disponible en tiempo de ejecución).
+    const syncNoteSheetToSupabase = async (week, sheet, dataObj) => {
+      if (!week || !sheet) return { error: new Error('missing week/sheet') };
+      const payload = {
+        user_id: user.id,
+        week,
+        sheet,
+        data: dataObj || {},
+        updated_at: new Date().toISOString(),
+      };
+      try {
+        if (typeof completed !== 'undefined' && completed) {
+          payload.week_done = !!completed[String(week)];
+        }
+      } catch {}
+      return supabase.from('notes').upsert(payload, { onConflict: 'user_id,week,sheet' });
+    };
 
-      if (state.notesOpenSheet === 'dc') {
-        const d = collectDcDraft();
-        if (d) setWeekDraft(state.selectedWeek, { dc: d });
-        state.dcDirty = false;
-        setStatus(dcStatus, `Guardado: ${nowLabel()} (local)`);
-      } else if (state.notesOpenSheet === 'takers') {
-        setWeekDraft(state.selectedWeek, { takers: collectRteDraft(takersTema, takersDate, takersNotes) });
-        state.takersDirty = false;
-        setStatus(takersStatus, `Guardado: ${nowLabel()} (local)`);
-      } else if (state.notesOpenSheet === 'cultos') {
-        setWeekDraft(state.selectedWeek, { cultos: collectRteDraft(cultosTema, cultosDate, cultosNotes) });
-        state.cultosDirty = false;
-        setStatus(cultosStatus, `Guardado: ${nowLabel()} (local)`);
-      } else if (state.notesOpenSheet === 'lideres') {
-        setWeekDraft(state.selectedWeek, { lideres: collectRteDraft(lideresTema, lideresDate, lideresNotes) });
-        state.lideresDirty = false;
-        setStatus(lideresStatus, `Guardado: ${nowLabel()} (local)`);
-      }
+    // Guardado manual (botón "Guardar" / botón único Atrás en modo Guardar):
+    // fuerza el guardado de la hoja abierta. Guarda primero en localStorage
+    // (instantáneo, como siempre) y luego sincroniza esa misma hoja contra
+    // Supabase (tabla notes). Si falla la sincronización (sin conexión, por
+    // ejemplo), el borrador local igual queda a salvo y se reintentará en
+    // el próximo guardado/autoguardado o en la migración de borradores al
+    // iniciar sesión (ver migrateLocalDraftsToSupabase).
+    const saveNotesNow = async () => {
+      if (!state.selectedWeek || !state.notesOpenSheet) return;
+      const week = state.selectedWeek;
+      const sheet = state.notesOpenSheet;
+
+      let draft = null;
+      let statusEl = null;
+      if (sheet === 'dc') { draft = collectDcDraft(); statusEl = dcStatus; }
+      else if (sheet === 'takers') { draft = collectRteDraft(takersTema, takersDate, takersNotes); statusEl = takersStatus; }
+      else if (sheet === 'cultos') { draft = collectRteDraft(cultosTema, cultosDate, cultosNotes); statusEl = cultosStatus; }
+      else if (sheet === 'lideres') { draft = collectRteDraft(lideresTema, lideresDate, lideresNotes); statusEl = lideresStatus; }
+      if (!draft) return;
+
+      setWeekDraft(week, { [sheet]: draft });
+      setStatus(statusEl, 'Guardando…');
+
+      const res = await syncNoteSheetToSupabase(week, sheet, draft);
+
+      if (sheet === 'dc') state.dcDirty = false;
+      else if (sheet === 'takers') state.takersDirty = false;
+      else if (sheet === 'cultos') state.cultosDirty = false;
+      else if (sheet === 'lideres') state.lideresDirty = false;
+
+      setStatus(statusEl, res?.error
+        ? `Guardado local (sin conexión) — ${nowLabel()}`
+        : `Guardado: ${nowLabel()}`);
       updateSaveButtonState();
+    };
+
+    // Reasigna el placeholder declarado al inicio del script (ver comentario
+    // junto a "let flushNotesSave" arriba) para que el logout pueda forzar
+    // el guardado de la hoja de Notas abierta antes de cerrar sesión.
+    flushNotesSave = saveNotesNow;
+
+    // Autoguardado con debounce (700ms), mismo criterio que Mis Doce:
+    // cualquier cambio en la hoja abierta agenda un guardado real a
+    // Supabase sin que el usuario tenga que tocar el botón "Guardar".
+    let noteAutosaveTimer = null;
+    const scheduleNoteAutosave = () => {
+      clearTimeout(noteAutosaveTimer);
+      noteAutosaveTimer = setTimeout(() => { saveNotesNow(); }, 700);
     };
 
     // Antes de salir de una hoja de Notas: si hay cambios sin guardar, pregunta con el modal
@@ -378,7 +431,7 @@ btnBack?.addEventListener('click', () => {
     const confirmLeaveNotesSheet = async () => {
       if (!isCurrentSheetDirty()) return true;
       const choice = await openNotesLeaveModal();
-      if (choice === 'save') { saveNotesNow(); return true; }
+      if (choice === 'save') { await saveNotesNow(); return true; }
       if (choice === 'discard') {
         // Descartar: no persistimos; la próxima vez que se abra la hoja se recarga
         // el último borrador guardado en localStorage (los cambios en pantalla se pierden).
@@ -902,20 +955,91 @@ btnBack?.addEventListener('click', () => {
       setReviewStatus('');
     };
 
-    const renderJson = (obj) => {
-      try { return JSON.stringify(obj || {}, null, 2); }
-      catch { return String(obj || ''); }
+    // Etiquetas de los bloques de Dinámica Celular, en el mismo orden en que
+    // collectDcDraft() los lee del DOM (ver .dc-item en app.html).
+    const DC_BLOCK_LABELS = [
+      'Comenzamos con Oración',
+      'Edificación',
+      'Luz en las tinieblas',
+      'Ubicar el tesoro',
+      'Logística',
+      'Agradecer',
+      'Refrigerio',
+    ];
+
+    // Render de solo lectura para la hoja "Dinámica Celular" en Revisión de
+    // Notas: misma información que collectDcDraft() guarda (blocks/follow/
+    // notes/date), pero como tabla legible en vez de JSON crudo.
+    const renderDcReadOnly = (data) => {
+      const d = data || {};
+      const blocks = Array.isArray(d.blocks) ? d.blocks : [];
+      const follow = Array.isArray(d.follow) ? d.follow : [];
+
+      const blocksRows = DC_BLOCK_LABELS.map((label, i) => {
+        const b = blocks[i] || {};
+        return `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(b.t || '—')}</td><td>${escapeHtml(b.r || '—')}</td></tr>`;
+      }).join('');
+
+      const followRows = follow.length
+        ? follow.map(f => {
+            const just = f.just === 'si' ? 'Sí' : (f.just === 'no' ? 'No' : '—');
+            return `<tr><td>${escapeHtml(f.name || '—')}</td><td>${escapeHtml(f.enc || '—')}</td><td>${escapeHtml(just)}</td><td>${escapeHtml(f.date || '—')}</td></tr>`;
+          }).join('')
+        : '<tr><td colspan="4" class="muted">Sin registros de seguimiento.</td></tr>';
+
+      const notesHtml = d.notes
+        ? escapeHtml(d.notes).replaceAll('\n', '<br>')
+        : '<span class="muted">Sin anuncios.</span>';
+
+      return `
+        <div class="review-note__meta muted tiny">Fecha: ${escapeHtml(d.date || '—')}</div>
+        <div class="panel__subtitle" style="margin-top:14px;">Dinámica Celular</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Actividad</th><th>Tiempo</th><th>Responsable</th></tr></thead>
+            <tbody>${blocksRows}</tbody>
+          </table>
+        </div>
+        <div class="panel__subtitle" style="margin-top:14px;">Seguimiento</div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Ausente</th><th>Seguimiento</th><th>Justificó</th><th>Fecha</th></tr></thead>
+            <tbody>${followRows}</tbody>
+          </table>
+        </div>
+        <div class="panel__subtitle" style="margin-top:14px;">Anuncios</div>
+        <div class="rte__editor review-note__rte">${notesHtml}</div>
+      `;
+    };
+
+    // Render de solo lectura para hojas de texto libre (Takers/Cultos/
+    // Líderes): mismo shape {tema, date, html} que collectRteDraft()/
+    // applyRteDraft() usan en la vista de edición normal.
+    const renderRteReadOnly = (data) => {
+      const d = data || {};
+      const tema = d.tema ? escapeHtml(d.tema) : '<span class="muted">(Sin tema)</span>';
+      const html = (typeof d.html === 'string' && d.html.trim())
+        ? d.html
+        : '<span class="muted">Sin contenido.</span>';
+      return `
+        <div class="review-note__tema">${tema}</div>
+        <div class="review-note__meta muted tiny">Fecha: ${escapeHtml(d.date || '—')}</div>
+        <div class="rte__editor review-note__rte">${html}</div>
+      `;
     };
 
     const showReviewSheet = (key, title) => {
       reviewSheetScreen?.classList.remove('is-hidden');
       if (reviewSheetTitle) reviewSheetTitle.textContent = title;
       const row = reviewState.notesBySheet[key];
+      if (!reviewSheetContent) return;
       if (!row) {
-        if (reviewSheetContent) reviewSheetContent.textContent = 'Sin notas para esta hoja.';
+        reviewSheetContent.innerHTML = '<div class="muted">Sin notas para esta hoja.</div>';
         return;
       }
-      if (reviewSheetContent) reviewSheetContent.textContent = renderJson(row.data);
+      reviewSheetContent.innerHTML = (key === 'dc')
+        ? renderDcReadOnly(row.data)
+        : renderRteReadOnly(row.data);
     };
 
     const loadReviewComments = async () => {
@@ -1639,6 +1763,39 @@ btnBack?.addEventListener('click', () => {
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(completed)); } catch {}
     };
 
+    // Migración de borradores "atrapados" en localStorage (bitacora_notes_drafts_v1)
+    // hacia Supabase. Necesaria porque, hasta esta sesión, el botón "Guardar" de
+    // Notas SOLO escribía local — cualquier nota guardada antes de este fix (en
+    // este mismo dispositivo/navegador) nunca llegó a la tabla `notes`. Se corre
+    // una vez al iniciar sesión, en segundo plano: recorre TODAS las semanas/hojas
+    // que existan en el borrador local de este usuario y las sube con upsert
+    // (idempotente — si ya estaban sincronizadas, no cambia nada). No borra el
+    // borrador local: sigue funcionando como caché/fallback sin conexión.
+    const migrateLocalDraftsToSupabase = async () => {
+      try {
+        const all = readDrafts();
+        const weekKeys = Object.keys(all || {});
+        if (!weekKeys.length) return;
+        for (const wk of weekKeys) {
+          const weekNum = Number(wk);
+          if (!weekNum || weekNum < 1 || weekNum > 52) continue;
+          const sheetsObj = all[wk] || {};
+          for (const sheetKey of ['dc', 'takers', 'cultos', 'lideres']) {
+            const sheetData = sheetsObj[sheetKey];
+            if (!sheetData) continue;
+            await supabase.from('notes').upsert({
+              user_id: user.id,
+              week: weekNum,
+              sheet: sheetKey,
+              data: sheetData,
+              week_done: !!completed[wk],
+              updated_at: new Date().toISOString(),
+            }, { onConflict: 'user_id,week,sheet' });
+          }
+        }
+      } catch {}
+    };
+
     // Semanas propias marcadas como "supervisadas" por un líder/admin.
     // A diferencia de `completed` (local), esto sí viene de Supabase
     // (note_reviews), gracias a la policy note_reviews_select_own.
@@ -1840,13 +1997,28 @@ btnBack?.addEventListener('click', () => {
       pushScreen({ view: 'notas' });
     };
 
-    // Marcar semana como completada (solo UI; se mantiene en localStorage)
-    chkWeekDone?.addEventListener('change', () => {
+    // Marcar semana como completada: local (instantáneo, como siempre) +
+    // sincronizado a Supabase. El UPDATE aplica sobre las hojas de esa
+    // semana que YA existan en `notes` (si el usuario todavía no guardó
+    // ninguna, no hay filas que tocar — pero el valor vigente de
+    // `completed` se manda igual la próxima vez que guarde una hoja, ver
+    // syncNoteSheetToSupabase). No es una operación destructiva: un UPDATE
+    // sin filas afectadas simplemente no hace nada.
+    chkWeekDone?.addEventListener('change', async () => {
       if (!state.selectedWeek) return;
-      completed[String(state.selectedWeek)] = !!chkWeekDone.checked;
+      const week = state.selectedWeek;
+      const val = !!chkWeekDone.checked;
+      completed[String(week)] = val;
       saveCompleted();
-      markWeekTile(state.selectedWeek);
+      markWeekTile(week);
       updateMeta();
+      try {
+        await supabase
+          .from('notes')
+          .update({ week_done: val, updated_at: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .eq('week', week);
+      } catch {}
     });
 
   const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -1925,12 +2097,14 @@ btnBack?.addEventListener('click', () => {
       state.dcDirty = dirty;
       if (dcStatus) dcStatus.textContent = dirty ? 'Cambios sin guardar.' : '';
       updateSaveButtonState();
+      if (dirty) scheduleNoteAutosave();
     };
 
-    // Marcar cambios (placeholder de auto-guardado)
-    const setTakersDirty = (dirty = true) => { state.takersDirty = dirty; if (takersStatus) takersStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
-    const setCultosDirty = (dirty = true) => { state.cultosDirty = dirty; if (cultosStatus) cultosStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
-    const setLideresDirty = (dirty = true) => { state.lideresDirty = dirty; if (lideresStatus) lideresStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); };
+    // Auto-guardado real (con debounce, ver scheduleNoteAutosave más arriba):
+    // cada cambio agenda un guardado a Supabase 700ms después del último tecleo.
+    const setTakersDirty = (dirty = true) => { state.takersDirty = dirty; if (takersStatus) takersStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); if (dirty) scheduleNoteAutosave(); };
+    const setCultosDirty = (dirty = true) => { state.cultosDirty = dirty; if (cultosStatus) cultosStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); if (dirty) scheduleNoteAutosave(); };
+    const setLideresDirty = (dirty = true) => { state.lideresDirty = dirty; if (lideresStatus) lideresStatus.textContent = dirty ? 'Cambios sin guardar.' : ''; updateSaveButtonState(); if (dirty) scheduleNoteAutosave(); };
 
     notesSheetScreen?.addEventListener('input', () => setDcDirty(true));
     notesSheetScreen?.addEventListener('change', () => setDcDirty(true));
@@ -3284,7 +3458,7 @@ btnBack?.addEventListener('click', () => {
     // (y el botón vuelve a mostrarse como "Atrás"); si no hay nada pendiente, navega hacia atrás.
     notesBtnBack?.addEventListener('click', async () => {
       if (state.notesOpenSheet && isCurrentSheetDirty()) {
-        saveNotesNow();
+        await saveNotesNow();
         return;
       }
       const action = state.notesOpenSheet ? NOTES_BACK_ACTIONS[state.notesOpenSheet] : null;
@@ -3367,6 +3541,9 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     setWeekScreenVisible(false);
     showView('home');
     try { history.replaceState({ view: 'home' }, ''); } catch (e) {}
+    // En segundo plano, sin bloquear el render: sube a Supabase cualquier
+    // borrador local que haya quedado atrapado antes de este fix.
+    migrateLocalDraftsToSupabase();
 
     // ---- Editor RTE (Takers / Cultos / Reunión de Líderes)
     // Menú flotante de formato: aparece al seleccionar texto dentro de cualquier .rte__editor,

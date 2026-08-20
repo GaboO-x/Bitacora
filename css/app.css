@@ -1114,6 +1114,12 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .rte__editor:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 
+/* Revisión de Notas: render de solo lectura (reemplaza el volcado de JSON) */
+.review-note__tema{font-family: var(--font-serif); font-weight:600; font-size:1.05em; margin-bottom:4px}
+.review-note__meta{margin-bottom:10px}
+.review-note__rte{margin-top:8px}
+.review-note table.table td, .review-note table.table th{vertical-align:top}
+
 /* Hojas de texto libre (Takers/Cultos/Líderes) a pantalla completa: el editor ocupa
    todo el alto disponible y solo él genera scroll interno; la página no se desplaza. */
 body.notes-fullheight .main{

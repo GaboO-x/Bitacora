@@ -3037,7 +3037,9 @@ btnBack?.addEventListener('click', () => {
         store.weeks = store.weeks || {};
         store.weeks[String(week)] = store.weeks[String(week)] || { leaders: {} };
         store.weeks[String(week)].leaders = store.weeks[String(week)].leaders || {};
+        const existingEntry = store.weeks[String(week)].leaders[leaderKey] || {};
         store.weeks[String(week)].leaders[leaderKey] = {
+          ...existingEntry,
           rj: attState.sections.rj, takers: attState.sections.takers, makers: attState.sections.makers,
         };
         attWriteStore(store);

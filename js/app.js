@@ -598,6 +598,27 @@ btnBack?.addEventListener('click', () => {
       return null;
     };
 
+    // Prefijo de squad_code -> color de "Unidad" en el widget de Asistencia
+    // (dentro de Notas → Dinámica Celular). Orden importa: 'UAZ' se revisa
+    // ANTES que 'UA', porque UAZM/UAZT también empiezan con 'UA' — si no,
+    // Azul se confundiría con Amarilla. Mapeo confirmado por el usuario:
+    // UR→Roja, UV→Verde, UA→Amarilla, UAZ→Azul, UN→Naranja. "Equipos"
+    // (purple) no tiene squad_code propio — es exclusivo de Pastor/Admin,
+    // ver attRestrictColorByRole() más abajo.
+    const SQUAD_PREFIX_TO_ATT_COLOR = [
+      ['UAZ', 'blue'],
+      ['UR',  'red'],
+      ['UV',  'green'],
+      ['UA',  'yellow'],
+      ['UN',  'orange'],
+    ];
+    const colorFromSquadCode = (code) => {
+      if (!code) return null;
+      const c = String(code).toUpperCase();
+      const hit = SQUAD_PREFIX_TO_ATT_COLOR.find(([prefix]) => c.startsWith(prefix));
+      return hit ? hit[1] : null;
+    };
+
     let cachedMyDivisions = null;
     const getMyDivisions = async () => {
       if (cachedMyDivisions) return cachedMyDivisions;
@@ -3325,9 +3346,56 @@ btnBack?.addEventListener('click', () => {
         if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveLeaderForWeek(); }
       });
 
+      // Restringe/auto-asigna la Unidad de Asistencia según el rol real del
+      // usuario logueado (getRole()/loadLeaderSquadCodes() ya existen en
+      // el scope de afuera, se usan también en Revisión de Notas):
+      //  - admin / pastor: sin restricción, ven las 6 unidades (Equipos
+      //    incluido). Admin siempre tiene acceso a todo.
+      //  - cualquier otro rol: "Equipos" se oculta del selector — es
+      //    exclusivo de Pastor/Admin.
+      //  - leader (Líder de Escuadrón): la regla del negocio es que nunca
+      //    tiene más de un squad_code asignado, así que si se encuentra
+      //    exactamente uno, el color se deriva de su prefijo y el selector
+      //    queda fijo en esa única opción (ya no elige manualmente). Si
+      //    por algún motivo hay 0 o más de 1 (no debería pasar, ver
+      //    contexto técnico), se deja sin restringir como fallback seguro
+      //    en vez de romper la vista.
+      const attRestrictColorByRole = async () => {
+        let role;
+        try { role = await getRole(); } catch { role = 'user'; }
+        if (role === 'admin' || role === 'pastor') return;
+
+        const purpleOpt = Array.from(attColorSelector.options).find(o => o.value === 'purple');
+        const wasOnPurple = attColorSelector.value === 'purple';
+        if (purpleOpt) purpleOpt.remove();
+        // No confiar en que el navegador reasigne .value solo al remover
+        // la opción seleccionada: se fuerza explícito a la primera opción
+        // que quede, si hacía falta.
+        if (wasOnPurple && attColorSelector.options.length) {
+          attColorSelector.value = attColorSelector.options[0].value;
+        }
+
+        if (role === 'leader') {
+          let codes = [];
+          try { codes = await loadLeaderSquadCodes(); } catch { codes = []; }
+          if (codes.length === 1) {
+            const color = colorFromSquadCode(codes[0]);
+            const stillHasColor = color && Array.from(attColorSelector.options).some(o => o.value === color);
+            if (stillHasColor) {
+              Array.from(attColorSelector.options).forEach(o => { if (o.value !== color) o.remove(); });
+              attColorSelector.value = color;
+            }
+          }
+        }
+
+        syncOptWheelLabelForSelect(attColorSelector);
+        attApplyColor(true);
+      };
+
       // ---- Init (una sola vez) ----
       attApplySectionLabels();
       attApplyColor(false);
+      attRestrictColorByRole();
 
       // ---- Refresco al abrir/cambiar de semana (llamado desde openDinamicaCelular) ----
       attRefreshForWeek = () => {

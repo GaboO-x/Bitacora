@@ -277,6 +277,14 @@ btnBack?.addEventListener('click', () => {
       try { return new Date().toLocaleString(); } catch { return ''; }
     };
 
+    // Puente hacia attReadStore() (definida más abajo, dentro del IIFE del
+    // widget de Asistencia). Se reasigna una sola vez cuando ese IIFE corre;
+    // para cuando collectDcDraft() se INVOQUE de verdad (Guardar/autosave),
+    // el script entero ya terminó de ejecutarse top-to-bottom y el binding
+    // ya apunta a la función real. Mismo patrón que attRefreshForWeek/
+    // flushNotesSave en este archivo.
+    let attReadStoreRef = () => ({ weeks: {} });
+
     const collectDcDraft = () => {
       if (!notesSheetScreen) return null;
       const blocks = qsa('.dc-item', notesSheetScreen).map(item => {
@@ -296,11 +304,21 @@ btnBack?.addEventListener('click', () => {
         return { name, enc, just, date };
       });
 
+      // Asistencia (checks + ofrenda por líder): vive en el mismo borrador
+      // local unificado (ver attReadStore/attWriteStore más abajo), ya
+      // acumulada ahí por cada interacción del widget. Se incluye acá para
+      // que viaje junto con el resto de la hoja "dc" hacia Supabase.
+      const week = state.selectedWeek;
+      const weekStore = attReadStoreRef();
+      const weekEntry = week ? weekStore.weeks?.[String(week)] : null;
+      const asistencia = weekEntry ? { leaders: weekEntry.leaders || {} } : null;
+
       return {
         date: dcDate?.value || '',
         blocks,
         follow,
         notes: dcNotes?.value || '',
+        asistencia,
       };
     };
 
@@ -338,6 +356,19 @@ btnBack?.addEventListener('click', () => {
         });
         syncAllJustWheels(); // refleja en los wheels móviles los radios recién cargados
       }
+    };
+
+    // Herencia de Anuncios entre semanas: solo cuando la semana NO tiene
+    // borrador propio (ver openDinamicaCelular). Busca hacia atrás la
+    // semana más reciente con texto de Anuncios guardado. El resto de la
+    // hoja (bloques de tiempo/responsable, Seguimiento, Asistencia/ofrenda)
+    // nunca hereda — nace en blanco cada semana.
+    const findInheritedDcNotes = (week) => {
+      for (let w = week - 1; w >= 1; w--) {
+        const prev = getWeekDraft(w).dc;
+        if (prev && typeof prev.notes === 'string' && prev.notes.trim()) return prev.notes;
+      }
+      return '';
     };
 
     const collectRteDraft = (temaEl, dateEl, editorEl) => ({
@@ -967,9 +998,43 @@ btnBack?.addEventListener('click', () => {
       'Refrigerio',
     ];
 
+    // Etiquetas de Unidad para mostrar el líder de Asistencia en Revisión
+    // de Notas (leaderKey tiene forma "color__Nombre").
+    const ATT_COLOR_LABELS_RO = { red: 'Roja', blue: 'Azul', yellow: 'Amarilla', orange: 'Naranja', green: 'Verde', purple: 'Equipos' };
+
+    // Render de solo lectura de Asistencia/Ofrenda para Revisión de Notas:
+    // un renglón por cada líder con datos guardados esa semana. Sinpe/
+    // Efectivo se muestran como "0" cuando están vacíos (nunca en blanco),
+    // tal como se guardan — la ofrenda nunca se hereda entre semanas.
+    const renderDcOfferingReadOnly = (asistencia) => {
+      const leaders = asistencia?.leaders || {};
+      const keys = Object.keys(leaders);
+      if (!keys.length) {
+        return '<div class="muted">Sin datos de asistencia/ofrenda para esta semana.</div>';
+      }
+      const rows = keys.map(k => {
+        const [color, ...rest] = k.split('__');
+        const name = rest.join('__') || k;
+        const colorLabel = ATT_COLOR_LABELS_RO[color] || color;
+        const off = leaders[k]?.offering || {};
+        const sinpe = (off.sinpe !== '' && off.sinpe != null) ? off.sinpe : '0';
+        const efectivo = (off.efectivo !== '' && off.efectivo != null) ? off.efectivo : '0';
+        const total = (parseFloat(sinpe) || 0) + (parseFloat(efectivo) || 0);
+        return `<tr><td>${escapeHtml(colorLabel)} — ${escapeHtml(name)}</td><td>₡${escapeHtml(String(sinpe))}</td><td>₡${escapeHtml(String(efectivo))}</td><td>₡${total.toLocaleString('es-CR')}</td></tr>`;
+      }).join('');
+      return `
+        <div class="table-wrap">
+          <table class="table">
+            <thead><tr><th>Líder</th><th>Sinpe</th><th>Efectivo</th><th>Total</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    };
+
     // Render de solo lectura para la hoja "Dinámica Celular" en Revisión de
     // Notas: misma información que collectDcDraft() guarda (blocks/follow/
-    // notes/date), pero como tabla legible en vez de JSON crudo.
+    // notes/date/asistencia), pero como tabla legible en vez de JSON crudo.
     const renderDcReadOnly = (data) => {
       const d = data || {};
       const blocks = Array.isArray(d.blocks) ? d.blocks : [];
@@ -1007,6 +1072,8 @@ btnBack?.addEventListener('click', () => {
             <tbody>${followRows}</tbody>
           </table>
         </div>
+        <div class="panel__subtitle" style="margin-top:14px;">Asistencia y Ofrenda</div>
+        ${renderDcOfferingReadOnly(d.asistencia)}
         <div class="panel__subtitle" style="margin-top:14px;">Anuncios</div>
         <div class="rte__editor review-note__rte">${notesHtml}</div>
       `;
@@ -1793,6 +1860,30 @@ btnBack?.addEventListener('click', () => {
             }, { onConflict: 'user_id,week,sheet' });
           }
         }
+      } catch {}
+    };
+
+    // Complemento de migrateLocalDraftsToSupabase (sube), en la dirección
+    // contraria: trae de Supabase TODAS las semanas de la hoja "dc" de este
+    // usuario y las funde en el borrador local. Sin esto, abrir la app en
+    // otro dispositivo/navegador (o después de limpiar caché) mostraba la
+    // hoja "dc" vacía —incluida Asistencia/ofrenda— aunque ya hubiera datos
+    // guardados en Supabase, porque nada los volvía a bajar. Se llama una
+    // vez al iniciar sesión, DESPUÉS de migrateLocalDraftsToSupabase (para
+    // no pisar con datos viejos de Supabase un cambio local reciente que
+    // todavía no se había subido).
+    const hydrateDcHistoryFromSupabase = async () => {
+      try {
+        const res = await supabase
+          .from('notes')
+          .select('week, data')
+          .eq('user_id', user.id)
+          .eq('sheet', 'dc');
+        if (res.error) return;
+        (res.data || []).forEach(row => {
+          if (!row || row.week == null || !row.data) return;
+          setWeekDraft(row.week, { dc: row.data });
+        });
       } catch {}
     };
 
@@ -2714,8 +2805,11 @@ btnBack?.addEventListener('click', () => {
     // Adaptado de "Control_Asistencia_Lider.html":
     //  - sin selector de semana propio: usa state.selectedWeek de Bitácora
     //  - variables de color scoped en #dcAttApp (nunca toca --accent global)
-    //  - storage local independiente (bitacora_asistencia_v1), NO es parte
-    //    del sistema de borradores de Supabase del resto de Dinámica Celular
+    //  - storage: attReadStore/attWriteStore leen y escriben dentro del
+    //    MISMO borrador unificado que usa el resto de Dinámica Celular
+    //    (bitacora_notes_drafts_v1 → semana.dc.asistencia.leaders), así que
+    //    viaja con el resto de la hoja "dc" hacia Supabase vía
+    //    collectDcDraft()/saveNotesNow() (Guardar / autosave 700ms).
     //  - modelo por semana: los NOMBRES se heredan hacia adelante desde la
     //    semana más reciente con datos; los checkboxes siempre entran en
     //    blanco; la ofrenda nunca se hereda (siempre nace vacía)
@@ -2798,16 +2892,35 @@ btnBack?.addEventListener('click', () => {
         }
       };
 
-      const ATT_STORAGE_KEY = 'bitacora_asistencia_v1';
-
       // ---- Storage: { weeks: { "5": { leaders: { "red__Anyel": { rj:{main,visit}, takers:{...}, makers:{...}, offering:{sinpe,efectivo} } } } } } ----
+      // Antes vivía en su propia key de localStorage (bitacora_asistencia_v1),
+      // desconectada de Supabase. Ahora lee/escribe dentro del MISMO borrador
+      // unificado de Notas (bitacora_notes_drafts_v1 → semana.dc.asistencia),
+      // así que saveNotesNow()/collectDcDraft() la sincroniza como parte de
+      // la hoja "dc" normal (Guardar y autosave 700ms), sin storage aparte.
       const attReadStore = () => {
-        try { return JSON.parse(localStorage.getItem(ATT_STORAGE_KEY) || '{}'); }
-        catch { return {}; }
+        const drafts = readDrafts(); // { [week]: { dc: {...}, takers: {...}, ... } }
+        const weeks = {};
+        Object.keys(drafts).forEach(wk => {
+          const leaders = drafts[wk]?.dc?.asistencia?.leaders;
+          if (leaders && Object.keys(leaders).length) weeks[wk] = { leaders };
+        });
+        return { weeks };
       };
-      const attWriteStore = (obj) => {
-        try { localStorage.setItem(ATT_STORAGE_KEY, JSON.stringify(obj)); } catch {}
+      const attWriteStore = (store) => {
+        const weeks = store?.weeks || {};
+        Object.keys(weeks).forEach(wk => {
+          const weekNum = Number(wk);
+          if (!weekNum) return;
+          const current = getWeekDraft(weekNum);
+          const dc = { ...(current.dc || {}) };
+          dc.asistencia = { leaders: weeks[wk].leaders || {} };
+          setWeekDraft(weekNum, { dc });
+        });
       };
+      // Conecta el puente declarado arriba (junto a collectDcDraft) con la
+      // implementación real, ahora que ya existe en este scope.
+      attReadStoreRef = attReadStore;
 
       const attEmptySections = () => ({
         rj:     { main: [], visit: [] },
@@ -3242,6 +3355,12 @@ btnBack?.addEventListener('click', () => {
         // (antes usaba la fecha de hoy, sin relación con la semana elegida).
         if (dcDate && !dcDate.value) dcDate.value = weekMondayISO(state.selectedWeek);
         initDcDefaults();
+        // Herencia: de una semana a otra SOLO se hereda el texto de Anuncios
+        // (los nombres de "Nombre del discípulo" se heredan aparte, dentro
+        // del widget de Asistencia — ver attLoadLeaderForWeek). Todo lo
+        // demás (bloques Tiempo/Responsable, Seguimiento, checks/ofrenda)
+        // nace en blanco.
+        if (dcNotes) dcNotes.value = findInheritedDcNotes(state.selectedWeek);
       }
       rebuildJustNames();
       attRefreshForWeek();
@@ -3541,9 +3660,14 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     setWeekScreenVisible(false);
     showView('home');
     try { history.replaceState({ view: 'home' }, ''); } catch (e) {}
-    // En segundo plano, sin bloquear el render: sube a Supabase cualquier
-    // borrador local que haya quedado atrapado antes de este fix.
-    migrateLocalDraftsToSupabase();
+    // En segundo plano, sin bloquear el render: primero sube (Supabase)
+    // cualquier borrador local que haya quedado atrapado, y luego baja el
+    // historial completo de "dc" (incluye Asistencia/ofrenda) para que la
+    // hoja se vea igual sin importar el dispositivo/navegador usado.
+    (async () => {
+      await migrateLocalDraftsToSupabase();
+      await hydrateDcHistoryFromSupabase();
+    })();
 
     // ---- Editor RTE (Takers / Cultos / Reunión de Líderes)
     // Menú flotante de formato: aparece al seleccionar texto dentro de cualquier .rte__editor,

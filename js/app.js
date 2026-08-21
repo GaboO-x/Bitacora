@@ -16,6 +16,10 @@ import { requireSession, getMyProfile } from "./shared.js";
   // una vez que saveNotesNow() existe. Fuerza el guardado a Supabase de la
   // hoja de Notas abierta (si tiene cambios sin guardar) antes de salir.
   let flushNotesSave = async () => {};
+  // Mismo patrón: reasignada dentro del widget de Asistencia (Sesión 3).
+  // Fuerza el upsert a asistencia_records si hay cambios pendientes en el
+  // debounce de 700ms, antes de salir (evita perder el último check/nombre).
+  let flushAttendanceSave = async () => {};
 
   const user = session.user;
 
@@ -25,6 +29,9 @@ import { requireSession, getMyProfile } from "./shared.js";
     if (!ok) return;
     try {
       await flushNotesSave();
+    } catch {}
+    try {
+      await flushAttendanceSave();
     } catch {}
     try {
       await flushMisDoceSave();
@@ -243,6 +250,10 @@ btnBack?.addEventListener('click', () => {
       if (view === 'revision') {
         initReviewView();
       }
+
+      if (view === 'estadistica') {
+        initEstadisticaView();
+      }
     };
 
     const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
@@ -277,14 +288,6 @@ btnBack?.addEventListener('click', () => {
       try { return new Date().toLocaleString(); } catch { return ''; }
     };
 
-    // Puente hacia attReadStore() (definida más abajo, dentro del IIFE del
-    // widget de Asistencia). Se reasigna una sola vez cuando ese IIFE corre;
-    // para cuando collectDcDraft() se INVOQUE de verdad (Guardar/autosave),
-    // el script entero ya terminó de ejecutarse top-to-bottom y el binding
-    // ya apunta a la función real. Mismo patrón que attRefreshForWeek/
-    // flushNotesSave en este archivo.
-    let attReadStoreRef = () => ({ weeks: {} });
-
     const collectDcDraft = () => {
       if (!notesSheetScreen) return null;
       const blocks = qsa('.dc-item', notesSheetScreen).map(item => {
@@ -304,21 +307,11 @@ btnBack?.addEventListener('click', () => {
         return { name, enc, just, date };
       });
 
-      // Asistencia (checks + ofrenda por líder): vive en el mismo borrador
-      // local unificado (ver attReadStore/attWriteStore más abajo), ya
-      // acumulada ahí por cada interacción del widget. Se incluye acá para
-      // que viaje junto con el resto de la hoja "dc" hacia Supabase.
-      const week = state.selectedWeek;
-      const weekStore = attReadStoreRef();
-      const weekEntry = week ? weekStore.weeks?.[String(week)] : null;
-      const asistencia = weekEntry ? { leaders: weekEntry.leaders || {} } : null;
-
       return {
         date: dcDate?.value || '',
         blocks,
         follow,
         notes: dcNotes?.value || '',
-        asistencia,
       };
     };
 
@@ -603,8 +596,8 @@ btnBack?.addEventListener('click', () => {
     // ANTES que 'UA', porque UAZM/UAZT también empiezan con 'UA' — si no,
     // Azul se confundiría con Amarilla. Mapeo confirmado por el usuario:
     // UR→Roja, UV→Verde, UA→Amarilla, UAZ→Azul, UN→Naranja. "Equipos"
-    // (purple) no tiene squad_code propio — es exclusivo de Pastor/Admin,
-    // ver attRestrictColorByRole() más abajo.
+    // (purple) no tiene squad_code propio — es exclusivo de células "EQUIPOS",
+    // ver attColorForSquad() dentro del widget de Asistencia (Sesión 3).
     const SQUAD_PREFIX_TO_ATT_COLOR = [
       ['UAZ', 'blue'],
       ['UR',  'red'],
@@ -1269,6 +1262,490 @@ btnBack?.addEventListener('click', () => {
         }
       } catch {}
     })();
+
+    // ======================================================================
+    // Estadística (Sesión 4) — dashboard agregado sobre asistencia_records,
+    // reemplaza el puente manual app2 (Consolidador/Estadística Mensual/
+    // Reporte Cuatrimestral). Visible a Líder de Escuadrón, Pastor y Admin
+    // del App; la vista es la misma para los tres roles, solo cambia el
+    // alcance de escuadrones que cada uno puede ver/filtrar (RLS). El
+    // export a Excel (equivalente app3) queda para la Sesión 5.
+    // ======================================================================
+    const navEstadistica = qs('#navEstadistica');
+    const cardEstadistica = qs('#cardEstadistica');
+    const estSquadTitle = qs('#estSquadTitle');
+    const estSquadSelect = qs('#estSquadSelect');
+    const estTabButtons = qsa('.est-tab');
+    const estPeriodPanels = {
+      semanal: qs('#estPeriodSemanal'),
+      mensual: qs('#estPeriodMensual'),
+      cuatrimestral: qs('#estPeriodCuatrimestral'),
+    };
+    const estWeekSelect = qs('#estWeekSelect');
+    const estMonthSelect = qs('#estMonthSelect');
+    const estQuarterSelect = qs('#estQuarterSelect');
+    const estStatusEl = qs('#estStatus');
+    const estTableWrap = qs('#estTableWrap');
+    const estTotalsRow = qs('#estTotalsRow');
+    const estTrendTitle = qs('#estTrendTitle');
+    const estBtnExcel = qs('#estBtnExcel');
+    const estUnitSummaryPanel = qs('#estUnitSummaryPanel');
+    const estUnitTableWrap = qs('#estUnitTableWrap');
+
+    let estLastPerCelula = [];
+
+    let estActiveTab = 'semanal';
+    let estChartTrendInstance = null;
+    let estChartMetaInstance = null;
+
+    const setEstStatus = (msg) => { if (estStatusEl) estStatusEl.textContent = msg || ''; };
+    const estYear = () => new Date().getFullYear();
+
+    // Mostrar acceso "Estadística" a Líder de Escuadrón, Pastor y Admin del App
+    (async () => {
+      try {
+        const role = await getRole();
+        if (role === 'leader' || role === 'admin' || role === 'pastor') {
+          navEstadistica?.classList.remove('is-hidden');
+          cardEstadistica?.classList.remove('is-hidden');
+        }
+        // Exportar Excel y Resumen por Unidad: exclusivo Pastor/Admin (equivalente app3).
+        if (role === 'admin' || role === 'pastor') {
+          estBtnExcel?.classList.remove('is-hidden');
+        }
+      } catch {}
+    })();
+
+    // Reutiliza el mismo listado de escuadrones que "Revisión de Notas"
+    // (reviewSquadSelectFullHTML), definido más arriba en este archivo.
+    const configureEstSquadFilter = async (role) => {
+      if (!estSquadTitle || !estSquadSelect) return;
+
+      if (role === 'admin' || role === 'pastor') {
+        estSquadSelect.innerHTML = reviewSquadSelectFullHTML;
+        estSquadTitle.classList.remove('is-hidden');
+        estSquadSelect.classList.remove('is-hidden');
+        return;
+      }
+
+      if (role === 'leader') {
+        const mySquads = await loadLeaderSquadCodes();
+        const tmp = document.createElement('select');
+        tmp.innerHTML = reviewSquadSelectFullHTML;
+        const mine = Array.from(tmp.options).filter(o => mySquads.includes(o.value));
+
+        estSquadSelect.innerHTML = '';
+        if (mySquads.length > 1) {
+          const optAll = document.createElement('option');
+          optAll.value = '';
+          optAll.textContent = 'Todos mis escuadrones';
+          estSquadSelect.appendChild(optAll);
+          mine.forEach(o => estSquadSelect.appendChild(o.cloneNode(true)));
+          estSquadTitle.classList.remove('is-hidden');
+          estSquadSelect.classList.remove('is-hidden');
+        } else if (mine.length === 1) {
+          estSquadSelect.appendChild(mine[0].cloneNode(true));
+          estSquadTitle.classList.add('is-hidden');
+          estSquadSelect.classList.add('is-hidden');
+        }
+        return;
+      }
+
+      estSquadTitle.classList.add('is-hidden');
+      estSquadSelect.classList.add('is-hidden');
+    };
+
+    const ALL_SQUAD_CODES = ['URM','UVM','UAM','UNM','UAZM','URT','UVT','UAT','UNT','UAZT'];
+
+    const estGetSelectedSquadCodes = async (role) => {
+      const val = estSquadSelect?.value || '';
+      if (role === 'admin' || role === 'pastor') {
+        return val ? [val] : ALL_SQUAD_CODES;
+      }
+      if (role === 'leader') {
+        return val ? [val] : await loadLeaderSquadCodes();
+      }
+      return [];
+    };
+
+    // ---- Tabs ----
+    const estSetActiveTab = (tab) => {
+      estActiveTab = tab;
+      estTabButtons.forEach(b => b.classList.toggle('is-active', b.dataset.estTab === tab));
+      Object.entries(estPeriodPanels).forEach(([k, el]) => el?.classList.toggle('is-hidden', k !== tab));
+      if (estTrendTitle) {
+        estTrendTitle.textContent = tab === 'cuatrimestral'
+          ? 'Tendencia mensual — Célula / Red-Culto'
+          : 'Tendencia semanal — Célula / Red-Culto';
+      }
+      estLoadAndRender();
+    };
+    estTabButtons.forEach(b => b.addEventListener('click', () => estSetActiveTab(b.dataset.estTab)));
+
+    // ---- Selectores de período ----
+    const estPopulateWeekSelect = () => {
+      if (!estWeekSelect || estWeekSelect.options.length) return; // poblar una sola vez
+      const current = getCurrentWeekNumber() || 1;
+      for (let w = 1; w <= 52; w++) {
+        const opt = document.createElement('option');
+        opt.value = String(w);
+        opt.textContent = `Semana ${String(w).padStart(2, '0')} (${weekRangeLabel(w)})`;
+        if (w === current) opt.selected = true;
+        estWeekSelect.appendChild(opt);
+      }
+    };
+    const estInitDefaultPeriods = () => {
+      const now = new Date();
+      if (estMonthSelect && !estMonthSelect.dataset.initDone) {
+        estMonthSelect.value = String(now.getMonth() + 1);
+        estMonthSelect.dataset.initDone = '1';
+      }
+      if (estQuarterSelect && !estQuarterSelect.dataset.initDone) {
+        estQuarterSelect.value = String(Math.floor(now.getMonth() / 4) + 1);
+        estQuarterSelect.dataset.initDone = '1';
+      }
+    };
+
+    estSquadSelect?.addEventListener('change', () => estLoadAndRender());
+    estWeekSelect?.addEventListener('change', () => estLoadAndRender());
+    estMonthSelect?.addEventListener('change', () => estLoadAndRender());
+    estQuarterSelect?.addEventListener('change', () => estLoadAndRender());
+
+    // ---- Semanas incluidas en un Mes / Cuatrimestre (por el lunes de cada semana) ----
+    const estWeeksForMonth = (month) => {
+      const year = estYear();
+      const weeks = [];
+      for (let w = 1; w <= 52; w++) {
+        if (getWeekMonday(w, year).getMonth() + 1 === month) weeks.push(w);
+      }
+      return weeks;
+    };
+    const estWeeksForQuarter = (quarter) => {
+      const year = estYear();
+      const startMonth = (quarter - 1) * 4 + 1;
+      const endMonth = startMonth + 3;
+      const weeks = [];
+      for (let w = 1; w <= 52; w++) {
+        const m = getWeekMonday(w, year).getMonth() + 1;
+        if (m >= startMonth && m <= endMonth) weeks.push(w);
+      }
+      return weeks;
+    };
+
+    const estBucketByWeek = (records, weeks) => weeks.map(w => {
+      const recs = records.filter(r => r.week === w);
+      return {
+        label: `S${String(w).padStart(2, '0')}`,
+        cel: recs.reduce((s, r) => s + (Number(r.cel) || 0), 0),
+        red_culto: recs.reduce((s, r) => s + (Number(r.red_culto) || 0), 0),
+      };
+    });
+
+    const EST_MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+    const estBucketByMonth = (records, weeks, year) => {
+      const byMonth = {};
+      weeks.forEach(w => {
+        const m = getWeekMonday(w, year).getMonth() + 1;
+        byMonth[m] = byMonth[m] || [];
+        byMonth[m].push(w);
+      });
+      return Object.keys(byMonth).sort((a, b) => a - b).map(m => {
+        const weeksInMonth = byMonth[m];
+        const recs = records.filter(r => weeksInMonth.includes(r.week));
+        return {
+          label: EST_MONTH_SHORT[Number(m) - 1],
+          cel: recs.reduce((s, r) => s + (Number(r.cel) || 0), 0),
+          red_culto: recs.reduce((s, r) => s + (Number(r.red_culto) || 0), 0),
+        };
+      });
+    };
+
+    // ---- Tabla de detalle por célula ----
+    const estRenderTable = (perCelula, role) => {
+      if (!estTableWrap) return;
+      if (!perCelula.length) {
+        estTableWrap.innerHTML = 'Sin células en este escuadrón.';
+        if (estTotalsRow) estTotalsRow.textContent = '';
+        return;
+      }
+
+      const canEditMeta = estActiveTab === 'semanal' && (role === 'leader' || role === 'admin' || role === 'pastor');
+      const sectionLabelShort = (sec) => sec === 'rj' ? 'RJ' : sec === 'takers' ? 'Takers' : 'Makers';
+
+      let totCel = 0, totRed = 0, totNuevos = 0, totOfrenda = 0, totMeta = 0;
+      let html = '<table><thead><tr><th>Célula</th><th>Secc.</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Ofrenda ₡</th><th>Meta</th></tr></thead><tbody>';
+
+      perCelula.forEach(row => {
+        totCel += row.cel; totRed += row.red_culto; totNuevos += row.nuevos;
+        totOfrenda += (row.sinpe + row.efectivo); totMeta += (row.meta || 0);
+        const metaCell = canEditMeta
+          ? `<input type="number" min="1" max="30" class="est-meta-input" data-celula-id="${row.celula.id}" value="${row.weekMeta ?? ''}" placeholder="—">`
+          : (row.meta || '—');
+        html += `<tr>
+          <td>${escapeHtml(row.celula.name)}</td>
+          <td>${sectionLabelShort(row.celula.section)}</td>
+          <td>${row.cel}</td>
+          <td>${row.red_culto}</td>
+          <td>${row.nuevos || ''}</td>
+          <td>₡${(row.sinpe + row.efectivo).toLocaleString('es-CR')}</td>
+          <td>${metaCell}</td>
+        </tr>`;
+      });
+
+      html += `<tr class="est-row--total"><td colspan="2">TOTAL</td><td>${totCel}</td><td>${totRed}</td><td>${totNuevos}</td><td>₡${totOfrenda.toLocaleString('es-CR')}</td><td>${totMeta || '—'}</td></tr>`;
+      html += '</tbody></table>';
+      estTableWrap.innerHTML = html;
+
+      if (estTotalsRow) estTotalsRow.textContent = `${perCelula.length} célula(s) — Ofrenda total ₡${totOfrenda.toLocaleString('es-CR')}`;
+
+      if (canEditMeta) {
+        qsa('.est-meta-input', estTableWrap).forEach(input => {
+          input.addEventListener('change', async () => {
+            const celulaId = input.dataset.celulaId;
+            const raw = input.value === '' ? null : Math.max(1, Math.min(30, parseInt(input.value, 10) || 1));
+            input.value = raw ?? '';
+            const week = parseInt(estWeekSelect.value, 10);
+            const year = estYear();
+            input.disabled = true;
+
+            // La fila puede o no existir todavía (la célula tal vez no reportó
+            // esta semana): intentar UPDATE primero; si no afecta filas,
+            // INSERT de un placeholder (el trigger de Supabase exige que ese
+            // placeholder tenga los demás campos en su valor por defecto).
+            const { data: upd, error: updErr } = await supabase
+              .from('asistencia_records')
+              .update({ meta: raw })
+              .eq('celula_id', celulaId).eq('week', week).eq('year', year)
+              .select('id');
+
+            if (!updErr && upd && upd.length) { input.disabled = false; return; }
+
+            const { error: insErr } = await supabase
+              .from('asistencia_records')
+              .insert({ celula_id: celulaId, week, year, meta: raw });
+            input.disabled = false;
+            if (insErr) setEstStatus('No se pudo guardar la meta: ' + insErr.message);
+          });
+        });
+      }
+    };
+
+    // ---- Gráficos ----
+    const estRenderTrendChart = (bucketed) => {
+      const ctx = qs('#estChartTrend');
+      if (!ctx || typeof Chart === 'undefined') return;
+      if (estChartTrendInstance) estChartTrendInstance.destroy();
+      estChartTrendInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: bucketed.map(b => b.label),
+          datasets: [
+            { label: 'Célula', data: bucketed.map(b => b.cel), backgroundColor: '#3498db' },
+            { label: 'Red/Culto', data: bucketed.map(b => b.red_culto), backgroundColor: '#e67e22' },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+      });
+    };
+
+    const estRenderMetaChart = (perCelula) => {
+      const ctx = qs('#estChartMeta');
+      if (!ctx || typeof Chart === 'undefined') return;
+      if (estChartMetaInstance) estChartMetaInstance.destroy();
+      estChartMetaInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: perCelula.map(r => r.celula.name),
+          datasets: [
+            { label: 'Real (Red/Culto)', data: perCelula.map(r => r.red_culto), backgroundColor: '#2ecc71' },
+            { label: 'Meta', data: perCelula.map(r => r.meta || 0), backgroundColor: '#95a5a6' },
+          ],
+        },
+        options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+      });
+    };
+
+    // ---- Resumen por Unidad (Sesión 5, exclusivo Pastor/Admin) ----
+    // Une escuadrones Taker+Maker del mismo color en una sola "Unidad", igual
+    // que agrupaba el viejo app3 (Reporte_Red_Completo). Mismo cuidado de
+    // orden que SQUAD_PREFIX_TO_ATT_COLOR: 'UAZ' se revisa ANTES que 'UA'.
+    const EST_UNIT_ORDER = ['equipos', 'roja', 'azul', 'amarilla', 'naranja', 'verde', 'otro'];
+    const EST_UNIT_LABELS = { equipos: '🟣 Equipos', roja: '🔴 Roja', azul: '🔵 Azul', amarilla: '🟡 Amarilla', naranja: '🟠 Naranja', verde: '🟢 Verde', otro: 'Otro' };
+    const estColorUnitForSquad = (squadCode) => {
+      if (squadCode === 'EQUIPOS') return 'equipos';
+      const c = String(squadCode || '').toUpperCase();
+      if (c.startsWith('UAZ')) return 'azul';
+      if (c.startsWith('UR'))  return 'roja';
+      if (c.startsWith('UV'))  return 'verde';
+      if (c.startsWith('UA'))  return 'amarilla';
+      if (c.startsWith('UN'))  return 'naranja';
+      return 'otro';
+    };
+
+    const estGroupByUnit = (perCelula) => {
+      const groups = {};
+      perCelula.forEach(row => {
+        const key = estColorUnitForSquad(row.celula.squad_code);
+        groups[key] = groups[key] || { cel: 0, red_culto: 0, nuevos: 0, sinpe: 0, efectivo: 0, count: 0 };
+        groups[key].cel += row.cel; groups[key].red_culto += row.red_culto; groups[key].nuevos += row.nuevos;
+        groups[key].sinpe += row.sinpe; groups[key].efectivo += row.efectivo; groups[key].count += 1;
+      });
+      return groups;
+    };
+
+    const estRenderUnitSummary = (perCelula, role) => {
+      if (!estUnitSummaryPanel || !estUnitTableWrap) return;
+      if (role !== 'admin' && role !== 'pastor') { estUnitSummaryPanel.style.display = 'none'; return; }
+      estUnitSummaryPanel.style.display = 'block';
+
+      if (!perCelula.length) { estUnitTableWrap.innerHTML = 'Sin datos.'; return; }
+      const groups = estGroupByUnit(perCelula);
+
+      let html = '<table><thead><tr><th>Unidad</th><th>Células</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Ofrenda ₡</th></tr></thead><tbody>';
+      let gCel = 0, gRed = 0, gNuevos = 0, gOfrenda = 0;
+      EST_UNIT_ORDER.forEach(key => {
+        const g = groups[key];
+        if (!g) return;
+        const ofrenda = g.sinpe + g.efectivo;
+        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gOfrenda += ofrenda;
+        html += `<tr><td>${EST_UNIT_LABELS[key] || key}</td><td>${g.count}</td><td>${g.cel}</td><td>${g.red_culto}</td><td>${g.nuevos}</td><td>₡${ofrenda.toLocaleString('es-CR')}</td></tr>`;
+      });
+      html += `<tr class="est-row--total"><td colspan="2">RED COMPLETA</td><td>${gCel}</td><td>${gRed}</td><td>${gNuevos}</td><td>₡${gOfrenda.toLocaleString('es-CR')}</td></tr>`;
+      html += '</tbody></table>';
+      estUnitTableWrap.innerHTML = html;
+    };
+
+    // ---- Export a Excel (SheetJS) — exclusivo Pastor/Admin ----
+    const estPeriodLabel = () => {
+      if (estActiveTab === 'semanal') return `Semana${(estWeekSelect?.value || '').padStart(2, '0')}`;
+      if (estActiveTab === 'mensual') return `Mes${estMonthSelect?.value || ''}`;
+      return `Cuatrimestre${estQuarterSelect?.value || ''}`;
+    };
+
+    const estExportExcel = () => {
+      if (typeof XLSX === 'undefined') { setEstStatus('La librería de Excel no cargó (revisá tu conexión).'); return; }
+      if (!estLastPerCelula.length) { setEstStatus('No hay datos para exportar.'); return; }
+
+      const wb = XLSX.utils.book_new();
+
+      // Hoja 1: Resumen por Unidad
+      const groups = estGroupByUnit(estLastPerCelula);
+      const resumenAoa = [['Unidad', 'Células', 'Célula', 'Red/Culto', 'Nuevos', 'Sinpe', 'Efectivo', 'Total Ofrenda']];
+      let gCel = 0, gRed = 0, gNuevos = 0, gSinpe = 0, gEfectivo = 0;
+      EST_UNIT_ORDER.forEach(key => {
+        const g = groups[key];
+        if (!g) return;
+        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gSinpe += g.sinpe; gEfectivo += g.efectivo;
+        resumenAoa.push([EST_UNIT_LABELS[key] || key, g.count, g.cel, g.red_culto, g.nuevos, g.sinpe, g.efectivo, g.sinpe + g.efectivo]);
+      });
+      resumenAoa.push(['TOTAL RED', estLastPerCelula.length, gCel, gRed, gNuevos, gSinpe, gEfectivo, gSinpe + gEfectivo]);
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumenAoa);
+      wsResumen['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen por Unidad');
+
+      // Hoja 2: Detalle por Célula
+      const detalleAoa = [['Célula', 'Escuadrón', 'Sección', 'Célula', 'Red/Culto', 'Nuevos', 'Sinpe', 'Efectivo', 'Total Ofrenda', 'Meta']];
+      estLastPerCelula.forEach(row => {
+        detalleAoa.push([
+          row.celula.name, row.celula.squad_code, row.celula.section,
+          row.cel, row.red_culto, row.nuevos, row.sinpe, row.efectivo, row.sinpe + row.efectivo, row.meta || '',
+        ]);
+      });
+      const wsDetalle = XLSX.utils.aoa_to_sheet(detalleAoa);
+      wsDetalle['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+      XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle por Célula');
+
+      XLSX.writeFile(wb, `Estadistica_${estPeriodLabel()}_${estYear()}.xlsx`);
+    };
+
+    estBtnExcel?.addEventListener('click', estExportExcel);
+
+    // ---- Carga + render principal ----
+    const estLoadAndRender = async () => {
+      const role = await getRole();
+      if (role !== 'leader' && role !== 'admin' && role !== 'pastor') return;
+
+      setEstStatus('Cargando…');
+
+      const squadCodes = await estGetSelectedSquadCodes(role);
+      if (!squadCodes.length) {
+        setEstStatus('Sin escuadrón asignado.');
+        estRenderTable([], role);
+        estLastPerCelula = [];
+        if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
+        return;
+      }
+
+      let weeks;
+      if (estActiveTab === 'semanal') weeks = [parseInt(estWeekSelect?.value || '1', 10)];
+      else if (estActiveTab === 'mensual') weeks = estWeeksForMonth(parseInt(estMonthSelect?.value || '1', 10));
+      else weeks = estWeeksForQuarter(parseInt(estQuarterSelect?.value || '1', 10));
+
+      if (!weeks.length) { setEstStatus('No hay semanas en ese período.'); return; }
+
+      const year = estYear();
+
+      const { data: celulas, error: celulasErr } = await supabase
+        .from('celulas')
+        .select('id, name, squad_code, section')
+        .in('squad_code', squadCodes)
+        .eq('is_active', true)
+        .order('name');
+      if (celulasErr) { setEstStatus('Error al cargar células.'); return; }
+      if (!celulas || !celulas.length) {
+        setEstStatus('No hay células en este escuadrón.');
+        estRenderTable([], role);
+        estRenderTrendChart([]);
+        estRenderMetaChart([]);
+        estLastPerCelula = [];
+        if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
+        return;
+      }
+
+      const celulaIds = celulas.map(c => c.id);
+
+      const { data: records, error: recErr } = await supabase
+        .from('asistencia_records')
+        .select('celula_id, week, cel, red_culto, nuevos, sinpe, efectivo, meta')
+        .in('celula_id', celulaIds)
+        .in('week', weeks)
+        .eq('year', year);
+      if (recErr) { setEstStatus('Error al cargar asistencia.'); return; }
+
+      const perCelula = celulas.map(c => {
+        const recs = (records || []).filter(r => r.celula_id === c.id);
+        const sum = (key) => recs.reduce((s, r) => s + (Number(r[key]) || 0), 0);
+        const weekRec = estActiveTab === 'semanal' ? recs[0] : null;
+        return {
+          celula: c,
+          cel: sum('cel'), red_culto: sum('red_culto'), nuevos: sum('nuevos'),
+          sinpe: sum('sinpe'), efectivo: sum('efectivo'),
+          meta: sum('meta'),
+          weekMeta: weekRec ? weekRec.meta : null,
+        };
+      });
+
+      estRenderTable(perCelula, role);
+      estRenderUnitSummary(perCelula, role);
+      estLastPerCelula = perCelula;
+
+      const bucketed = estActiveTab === 'cuatrimestral'
+        ? estBucketByMonth(records || [], weeks, year)
+        : estBucketByWeek(records || [], weeks);
+      estRenderTrendChart(bucketed);
+      estRenderMetaChart(perCelula);
+
+      setEstStatus('');
+    };
+
+    const initEstadisticaView = async () => {
+      const role = await getRole();
+      if (role !== 'leader' && role !== 'admin' && role !== 'pastor') return;
+      await configureEstSquadFilter(role);
+      estPopulateWeekSelect();
+      estInitDefaultPeriods();
+      await estLoadAndRender();
+    };
 
     // Botón "Admin" del sidebar (acceso a admin.html): EXCLUSIVO de
     // role === 'admin'. Pastor tiene los mismos privilegios que Admin en
@@ -1994,6 +2471,7 @@ btnBack?.addEventListener('click', () => {
       state.dcOpen = false;
       state.notesOpenSheet = null;
       updateNotesFullHeightMode();
+      attStopWatching();
 	      // Si el elemento fue fijado (p.ej. convertido a botón "Inicio"), no sobrescribimos su texto.
 	      if (notesHint && !notesHint.dataset.fixed) {
 	        notesHint.textContent = visible ? 'Semana seleccionada: elige una actividad.' : 'Selecciona la semana.';
@@ -2007,6 +2485,7 @@ btnBack?.addEventListener('click', () => {
       notesSheetLideres?.classList.add('is-hidden');
       state.notesOpenSheet = null;
       updateNotesFullHeightMode();
+      attStopWatching();
     };
 
     // Marca <body> cuando una hoja de texto libre (Takers/Cultos/Líderes) está abierta,
@@ -2552,7 +3031,7 @@ btnBack?.addEventListener('click', () => {
     };
 
     // Confirma la opción `idx`: mueve el <select> real y dispara 'change'
-    // (así attColorSelector/attSectionSelector/attLeaderName reaccionan
+    // (así attCelulaSelector u otros <select> dinámicos reaccionan
     // exactamente igual que si el usuario hubiera usado el <select> nativo).
     const commitOptWheelValue = (wheelEl, selectEl, idx) => {
       const opt = selectEl.options[idx];
@@ -2820,28 +3299,45 @@ btnBack?.addEventListener('click', () => {
     // Asignado dentro del IIFE del widget de Asistencia (más abajo). Se llama
     // desde openDinamicaCelular() cada vez que se abre/cambia de semana.
     let attRefreshForWeek = () => {};
+    // Detiene el heartbeat/polling del lock de Asistencia cuando se cierra
+    // la hoja (ver hideAllNoteSheets) — evita que el timer de 20s siga
+    // corriendo (y renovando el lock) en segundo plano sin necesidad.
+    let attStopWatching = () => {};
 
     // ======================================================================
-    // Asistencia (app externa integrada) — control de asistencia y ofrendas
-    // Adaptado de "Control_Asistencia_Lider.html":
-    //  - sin selector de semana propio: usa state.selectedWeek de Bitácora
-    //  - variables de color scoped en #dcAttApp (nunca toca --accent global)
-    //  - storage: attReadStore/attWriteStore leen y escriben dentro del
-    //    MISMO borrador unificado que usa el resto de Dinámica Celular
-    //    (bitacora_notes_drafts_v1 → semana.dc.asistencia.leaders), así que
-    //    viaja con el resto de la hoja "dc" hacia Supabase vía
-    //    collectDcDraft()/saveNotesNow() (Guardar / autosave 700ms).
-    //  - modelo por semana: los NOMBRES se heredan hacia adelante desde la
-    //    semana más reciente con datos; los checkboxes siempre entran en
-    //    blanco; la ofrenda nunca se hereda (siempre nace vacía)
+    // Asistencia (Sesión 3 — rediseño sobre celulas/celula_members/
+    // asistencia_records/asistencia_locks, reemplaza el puente manual
+    // app1→app2→app3):
+    //  - identidad: ya NO hay dropdown libre de nombre. Se deriva de
+    //    celula_members (asignación hecha por el Admin en admin.html). Si
+    //    la cuenta tiene 1 célula, se carga directo; si tiene 2+ (caso
+    //    futuro, dejado preparado desde la Sesión 1), aparece un selector
+    //    limitado a SUS células; si tiene 0, se muestra aviso y el resto
+    //    del widget queda deshabilitado.
+    //  - sección/unidad/escuadrón ya NO se eligen: vienen fijos desde el
+    //    registro de la célula (celulas.section / celulas.squad_code).
+    //  - datos: roster (nombres+checks) y totales (cel/red_culto/nuevos/
+    //    sinpe/efectivo) viven en asistencia_records, keyed por
+    //    (celula_id, week, year) — COMPARTIDO entre co-líderes de la misma
+    //    célula, ya no aislado por user_id dentro de notes. Se escribe con
+    //    upsert directo a Supabase (debounced), no pasa por
+    //    collectDcDraft()/saveNotesNow().
+    //  - herencia de NOMBRES entre semanas: igual que antes, se busca hacia
+    //    atrás la semana más reciente con datos para esta célula.
+    //  - lock de edición: mientras otro co-líder tiene el registro abierto
+    //    (heartbeat < 1 min), el widget queda en solo lectura con aviso.
     // ======================================================================
     (() => {
       const attRoot = qs('#dcAttApp');
       if (!attRoot) return; // no está esta sección en esta vista
 
-      const attColorSelector   = qs('#attColorSelector', attRoot);
-      const attSectionSelector = qs('#attSectionSelector', attRoot);
-      const attLeaderName      = qs('#attLeaderName', attRoot);
+      const attCelulaBadge  = qs('#attCelulaBadge', attRoot);
+      const attCelulaDot    = qs('#attCelulaDot', attRoot);
+      const attCelulaLabel  = qs('#attCelulaLabel', attRoot);
+      const attCelulaSelectorWrap = qs('#attCelulaSelectorWrap', attRoot);
+      const attCelulaSelector    = qs('#attCelulaSelector', attRoot);
+      const attLockBanner   = qs('#attLockBanner', attRoot);
+
       const attOffSinpe        = qs('#attOffSinpe', attRoot);
       const attOffEfectivo     = qs('#attOffEfectivo', attRoot);
       const attTotalOffering   = qs('#attTotalOffering', attRoot);
@@ -2862,8 +3358,6 @@ btnBack?.addEventListener('click', () => {
       const attSumNuevos    = qs('#attSumNuevos', attRoot);
       const attAddMain  = qs('#attAddMain', attRoot);
       const attAddVisit = qs('#attAddVisit', attRoot);
-      const attCopyTodoBtn     = qs('#attCopyTodo', attRoot);
-      const attCopyOfrendasBtn = qs('#attCopyOfrendas', attRoot);
 
       // ---- Paleta por Unidad: scoped en attRoot, jamás en :root ----
       const ATT_COLOR_THEMES = {
@@ -2874,244 +3368,92 @@ btnBack?.addEventListener('click', () => {
         green:  { accent:'#1a7a3c', dark:'#145e2d', bg:'#f0fff5', bdr:'#6fcf97' },
         purple: { accent:'#7c3aed', dark:'#5b21b6', bg:'#faf5ff', bdr:'#c4b5fd' }
       };
+      // Mismo mapeo squad_code→color que ya existe fuera de este IIFE
+      // (colorFromSquadCode), reutilizado acá para el tema visual.
+      const attColorForSquad = (squadCode) => {
+        if (squadCode === 'EQUIPOS') return 'purple';
+        return colorFromSquadCode(squadCode) || 'red';
+      };
 
       const ATT_SECTIONS = {
-        rj:     { label:'RJ',     visitLabel:'VISITAS RJ',     copyLabel:'RJ',     copyVisitLabel:'VISITAS RJ' },
-        takers: { label:'TAKERS', visitLabel:'VISITAS TAKERS', copyLabel:'TAKERS', copyVisitLabel:'VISITAS TAKERS' },
-        makers: { label:'MAKERS', visitLabel:'VISITAS MAKERS', copyLabel:'MAKERS', copyVisitLabel:'VISITAS MAKERS' }
+        rj:     { label:'RJ',     visitLabel:'VISITAS RJ',     copyLabel:'RJ' },
+        takers: { label:'TAKERS', visitLabel:'VISITAS TAKERS', copyLabel:'TAKERS' },
+        makers: { label:'MAKERS', visitLabel:'VISITAS MAKERS', copyLabel:'MAKERS' }
       };
 
-      const ATT_LIDERES = {
-        red: {
-          rj:     ['Anyel', 'Joel', 'Josue R', 'Waldin'],
-          takers: ['EQUIPO Gabriel y Raquel', 'Cynthia', 'Jean', 'Tony R','Enrique y Debbie'],
-          makers: ['John y Esther', 'Esther', 'Marina']
-        },
-        blue: {
-          rj:     ['Alex y Yuli', 'Sharon y Abraham', 'Alejandro Duran'],
-          takers: ['EQUIPO Alonso y Amanda', 'Evelyn', 'Jorge, Melany', 'Tony G', 'Valery B'],
-          makers: ['Pra Francela Virtual', 'Pra. Francela2', 'Ana Yansi', 'Miriam']
-        },
-        green: {
-          rj:     ['Will y Dani', 'Greivin'],
-          takers: ['EQUIPO Ariel y Byron', 'Gaudy', 'Iveth', 'Jose y Eva', 'Maiky y Giovanna', 'Sarai Armas'],
-          makers: ['Pr. Julio', 'Javier y Yorleni', 'Migdalia']
-        },
-        orange: {
-          rj:     ['Andres Matuz', 'Carolina', 'Josué S', 'Stephen y Valery'],
-          takers: ['EQUIPO Angie y Bayron', 'Brayan y Kelly', 'Dago y Maira', 'Jonathan y Priscilla', 'Kenneth'],
-          makers: ['Nuria', 'Roxana', 'Yorleny M']
-        },
-        yellow: {
-          rj:     ['Pablo A', 'Sheily', 'Yehilin'],
-          takers: ['EQUIPO Aaron y Heyling', 'Abigail', 'Hazel', 'Laura'],
-          makers: ['Pr Carlos', 'Alex V', 'Dany y Sandra', 'Gladys', 'Mario Y Ginneth', 'Joyce']
-        },
-        purple: {
-          takers: ['Pra Rita Takers'],
-          makers: ['Pra Rita Makers']
-        }
-      };
-
-      // ---- Storage: { weeks: { "5": { leaders: { "red__Anyel": { rj:{main,visit}, takers:{...}, makers:{...}, offering:{sinpe,efectivo} } } } } } ----
-      // Antes vivía en su propia key de localStorage (bitacora_asistencia_v1),
-      // desconectada de Supabase. Ahora lee/escribe dentro del MISMO borrador
-      // unificado de Notas (bitacora_notes_drafts_v1 → semana.dc.asistencia),
-      // así que saveNotesNow()/collectDcDraft() la sincroniza como parte de
-      // la hoja "dc" normal (Guardar y autosave 700ms), sin storage aparte.
-      const attReadStore = () => {
-        const drafts = readDrafts(); // { [week]: { dc: {...}, takers: {...}, ... } }
-        const weeks = {};
-        Object.keys(drafts).forEach(wk => {
-          const leaders = drafts[wk]?.dc?.asistencia?.leaders;
-          if (leaders && Object.keys(leaders).length) weeks[wk] = { leaders };
-        });
-        return { weeks };
-      };
-      const attWriteStore = (store) => {
-        const weeks = store?.weeks || {};
-        Object.keys(weeks).forEach(wk => {
-          const weekNum = Number(wk);
-          if (!weekNum) return;
-          const current = getWeekDraft(weekNum);
-          const dc = { ...(current.dc || {}) };
-          dc.asistencia = { leaders: weeks[wk].leaders || {} };
-          setWeekDraft(weekNum, { dc });
-        });
-      };
-      // Conecta el puente declarado arriba (junto a collectDcDraft) con la
-      // implementación real, ahora que ya existe en este scope.
-      attReadStoreRef = attReadStore;
-
-      const attEmptySections = () => ({
-        rj:     { main: [], visit: [] },
-        takers: { main: [], visit: [] },
-        makers: { main: [], visit: [] }
-      });
-
-      // Semana más reciente (<= currentWeek) que tenga datos guardados para este leaderKey.
-      const attFindInheritedWeek = (store, currentWeek, leaderKey) => {
-        for (let w = currentWeek - 1; w >= 1; w--) {
-          const entry = store.weeks?.[String(w)]?.leaders?.[leaderKey];
-          if (entry) return w;
-        }
-        return null;
-      };
-
-      // Clona solo los NOMBRES de una sección (main/visit), con cel/red/new en false.
-      const attCloneNamesOnly = (sections) => {
-        const clone = attEmptySections();
-        ['rj', 'takers', 'makers'].forEach(sec => {
-          ['main', 'visit'].forEach(tbl => {
-            clone[sec][tbl] = (sections[sec]?.[tbl] || []).map(r => ({
-              name: r.name || '', cel: false, red: false, new: false
-            }));
-          });
-        });
-        return clone;
-      };
-
-      let attState = {
-        color: attColorSelector.value,
-        section: attSectionSelector.value,
-        currentLeaderKey: null,
-        sections: attEmptySections(), // datos EN MEMORIA de la semana/líder activos
-        activeWeek: null, // semana que REALMENTE corresponde a lo que hay en el DOM ahora mismo
-      };
-
-      const attGetLeaderKey = () => {
-        const color  = attColorSelector.value;
-        const leader = attLeaderName.value;
-        return leader ? `${color}__${leader}` : null;
-      };
-
-      // ---- Semana ----
+      const attCurrentYear = () => new Date().getFullYear();
       const attCurrentWeek = () => state.selectedWeek;
 
-      // Carga (con herencia) los datos de un leaderKey para la semana actual.
-      // No escribe nada en storage — solo arma attState.sections en memoria.
-      // IMPORTANTE: marca activeWeek = la semana que se está cargando. Esto es lo
-      // que le dice a attSaveLeaderForWeek/attSaveOffering bajo qué semana guardar,
-      // en vez de volver a leer state.selectedWeek (que para cuando se guarda, ya
-      // pudo haber cambiado a la semana nueva si el cambio vino de Bitácora).
-      const attLoadLeaderForWeek = (leaderKey) => {
-        const week = attCurrentWeek();
-        attState.activeWeek = week;
-        if (!week || !leaderKey) { attState.sections = attEmptySections(); return; }
+      // ---- Estado en memoria ----
+      let attMemberships = [];      // [{celula_id, name, squad_code, section}]
+      let attCelula = null;         // membership activo elegido
+      let attRecordId = null;       // id de la fila en asistencia_records ya cargada (null = todavía no existe)
+      let attHeartbeatTimer = null;
+      let attLockPollTimer = null;
+      let attReadOnly = false;
+      let attSaveDebounceTimer = null;
 
-        const store = attReadStore();
-        const ownEntry = store.weeks?.[String(week)]?.leaders?.[leaderKey];
-        if (ownEntry) {
-          // La semana ya tiene datos propios guardados para este líder: úsalos tal cual.
-          attState.sections = {
-            rj:     ownEntry.rj     || { main: [], visit: [] },
-            takers: ownEntry.takers || { main: [], visit: [] },
-            makers: ownEntry.makers || { main: [], visit: [] },
-          };
+      const attEmptyRoster = () => ({ main: [], visit: [] });
+
+      // ---- Carga de membresías (celula_members activos del usuario) ----
+      const attLoadMemberships = async () => {
+        const { data, error } = await supabase
+          .from('celula_members')
+          .select('celula_id, celulas!inner(id, name, squad_code, section, is_active)')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .eq('celulas.is_active', true);
+        if (error) { attMemberships = []; return; }
+        attMemberships = (data || []).map(r => ({
+          celula_id: r.celulas.id,
+          name: r.celulas.name,
+          squad_code: r.celulas.squad_code,
+          section: r.celulas.section,
+        }));
+      };
+
+      const attRenderCelulaBadgeAndSelector = () => {
+        if (attMemberships.length === 0) {
+          attCelulaBadge.style.display = 'flex';
+          attCelulaDot.style.background = 'transparent';
+          attCelulaLabel.textContent = 'Sin célula asignada — contactá al Admin del App.';
+          attCelulaSelectorWrap.classList.add('is-hidden');
           return;
         }
 
-        // No hay datos propios: heredar nombres de la semana anterior más reciente con datos.
-        const inheritedWeek = attFindInheritedWeek(store, week, leaderKey);
-        if (inheritedWeek != null) {
-          const src = store.weeks[String(inheritedWeek)].leaders[leaderKey];
-          attState.sections = attCloneNamesOnly(src);
+        if (attMemberships.length === 1) {
+          attCelulaSelectorWrap.classList.add('is-hidden');
         } else {
-          attState.sections = attEmptySections();
+          attCelulaSelectorWrap.classList.remove('is-hidden');
+          const prev = attCelulaSelector.value;
+          attCelulaSelector.innerHTML = attMemberships.map(m =>
+            `<option value="${m.celula_id}">${escapeHtml(m.name)}</option>`
+          ).join('');
+          const stillValid = attMemberships.some(m => m.celula_id === prev);
+          attCelulaSelector.value = stillValid ? prev : attMemberships[0].celula_id;
+          syncOptWheelLabelForSelect(attCelulaSelector);
         }
-      };
 
-      // Persiste attState.sections (leído del DOM) en attState.activeWeek — la semana
-      // a la que REALMENTE corresponde lo que hay en pantalla ahora mismo, no
-      // necesariamente state.selectedWeek. La ofrenda se guarda aparte (attSaveOffering),
-      // nunca se hereda.
-      const attSaveLeaderForWeek = () => {
-        const week = attState.activeWeek;
-        const leaderKey = attState.currentLeaderKey;
-        if (!week || !leaderKey) return;
+        const activeId = attMemberships.length === 1 ? attMemberships[0].celula_id : attCelulaSelector.value;
+        attCelula = attMemberships.find(m => m.celula_id === activeId) || attMemberships[0];
 
-        attState.sections[attState.section].main  = attGetSectionData(attMainBody, false);
-        attState.sections[attState.section].visit = attGetSectionData(attVisitBody, true);
-
-        const store = attReadStore();
-        store.weeks = store.weeks || {};
-        store.weeks[String(week)] = store.weeks[String(week)] || { leaders: {} };
-        store.weeks[String(week)].leaders = store.weeks[String(week)].leaders || {};
-        const existingEntry = store.weeks[String(week)].leaders[leaderKey] || {};
-        store.weeks[String(week)].leaders[leaderKey] = {
-          ...existingEntry,
-          rj: attState.sections.rj, takers: attState.sections.takers, makers: attState.sections.makers,
-        };
-        attWriteStore(store);
-      };
-
-      const attSaveOffering = () => {
-        const week = attState.activeWeek;
-        const leaderKey = attState.currentLeaderKey;
-        if (!week || !leaderKey) return;
-        const store = attReadStore();
-        store.weeks = store.weeks || {};
-        store.weeks[String(week)] = store.weeks[String(week)] || { leaders: {} };
-        store.weeks[String(week)].leaders = store.weeks[String(week)].leaders || {};
-        store.weeks[String(week)].leaders[leaderKey] = store.weeks[String(week)].leaders[leaderKey] || {};
-        store.weeks[String(week)].leaders[leaderKey].offering = {
-          sinpe: attOffSinpe.value || '',
-          efectivo: attOffEfectivo.value || '',
-        };
-        attWriteStore(store);
-      };
-
-      const attLoadOffering = () => {
-        const week = attState.activeWeek;
-        const leaderKey = attState.currentLeaderKey;
-        const store = attReadStore();
-        const off = (week && leaderKey) ? store.weeks?.[String(week)]?.leaders?.[leaderKey]?.offering : null;
-        attOffSinpe.value = off?.sinpe || '';
-        attOffEfectivo.value = off?.efectivo || '';
-        attCalculateOffering();
-      };
-
-      // ---- Paleta / secciones disponibles según Unidad ----
-      const attApplyColor = (rerender) => {
-        const key = attColorSelector.value;
-        const theme = ATT_COLOR_THEMES[key];
+        const theme = ATT_COLOR_THEMES[attColorForSquad(attCelula.squad_code)];
         attRoot.style.setProperty('--att-accent', theme.accent);
         attRoot.style.setProperty('--att-accent-dark', theme.dark);
         attRoot.style.setProperty('--att-accent-bg', theme.bg);
         attRoot.style.setProperty('--att-accent-bdr', theme.bdr);
+        attCelulaDot.style.background = theme.accent;
+        attCelulaLabel.textContent = `${attCelula.name} — ${attCelula.squad_code} · ${ATT_SECTIONS[attCelula.section]?.label || attCelula.section}`;
 
-        const isEquipos = key === 'purple';
-        const prevSection = attSectionSelector.value;
-        attSectionSelector.innerHTML = '';
-        const opts = isEquipos
-          ? [['takers','TAKERS'],['makers','MAKERS']]
-          : [['rj','RJ'],['takers','TAKERS'],['makers','MAKERS']];
-        opts.forEach(([v,t]) => {
-          const o = document.createElement('option'); o.value = v; o.text = t;
-          if (v === prevSection) o.selected = true;
-          attSectionSelector.appendChild(o);
-        });
-        if (isEquipos && !['takers','makers'].includes(attSectionSelector.value)) {
-          attSectionSelector.value = 'takers';
-        }
-        syncOptWheelLabelForSelect(attSectionSelector);
-
-        if (rerender) {
-          const newSection = attSectionSelector.value;
-          if (newSection !== attState.section) {
-            attSaveLeaderForWeek();
-            attState.section = newSection;
-            attApplySectionLabels();
-          }
-          attUpdateLeaderDropdown();
-        }
+        attApplySectionLabels();
       };
 
       const attApplySectionLabels = () => {
-        const sec = ATT_SECTIONS[attState.section];
+        if (!attCelula) return;
+        const sec = ATT_SECTIONS[attCelula.section] || ATT_SECTIONS.rj;
         attActiveSectionLabel.textContent = sec.label;
         attActiveVisitLabel.textContent = sec.visitLabel;
-        const col2 = attState.section === 'makers' ? 'Culto' : 'Red';
+        const col2 = attCelula.section === 'makers' ? 'Culto' : 'Red';
         const celIconHtml = '<i class="fa-solid fa-house" title="Célula"></i>';
         const col2IconHtml = '<i class="fa-solid fa-cross" title="' + col2 + '"></i>';
         attThCelMain.innerHTML = celIconHtml;
@@ -3120,6 +3462,181 @@ btnBack?.addEventListener('click', () => {
         attThRedVisit.innerHTML = col2IconHtml;
         attLblCel.textContent = 'Total Célula:';
         attLblRed.textContent = `Total ${col2}:`;
+      };
+
+      // ---- Lock de edición (1 min de inactividad, ver Sesión 1) ----
+      const attStopHeartbeat = () => {
+        if (attHeartbeatTimer) { clearInterval(attHeartbeatTimer); attHeartbeatTimer = null; }
+      };
+      const attStopLockPoll = () => {
+        if (attLockPollTimer) { clearInterval(attLockPollTimer); attLockPollTimer = null; }
+      };
+
+      const attSetReadOnly = (readOnly, lockedByName) => {
+        attReadOnly = readOnly;
+        attRoot.querySelectorAll('input, button, select').forEach(el => {
+          if (el === attCelulaSelector) return; // el selector de célula siempre queda usable
+          el.disabled = readOnly;
+        });
+        if (readOnly) {
+          attLockBanner.classList.remove('is-hidden');
+          attLockBanner.innerHTML = `<i class="fa-solid fa-lock"></i> Editando: ${escapeHtml(lockedByName || 'otro líder')} — modo solo lectura.`;
+        } else {
+          attLockBanner.classList.add('is-hidden');
+          attLockBanner.innerHTML = '';
+        }
+      };
+
+      const attAcquireOrCheckLock = async () => {
+        attStopHeartbeat();
+        attStopLockPoll();
+        if (!attCelula) { attSetReadOnly(false); return; }
+
+        const week = attCurrentWeek();
+        const year = attCurrentYear();
+        if (!week) { attSetReadOnly(false); return; }
+
+        const { data: lockRow } = await supabase
+          .from('asistencia_locks')
+          .select('locked_by, last_heartbeat, profiles(full_name)')
+          .eq('celula_id', attCelula.celula_id)
+          .eq('week', week)
+          .eq('year', year)
+          .maybeSingle();
+
+        const isStale = !lockRow || (Date.now() - new Date(lockRow.last_heartbeat).getTime()) > 60 * 1000;
+
+        if (lockRow && lockRow.locked_by !== user.id && !isStale) {
+          attSetReadOnly(true, lockRow.profiles?.full_name);
+          // Reintentar cada 20s por si el otro co-líder libera el lock.
+          attLockPollTimer = setInterval(attAcquireOrCheckLock, 20000);
+          return;
+        }
+
+        // Libre (o vencido, o ya es nuestro): tomarlo.
+        await supabase.from('asistencia_locks').upsert({
+          celula_id: attCelula.celula_id, week, year,
+          locked_by: user.id, last_heartbeat: new Date().toISOString(),
+        }, { onConflict: 'celula_id,week,year' });
+
+        attSetReadOnly(false);
+        attHeartbeatTimer = setInterval(async () => {
+          await supabase.from('asistencia_locks').upsert({
+            celula_id: attCelula.celula_id, week, year,
+            locked_by: user.id, last_heartbeat: new Date().toISOString(),
+          }, { onConflict: 'celula_id,week,year' });
+        }, 20000);
+      };
+
+      // ---- Carga (con herencia de nombres) de la semana actual ----
+      const attFindInheritedRoster = async (celulaId, currentWeek, year) => {
+        if (currentWeek <= 1) return null;
+        const { data } = await supabase
+          .from('asistencia_records')
+          .select('week, roster')
+          .eq('celula_id', celulaId)
+          .eq('year', year)
+          .lt('week', currentWeek)
+          .order('week', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return data?.roster || null;
+      };
+
+      const attCloneNamesOnly = (roster) => ({
+        main:  (roster?.main  || []).map(r => ({ name: r.name || '', cel: false, red: false, new: false })),
+        visit: (roster?.visit || []).map(r => ({ name: r.name || '', cel: false, red: false, new: false })),
+      });
+
+      const attLoadForWeek = async () => {
+        if (!attCelula) {
+          attRecordId = null;
+          attRenderSection(attMainBody, [], false);
+          attRenderSection(attVisitBody, [], true);
+          attUpdateCounts();
+          attOffSinpe.value = ''; attOffEfectivo.value = '';
+          attCalculateOffering();
+          return;
+        }
+
+        const week = attCurrentWeek();
+        const year = attCurrentYear();
+        if (!week) return;
+
+        const { data: record } = await supabase
+          .from('asistencia_records')
+          .select('id, roster, sinpe, efectivo')
+          .eq('celula_id', attCelula.celula_id)
+          .eq('week', week)
+          .eq('year', year)
+          .maybeSingle();
+
+        let roster;
+        if (record) {
+          attRecordId = record.id;
+          roster = record.roster && (record.roster.main || record.roster.visit) ? record.roster : attEmptyRoster();
+          attOffSinpe.value = record.sinpe || '';
+          attOffEfectivo.value = record.efectivo || '';
+        } else {
+          attRecordId = null;
+          const inherited = await attFindInheritedRoster(attCelula.celula_id, week, year);
+          roster = inherited ? attCloneNamesOnly(inherited) : attEmptyRoster();
+          attOffSinpe.value = '';
+          attOffEfectivo.value = '';
+        }
+
+        attRenderSection(attMainBody, roster.main, false);
+        attRenderSection(attVisitBody, roster.visit, true);
+        attUpdateCounts();
+        attCalculateOffering();
+
+        await attAcquireOrCheckLock();
+      };
+
+      // ---- Guardado (debounced, upsert directo a asistencia_records) ----
+      const attSaveNow = async () => {
+        if (!attCelula || attReadOnly) return;
+        const week = attCurrentWeek();
+        const year = attCurrentYear();
+        if (!week) return;
+
+        const main = attGetSectionData(attMainBody, false);
+        const visit = attGetSectionData(attVisitBody, true);
+        const visitNoNew = visit.filter(r => !r.new);
+        const cel = attCountFromRows(main, 'cel') + attCountFromRows(visitNoNew, 'cel');
+        const redCulto = attCountFromRows(main, 'red') + attCountFromRows(visitNoNew, 'red');
+        const nuevos = attCountFromRows(visit, 'new');
+
+        const payload = {
+          celula_id: attCelula.celula_id,
+          week, year,
+          cel, red_culto: redCulto, nuevos,
+          sinpe: parseFloat(attOffSinpe.value) || 0,
+          efectivo: parseFloat(attOffEfectivo.value) || 0,
+          roster: { main, visit },
+          updated_by: user.id,
+          updated_at: new Date().toISOString(),
+        };
+
+        const { data, error } = await supabase
+          .from('asistencia_records')
+          .upsert(payload, { onConflict: 'celula_id,week,year' })
+          .select('id')
+          .single();
+        if (!error && data) attRecordId = data.id;
+      };
+
+      const attSaveDebounced = () => {
+        if (attSaveDebounceTimer) clearTimeout(attSaveDebounceTimer);
+        attSaveDebounceTimer = setTimeout(attSaveNow, 700);
+        setDcDirty(true);
+      };
+
+      // Flush inmediato: usado al cerrar sesión (ver flushAttendanceSave
+      // arriba), igual que el resto de Notas (flushNotesSave), para no
+      // perder el último cambio.
+      flushAttendanceSave = async () => {
+        if (attSaveDebounceTimer) { clearTimeout(attSaveDebounceTimer); attSaveDebounceTimer = null; await attSaveNow(); }
       };
 
       // ---- Filas ----
@@ -3136,8 +3653,7 @@ btnBack?.addEventListener('click', () => {
         qs('.dc-att__btn-del', tr).addEventListener('click', () => {
           tr.remove();
           attUpdateCounts();
-          attSaveLeaderForWeek();
-          setDcDirty(true);
+          attSaveDebounced();
         });
         tbody.appendChild(tr);
         return tr;
@@ -3175,12 +3691,15 @@ btnBack?.addEventListener('click', () => {
         const red = qsa('.chk-red:checked', attMainBody).length + visitRed;
         const nw  = qsa('.chk-new:checked', attVisitBody).length;
 
-        attSummaryTitle.textContent = `RESUMEN TOTAL ASISTENCIA — ${ATT_SECTIONS[attState.section].label}`;
+        const secLabel = attCelula ? (ATT_SECTIONS[attCelula.section]?.label || '') : '';
+        attSummaryTitle.textContent = `RESUMEN TOTAL ASISTENCIA — ${secLabel}`;
         attSumCel.textContent = cel;
         attSumRed.textContent = red;
         if (nw > 0) { attSumNuevos.textContent = nw; attSumNuevosRow.style.display = 'block'; }
         else { attSumNuevosRow.style.display = 'none'; }
       };
+
+      const attCountFromRows = (rows, key) => rows.filter(r => r[key]).length;
 
       const attCalculateOffering = () => {
         const sinpe = parseFloat(attOffSinpe.value) || 0;
@@ -3188,222 +3707,46 @@ btnBack?.addEventListener('click', () => {
         attTotalOffering.textContent = (sinpe + efectivo).toLocaleString('es-CR');
       };
 
-      // ---- Dropdown de líderes ----
-      const attUpdateLeaderDropdownSilent = (color, section, leaderValue) => {
-        const names = (ATT_LIDERES[color] && ATT_LIDERES[color][section]) ? ATT_LIDERES[color][section] : [];
-        attLeaderName.innerHTML = '<option value="">— Seleccionar Líder —</option>';
-        names.forEach(n => {
-          const opt = document.createElement('option');
-          opt.value = n; opt.text = n;
-          if (n === leaderValue) opt.selected = true;
-          attLeaderName.appendChild(opt);
-        });
-        if (color === 'purple' && names.length === 1) attLeaderName.value = names[0];
-        syncOptWheelLabelForSelect(attLeaderName);
-      };
-
-      const attUpdateLeaderDropdown = () => {
-        const prev = attLeaderName.value;
-        attUpdateLeaderDropdownSilent(attColorSelector.value, attState.section, prev);
-        attOnLeaderChange();
-      };
-
-      const attOnLeaderChange = () => {
-        // Guardar lo que había en pantalla bajo el líder anterior antes de cambiar.
-        if (attState.currentLeaderKey) {
-          attSaveLeaderForWeek();
-        }
-        const newKey = attGetLeaderKey();
-        attState.currentLeaderKey = newKey;
-        attLoadLeaderForWeek(newKey);
-        attRenderSection(attMainBody, attState.sections[attState.section].main, false);
-        attRenderSection(attVisitBody, attState.sections[attState.section].visit, true);
-        attUpdateCounts();
-        attLoadOffering();
-      };
-
-      // ---- Copiar ----
-      const attCopyText = (text, msg) => {
-        const ta = document.createElement('textarea');
-        ta.value = text; document.body.appendChild(ta);
-        ta.select(); document.execCommand('copy');
-        document.body.removeChild(ta);
-        showAttInfoModal(msg);
-      };
-
-      const attFormatRows = (rows, hasNew) => {
-        const col2Label = attState.section === 'makers' ? 'Culto' : 'Red';
-        let out = ''; let idx = 1;
-        rows.forEach(r => {
-          if (r.name && r.name.trim()) {
-            const cel = r.cel ? '✅' : '❌';
-            const red = r.red ? '✅' : '❌';
-            const nFlag = (hasNew && r.new) ? ' | 🌟 Nuevo' : '';
-            out += `${idx}. ${r.name.trim()} | Célula: ${cel} | ${col2Label}: ${red}${nFlag}\n`;
-            idx++;
-          }
-        });
-        return out;
-      };
-      const attCountFromRows = (rows, key) => rows.filter(r => r[key]).length;
-
-      const attSortTableAlphabetically = (tbody) => {
-        const rows = qsa('tr', tbody);
-        rows.sort((a, b) => {
-          const nameA = (qs('.in-n', a)?.value || '').trim().toLowerCase();
-          const nameB = (qs('.in-n', b)?.value || '').trim().toLowerCase();
-          if (!nameA) return 1;
-          if (!nameB) return -1;
-          return nameA.localeCompare(nameB, 'es');
-        });
-        rows.forEach(r => tbody.appendChild(r));
-      };
-
-      attCopyTodoBtn.addEventListener('click', () => {
-        if (!attLeaderName.value) { showAttInfoModal('⚠️ Debes seleccionar el nombre del líder antes de copiar.'); return; }
-
-        attSortTableAlphabetically(attMainBody);
-        attSortTableAlphabetically(attVisitBody);
-        attSaveLeaderForWeek();
-
-        const week = attCurrentWeek();
-        const weekLabel = `Semana ${week}`;
-        const dateStr = weekRangeLabel(week);
-        const sec = ATT_SECTIONS[attState.section];
-        const main = attGetSectionData(attMainBody, false);
-        const visit = attGetSectionData(attVisitBody, true);
-
-        const isEquipos = attColorSelector.value === 'purple';
-        const secName = isEquipos ? 'EQUIPOS' : sec.label;
-        let text = `*${weekLabel}* (${dateStr})\n*LÍDER (${secName}): ${attLeaderName.value.toUpperCase()}*\n\n`;
-
-        const mainRows = attFormatRows(main, false);
-        const visitRows = attFormatRows(visit, true);
-        if (mainRows) text += `*--- ${sec.copyLabel} ---*\n${mainRows}\n`;
-        if (visitRows) text += `*--- ${sec.copyVisitLabel} ---*\n${visitRows}\n`;
-
-        const visitNoNew = visit.filter(r => !r.new);
-        const cel = attCountFromRows(main, 'cel') + attCountFromRows(visitNoNew, 'cel');
-        const red = attCountFromRows(main, 'red') + attCountFromRows(visitNoNew, 'red');
-        const nw  = attCountFromRows(visit, 'new');
-
-        const col2Label = attState.section === 'makers' ? 'Culto' : 'Red';
-        text += `*RESUMEN TOTAL ASISTENCIA*\n`;
-        text += `Total ${sec.copyLabel} Célula: ${cel}\n`;
-        text += `Total ${sec.copyLabel} ${col2Label}: ${red}`;
-        if (nw > 0) text += `\n*NUEVOS:* ${sec.copyLabel}: ${nw}`;
-
-        const sinpe = attOffSinpe.value;
-        const efectivo = attOffEfectivo.value;
-        if (sinpe || efectivo) {
-          const total = (parseFloat(sinpe)||0) + (parseFloat(efectivo)||0);
-          text += `\n\n*--- OFRENDAS ---*\n`;
-          if (sinpe) text += `Sinpe: ₡${sinpe}\n`;
-          if (efectivo) text += `Efectivo: ₡${efectivo}\n`;
-          text += `*Total: ₡${total.toLocaleString('es-CR')}*`;
-        }
-        attCopyText(text, '¡Copiado!');
-      });
-
-      attCopyOfrendasBtn.addEventListener('click', () => {
-        const week = attCurrentWeek();
-        const weekLabel = `Semana ${week}`;
-        const dateStr = weekRangeLabel(week);
-        const sinpe = attOffSinpe.value;
-        const efectivo = attOffEfectivo.value;
-        if (!sinpe && !efectivo) { showAttInfoModal('No hay datos de ofrenda para copiar.'); return; }
-        const total = (parseFloat(sinpe)||0) + (parseFloat(efectivo)||0);
-        const isEquipos = attColorSelector.value === 'purple';
-        const secName = isEquipos ? 'EQUIPOS' : ATT_SECTIONS[attState.section].label;
-        let text = `*${weekLabel}* (${dateStr})\n*LÍDER (${secName}): ${(attLeaderName.value||'').toUpperCase()}*\n\n`;
-        text += `*--- OFRENDAS ---*\n`;
-        if (sinpe) text += `Sinpe: ₡${sinpe}\n`;
-        if (efectivo) text += `Efectivo: ₡${efectivo}\n`;
-        text += `*Total: ₡${total.toLocaleString('es-CR')}*`;
-        attCopyText(text, '¡Ofrendas copiadas!');
-      });
-
       // ---- Listeners ----
-      attColorSelector.addEventListener('change', () => { attApplyColor(true); setDcDirty(true); });
-      attSectionSelector.addEventListener('change', () => {
-        attSaveLeaderForWeek();
-        attState.section = attSectionSelector.value;
-        attApplySectionLabels();
-        attUpdateLeaderDropdown();
-        setDcDirty(true);
+      attCelulaSelector.addEventListener('change', async () => {
+        attStopHeartbeat(); attStopLockPoll();
+        attRenderCelulaBadgeAndSelector();
+        await attLoadForWeek();
       });
-      attLeaderName.addEventListener('change', () => { attOnLeaderChange(); setDcDirty(true); });
 
-      attOffSinpe.addEventListener('input', () => { attCalculateOffering(); attSaveOffering(); setDcDirty(true); });
-      attOffEfectivo.addEventListener('input', () => { attCalculateOffering(); attSaveOffering(); setDcDirty(true); });
+      attOffSinpe.addEventListener('input', () => { attCalculateOffering(); attSaveDebounced(); });
+      attOffEfectivo.addEventListener('input', () => { attCalculateOffering(); attSaveDebounced(); });
 
-      attAddMain.addEventListener('click', () => { attAddRow(attMainBody, false); attUpdateCounts(); attSaveLeaderForWeek(); setDcDirty(true); });
-      attAddVisit.addEventListener('click', () => { attAddRow(attVisitBody, true); attUpdateCounts(); attSaveLeaderForWeek(); setDcDirty(true); });
+      attAddMain.addEventListener('click', () => { if (attReadOnly) return; attAddRow(attMainBody, false); attUpdateCounts(); attSaveDebounced(); });
+      attAddVisit.addEventListener('click', () => { if (attReadOnly) return; attAddRow(attVisitBody, true); attUpdateCounts(); attSaveDebounced(); });
 
       // Delegado: cualquier edición dentro de las tablas del widget guarda y marca "dirty".
       attRoot.addEventListener('input', (e) => {
-        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveLeaderForWeek(); }
+        if (attReadOnly) return;
+        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveDebounced(); }
       });
       attRoot.addEventListener('change', (e) => {
-        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveLeaderForWeek(); }
+        if (attReadOnly) return;
+        if (e.target.closest('.dc-att__table')) { attUpdateCounts(); attSaveDebounced(); }
       });
 
-      // Restringe/auto-asigna la Unidad de Asistencia según el rol real del
-      // usuario logueado (getRole()/loadLeaderSquadCodes() ya existen en
-      // el scope de afuera, se usan también en Revisión de Notas):
-      //  - admin / pastor: sin restricción, ven las 6 unidades (Equipos
-      //    incluido). Admin siempre tiene acceso a todo.
-      //  - cualquier otro rol: "Equipos" se oculta del selector — es
-      //    exclusivo de Pastor/Admin.
-      //  - leader (Líder de Escuadrón): la regla del negocio es que nunca
-      //    tiene más de un squad_code asignado, así que si se encuentra
-      //    exactamente uno, el color se deriva de su prefijo y el selector
-      //    queda fijo en esa única opción (ya no elige manualmente). Si
-      //    por algún motivo hay 0 o más de 1 (no debería pasar, ver
-      //    contexto técnico), se deja sin restringir como fallback seguro
-      //    en vez de romper la vista.
-      const attRestrictColorByRole = async () => {
-        let role;
-        try { role = await getRole(); } catch { role = 'user'; }
-        if (role === 'admin' || role === 'pastor') return;
-
-        const purpleOpt = Array.from(attColorSelector.options).find(o => o.value === 'purple');
-        const wasOnPurple = attColorSelector.value === 'purple';
-        if (purpleOpt) purpleOpt.remove();
-        // No confiar en que el navegador reasigne .value solo al remover
-        // la opción seleccionada: se fuerza explícito a la primera opción
-        // que quede, si hacía falta.
-        if (wasOnPurple && attColorSelector.options.length) {
-          attColorSelector.value = attColorSelector.options[0].value;
-        }
-
-        if (role === 'leader') {
-          let codes = [];
-          try { codes = await loadLeaderSquadCodes(); } catch { codes = []; }
-          if (codes.length === 1) {
-            const color = colorFromSquadCode(codes[0]);
-            const stillHasColor = color && Array.from(attColorSelector.options).some(o => o.value === color);
-            if (stillHasColor) {
-              Array.from(attColorSelector.options).forEach(o => { if (o.value !== color) o.remove(); });
-              attColorSelector.value = color;
-            }
-          }
-        }
-
-        syncOptWheelLabelForSelect(attColorSelector);
-        attApplyColor(true);
-      };
+      // Nota: no se intenta liberar el lock explícitamente al salir sin
+      // logout (cerrar pestaña/navegar afuera) — beforeunload no garantiza
+      // que un fetch async complete. El lock igual expira solo a los 60s
+      // sin heartbeat (ver attAcquireOrCheckLock), que es el mecanismo real.
 
       // ---- Init (una sola vez) ----
-      attApplySectionLabels();
-      attApplyColor(false);
-      attRestrictColorByRole();
+      (async () => {
+        await attLoadMemberships();
+        attRenderCelulaBadgeAndSelector();
+      })();
 
       // ---- Refresco al abrir/cambiar de semana (llamado desde openDinamicaCelular) ----
-      attRefreshForWeek = () => {
-        attApplyColor(false);
-        attApplySectionLabels();
-        attUpdateLeaderDropdown();
+      attRefreshForWeek = async () => {
+        attStopHeartbeat(); attStopLockPoll();
+        if (!attMemberships.length) await attLoadMemberships();
+        attRenderCelulaBadgeAndSelector();
+        await attLoadForWeek();
       };
     })();
 

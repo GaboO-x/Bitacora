@@ -383,6 +383,35 @@
           </div>
         </div>
 
+        <div id="celulaBlock" style="display:none;margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;">
+          <label style="margin-top:0;">Célula</label>
+          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="crear" checked /><span>Crear Célula nueva</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="unir" /><span>Unir a Célula existente</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="ninguna" /><span>Sin célula por ahora</span></label>
+          </div>
+
+          <div id="celulaCrearFields" style="margin-top:10px;">
+            <label>Nombre de la Célula</label>
+            <input id="celulaNombre" type="text" placeholder="Ej: Jonathan y Priscilla" />
+            <div id="celulaSeccionWrap" style="margin-top:10px;">
+              <label>Sección</label>
+              <div style="display:flex;gap:16px;margin-top:6px;">
+                <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaSeccion" value="rj" checked /><span>RJ</span></label>
+                <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaSeccion" value="takers" /><span>Takers</span></label>
+              </div>
+            </div>
+            <p id="celulaSeccionFixedMsg" class="muted small" style="display:none;margin-top:10px;">Sección: Makers (automática por escuadrón)</p>
+          </div>
+
+          <div id="celulaUnirFields" style="display:none;margin-top:10px;">
+            <label>Célula existente</label>
+            <select id="celulaExistenteSelect"><option value="">— Seleccionar —</option></select>
+          </div>
+
+          <p id="celulaWarnMsg" class="msg" style="display:none;"></p>
+        </div>
+
         <button id="btnInvite" class="mat-modal-btn mat-modal-btn--primary" type="button" style="margin-top:14px;">Generar link de invitación</button>
         <p id="msg" class="msg"></p>
       </div>
@@ -560,6 +589,60 @@
 
   </div>
     </main>
+  </div>
+
+  <!-- Modal: Gestión de células (crear/unir/retirar) para Lider_de_Célula -->
+  <div class="modal-overlay is-hidden" id="celulaManageModal">
+    <div aria-labelledby="celulaManageTitle" aria-modal="true" class="modal-box modal-box--wide" role="dialog">
+      <div class="modal-box__title" id="celulaManageTitle">Células de <span id="celulaManageUserName"></span></div>
+      <div class="modal-box__body">
+        <div id="celulaManageList" class="muted small">Cargando…</div>
+        <hr style="border:none;border-top:1px solid var(--line);margin:14px 0;" />
+        <label style="margin-top:0;">Agregar célula</label>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
+          <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageMode" value="crear" checked /><span>Crear nueva</span></label>
+          <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageMode" value="unir" /><span>Unir a existente</span></label>
+        </div>
+
+        <label>Escuadrón</label>
+        <select id="celulaManageSquadSelect">
+          <option value="URM">URM</option>
+          <option value="UVM">UVM</option>
+          <option value="UAM">UAM</option>
+          <option value="UNM">UNM</option>
+          <option value="UAZM">UAZM</option>
+          <option value="URT">URT</option>
+          <option value="UVT">UVT</option>
+          <option value="UAT">UAT</option>
+          <option value="UNT">UNT</option>
+          <option value="UAZT">UAZT</option>
+        </select>
+
+        <div id="celulaManageCrearFields" style="margin-top:10px;">
+          <label>Nombre de la Célula</label>
+          <input id="celulaManageNombre" type="text" placeholder="Ej: Jonathan y Priscilla" />
+          <div id="celulaManageSeccionWrap" style="margin-top:10px;">
+            <label>Sección</label>
+            <div style="display:flex;gap:16px;margin-top:6px;">
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageSeccion" value="rj" checked /><span>RJ</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageSeccion" value="takers" /><span>Takers</span></label>
+            </div>
+          </div>
+          <p id="celulaManageSeccionFixedMsg" class="muted small" style="display:none;margin-top:10px;">Sección: Makers (automática por escuadrón)</p>
+        </div>
+
+        <div id="celulaManageUnirFields" style="display:none;margin-top:10px;">
+          <label>Célula existente</label>
+          <select id="celulaManageExistenteSelect"><option value="">— Seleccionar —</option></select>
+        </div>
+
+        <button id="celulaManageAddBtn" class="mat-modal-btn mat-modal-btn--primary" type="button" style="margin-top:12px;">+ Agregar célula</button>
+        <p id="celulaManageMsg" class="msg"></p>
+      </div>
+      <div class="modal-box__actions">
+        <button class="mat-modal-btn" id="celulaManageClose" type="button">Cerrar</button>
+      </div>
+    </div>
   </div>
 
   <!-- Modal: confirmación de eliminación (material / carpeta) -->

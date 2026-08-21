@@ -4257,7 +4257,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         // Filas que existían en el servidor pero ya no están en el DOM (se quitaron con "−").
         const toDelete = [...mdKnownIds].filter(id => !currentIds.has(id));
         if (toDelete.length) {
-          const { error } = await supabase.from('mis_doce').delete().in('id', toDelete);
+          const { error } = await supabase.from('mis_doce').delete().in('id', toDelete).eq('owner_id', user.id);
           if (!error) toDelete.forEach(id => mdKnownIds.delete(id));
         }
 
@@ -4277,7 +4277,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
             waze_link: r.waze_link,
           };
           if (r.id) {
-            await supabase.from('mis_doce').update(payload).eq('id', r.id);
+            await supabase.from('mis_doce').update(payload).eq('id', r.id).eq('owner_id', user.id);
           } else {
             const { data, error } = await supabase.from('mis_doce').insert(payload).select('id').single();
             if (!error && data?.id) {
@@ -4353,9 +4353,18 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const loadMisDoce = async () => {
       if (!misDoceBody) return;
       setMdStatus('Cargando…');
+      // Filtro explícito por owner_id: "Mis Doce" es una vista PERSONAL, no
+      // una revisión tipo "Notas". La RLS (mis_doce_select_own) deja pasar
+      // TODAS las filas cuando el usuario es admin/pastor (is_pastor_or_admin()),
+      // pensado para una futura pantalla de revisión que hoy no existe. Sin
+      // este filtro, un admin/pastor ve mezclados los "Doce" de todo el
+      // mundo en su propia tabla (y el autosave podría llegar a pisar o
+      // borrar filas ajenas). No quitar este .eq aunque el usuario actual
+      // sea admin.
       const { data, error } = await supabase
         .from('mis_doce')
         .select('*')
+        .eq('owner_id', user.id)
         .order('position', { ascending: true });
 
       if (error) {

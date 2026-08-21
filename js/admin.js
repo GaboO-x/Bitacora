@@ -129,6 +129,299 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   // tracking roto, fallas de autenticación) así que se sacó del flujo por
   // completo — nunca se dispara ningún envío de correo desde acá. El admin
   // copia el link armado y lo manda por WhatsApp u otro medio.
+  // -----------------------------
+  // Célula: creación/asignación (Sesión 2)
+  // -----------------------------
+  // Una Célula pertenece a un solo escuadrón. Si el escuadrón termina en
+  // "M" (makers) la sección es fija (Makers); si termina en "T" (takers)
+  // la sección se pregunta (RJ o Takers), igual que en las apps viejas.
+  function squadIsMakers(code) { return (code || "").endsWith("M"); }
+
+  function getInviteCheckedSquads() {
+    return Array.from(document.querySelectorAll('input[name="inviteSquad"]:checked')).map(x => x.value);
+  }
+
+  function getInviteRole() {
+    return document.querySelector('input[name="inviteRole"]:checked')?.value || "user";
+  }
+
+  async function refreshCelulaExistenteOptions(squadCode) {
+    const select = document.getElementById("celulaExistenteSelect");
+    if (!select) return;
+    select.innerHTML = '<option value="">Cargando…</option>';
+    const { data, error } = await supabase
+      .from("celulas")
+      .select("id, name, section")
+      .eq("squad_code", squadCode)
+      .eq("is_active", true)
+      .order("name");
+    if (error) {
+      select.innerHTML = '<option value="">Error al cargar</option>';
+      return;
+    }
+    select.innerHTML = '<option value="">— Seleccionar —</option>' +
+      (data || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${c.section === "rj" ? "RJ" : c.section === "takers" ? "Takers" : "Makers"})</option>`).join("");
+  }
+
+  function toggleCelulaBlock() {
+    const block = document.getElementById("celulaBlock");
+    if (!block) return;
+    const role = getInviteRole();
+    const squads = getInviteCheckedSquads();
+    const warn = document.getElementById("celulaWarnMsg");
+
+    if (role !== "user") { block.style.display = "none"; return; }
+    block.style.display = "block";
+
+    if (squads.length !== 1) {
+      warn.style.display = "block";
+      setMsg("celulaWarnMsg", squads.length === 0
+        ? "Marcá un escuadrón para poder asignar Célula."
+        : "Marcá un solo escuadrón para asignar Célula (una Célula pertenece a un solo escuadrón).", true);
+      block.querySelectorAll("input, select").forEach(el => { if (el.name !== "inviteSquad") el.disabled = true; });
+      return;
+    }
+
+    warn.style.display = "none";
+    setMsg("celulaWarnMsg", "", false);
+    block.querySelectorAll("input, select").forEach(el => { if (el.name !== "inviteSquad") el.disabled = false; });
+
+    const squadCode = squads[0];
+    const isMakers = squadIsMakers(squadCode);
+    document.getElementById("celulaSeccionWrap").style.display = isMakers ? "none" : "block";
+    document.getElementById("celulaSeccionFixedMsg").style.display = isMakers ? "block" : "none";
+
+    const mode = document.querySelector('input[name="celulaMode"]:checked')?.value || "crear";
+    document.getElementById("celulaCrearFields").style.display = mode === "crear" ? "block" : "none";
+    document.getElementById("celulaUnirFields").style.display = mode === "unir" ? "block" : "none";
+    if (mode === "unir") refreshCelulaExistenteOptions(squadCode);
+  }
+
+  document.querySelectorAll('input[name="inviteRole"]').forEach(r => r.addEventListener("change", toggleCelulaBlock));
+  document.querySelectorAll('input[name="inviteSquad"]').forEach(r => r.addEventListener("change", toggleCelulaBlock));
+  document.querySelectorAll('input[name="celulaMode"]').forEach(r => r.addEventListener("change", toggleCelulaBlock));
+
+  // Ejecuta la asignación de Célula luego de que bright-task ya creó el
+  // usuario. Nunca revierte la creación del usuario si esto falla —
+  // el admin puede resolverlo después desde "Administrar Usuarios" (fa-virus).
+  async function applyCelulaAssignment(newUserId, squadCode) {
+    const mode = document.querySelector('input[name="celulaMode"]:checked')?.value || "ninguna";
+    if (mode === "ninguna") return { ok: true };
+
+    let celulaId = null;
+
+    if (mode === "crear") {
+      const name = (document.getElementById("celulaNombre")?.value || "").trim();
+      if (!name) return { ok: false, error: "Falta el nombre de la Célula." };
+      const section = squadIsMakers(squadCode) ? "makers" : (document.querySelector('input[name="celulaSeccion"]:checked')?.value || "rj");
+      const { data, error } = await supabase
+        .from("celulas")
+        .insert({ name, squad_code: squadCode, section, created_by: user.id })
+        .select("id")
+        .single();
+      if (error) return { ok: false, error: "No se pudo crear la Célula: " + error.message };
+      celulaId = data.id;
+    } else if (mode === "unir") {
+      celulaId = document.getElementById("celulaExistenteSelect")?.value || "";
+      if (!celulaId) return { ok: false, error: "Seleccioná una Célula existente." };
+    }
+
+    const { error: memErr } = await supabase
+      .from("celula_members")
+      .insert({ user_id: newUserId, celula_id: celulaId });
+    if (memErr) return { ok: false, error: "No se pudo asignar la Célula: " + memErr.message };
+
+    return { ok: true };
+  }
+
+  function resetCelulaBlock() {
+    const nombreEl = document.getElementById("celulaNombre");
+    if (nombreEl) nombreEl.value = "";
+    const crearRadio = document.querySelector('input[name="celulaMode"][value="crear"]');
+    if (crearRadio) crearRadio.checked = true;
+    toggleCelulaBlock();
+  }
+
+  // -----------------------------
+  // Célula: modal de gestión desde "Administrar Usuarios" (Sesión 2)
+  // -----------------------------
+  const celulaManageModal = document.getElementById("celulaManageModal");
+  let celulaManageTargetUser = null;
+
+  function sectionLabel(section) {
+    return section === "rj" ? "RJ" : section === "takers" ? "Takers" : "Makers";
+  }
+
+  async function loadCelulaMemberships(userId) {
+    const { data, error } = await supabase
+      .from("celula_members")
+      .select("id, celula_id, celulas(name, section, squad_code)")
+      .eq("user_id", userId)
+      .eq("is_active", true);
+    if (error) return { data: null, error };
+    return { data: data || [], error: null };
+  }
+
+  function renderCelulaManageList(memberships) {
+    const listEl = document.getElementById("celulaManageList");
+    if (!listEl) return;
+    if (!memberships.length) {
+      listEl.innerHTML = '<p class="muted small">Sin célula asignada.</p>';
+      return;
+    }
+    listEl.innerHTML = "";
+    memberships.forEach((m) => {
+      const row = document.createElement("div");
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.justifyContent = "space-between";
+      row.style.gap = "8px";
+      row.style.padding = "6px 0";
+      row.style.borderBottom = "1px solid var(--line)";
+
+      const info = document.createElement("span");
+      info.textContent = `${m.celulas?.name || "(sin nombre)"} — ${m.celulas?.squad_code || ""} · ${sectionLabel(m.celulas?.section)}`;
+      row.appendChild(info);
+
+      const btnRetirar = document.createElement("button");
+      btnRetirar.type = "button";
+      btnRetirar.className = "mat-icon-btn";
+      btnRetirar.title = "Retirar de esta Célula";
+      btnRetirar.setAttribute("aria-label", "Retirar de esta Célula");
+      btnRetirar.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+      btnRetirar.addEventListener("click", async () => {
+        const ok = window.confirm(`¿Retirar a ${celulaManageTargetUser.full_name || celulaManageTargetUser.email} de "${m.celulas?.name}"? Conserva su acceso a la Bitácora, pero deja de ver "Notas/Célula" si esta era su única célula.`);
+        if (!ok) return;
+        btnRetirar.disabled = true;
+        const { error } = await supabase.from("celula_members").update({ is_active: false }).eq("id", m.id);
+        if (error) {
+          setMsg("celulaManageMsg", "No se pudo retirar: " + error.message, true);
+          btnRetirar.disabled = false;
+          return;
+        }
+        setMsg("celulaManageMsg", "Retirado de la Célula.", false);
+        await refreshCelulaManageModal();
+      });
+      row.appendChild(btnRetirar);
+
+      listEl.appendChild(row);
+    });
+  }
+
+  async function refreshCelulaManageExistenteOptions(squadCode) {
+    const select = document.getElementById("celulaManageExistenteSelect");
+    if (!select) return;
+    select.innerHTML = '<option value="">Cargando…</option>';
+    const { data, error } = await supabase
+      .from("celulas")
+      .select("id, name, section")
+      .eq("squad_code", squadCode)
+      .eq("is_active", true)
+      .order("name");
+    if (error) {
+      select.innerHTML = '<option value="">Error al cargar</option>';
+      return;
+    }
+    select.innerHTML = '<option value="">— Seleccionar —</option>' +
+      (data || []).map(c => `<option value="${c.id}">${escapeHtml(c.name)} (${sectionLabel(c.section)})</option>`).join("");
+  }
+
+  function toggleCelulaManageFields() {
+    const squadCode = document.getElementById("celulaManageSquadSelect")?.value || "URM";
+    const isMakers = squadIsMakers(squadCode);
+    document.getElementById("celulaManageSeccionWrap").style.display = isMakers ? "none" : "block";
+    document.getElementById("celulaManageSeccionFixedMsg").style.display = isMakers ? "block" : "none";
+
+    const mode = document.querySelector('input[name="celulaManageMode"]:checked')?.value || "crear";
+    document.getElementById("celulaManageCrearFields").style.display = mode === "crear" ? "block" : "none";
+    document.getElementById("celulaManageUnirFields").style.display = mode === "unir" ? "block" : "none";
+    if (mode === "unir") refreshCelulaManageExistenteOptions(squadCode);
+  }
+
+  document.getElementById("celulaManageSquadSelect")?.addEventListener("change", toggleCelulaManageFields);
+  document.querySelectorAll('input[name="celulaManageMode"]').forEach(r => r.addEventListener("change", toggleCelulaManageFields));
+
+  async function refreshCelulaManageModal() {
+    if (!celulaManageTargetUser) return;
+    const { data, error } = await loadCelulaMemberships(celulaManageTargetUser.id);
+    if (error) {
+      document.getElementById("celulaManageList").innerHTML = '<p class="muted small">Error al cargar.</p>';
+      return;
+    }
+    renderCelulaManageList(data);
+  }
+
+  function openCelulaManageModal(u) {
+    celulaManageTargetUser = u;
+    document.getElementById("celulaManageUserName").textContent = u.full_name || u.email || "";
+    document.getElementById("celulaManageMsg").textContent = "";
+    // Preseleccionar el escuadrón ya asignado a la persona, si tiene.
+    const squadSelect = document.getElementById("celulaManageSquadSelect");
+    if (squadSelect && u.squads && u.squads.length) squadSelect.value = u.squads[0];
+    const crearRadio = document.querySelector('input[name="celulaManageMode"][value="crear"]');
+    if (crearRadio) crearRadio.checked = true;
+    document.getElementById("celulaManageNombre").value = "";
+    toggleCelulaManageFields();
+    refreshCelulaManageModal();
+    celulaManageModal?.classList.remove("is-hidden");
+  }
+
+  document.getElementById("celulaManageClose")?.addEventListener("click", () => {
+    celulaManageModal?.classList.add("is-hidden");
+    celulaManageTargetUser = null;
+  });
+
+  document.getElementById("celulaManageAddBtn")?.addEventListener("click", async () => {
+    if (!celulaManageTargetUser) return;
+    const btn = document.getElementById("celulaManageAddBtn");
+    const squadCode = document.getElementById("celulaManageSquadSelect")?.value || "";
+    const mode = document.querySelector('input[name="celulaManageMode"]:checked')?.value || "crear";
+
+    let celulaId = null;
+    if (mode === "crear") {
+      const name = (document.getElementById("celulaManageNombre")?.value || "").trim();
+      if (!name) return setMsg("celulaManageMsg", "Falta el nombre de la Célula.", true);
+      const section = squadIsMakers(squadCode) ? "makers" : (document.querySelector('input[name="celulaManageSeccion"]:checked')?.value || "rj");
+      btn.disabled = true;
+      const { data, error } = await supabase
+        .from("celulas")
+        .insert({ name, squad_code: squadCode, section, created_by: user.id })
+        .select("id")
+        .single();
+      btn.disabled = false;
+      if (error) return setMsg("celulaManageMsg", "No se pudo crear la Célula: " + error.message, true);
+      celulaId = data.id;
+    } else {
+      celulaId = document.getElementById("celulaManageExistenteSelect")?.value || "";
+      if (!celulaId) return setMsg("celulaManageMsg", "Seleccioná una Célula existente.", true);
+    }
+
+    btn.disabled = true;
+    const { error: memErr } = await supabase
+      .from("celula_members")
+      .insert({ user_id: celulaManageTargetUser.id, celula_id: celulaId });
+    btn.disabled = false;
+
+    if (memErr) {
+      // Reactivar si ya existía una asignación previa desactivada (unique(user_id, celula_id))
+      if (memErr.code === "23505") {
+        const { error: reactErr } = await supabase
+          .from("celula_members")
+          .update({ is_active: true })
+          .eq("user_id", celulaManageTargetUser.id)
+          .eq("celula_id", celulaId);
+        if (reactErr) return setMsg("celulaManageMsg", "No se pudo asignar: " + reactErr.message, true);
+      } else {
+        return setMsg("celulaManageMsg", "No se pudo asignar: " + memErr.message, true);
+      }
+    }
+
+    setMsg("celulaManageMsg", "Célula agregada.", false);
+    document.getElementById("celulaManageNombre").value = "";
+    await refreshCelulaManageModal();
+    await loadAllUsers();
+  });
+
   const btnInvite = document.getElementById("btnInvite");
 
   btnInvite?.addEventListener("click", async () => {
@@ -150,6 +443,18 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
     if (!email) return setMsg("msg", "Falta email.", true);
     if (!full_name) return setMsg("msg", "Falta nombre completo.", true);
+    // Una Célula pertenece a un solo escuadrón (confirmado): un
+    // Lider_de_Célula debe quedar asignado a exactamente uno.
+    if (role === "user" && squads.length !== 1) {
+      return setMsg("msg", "Un Lider_de_Célula debe tener exactamente un escuadrón marcado.", true);
+    }
+    const celulaMode = document.querySelector('input[name="celulaMode"]:checked')?.value || "ninguna";
+    if (role === "user" && celulaMode === "crear" && !(document.getElementById("celulaNombre")?.value || "").trim()) {
+      return setMsg("msg", "Falta el nombre de la Célula.", true);
+    }
+    if (role === "user" && celulaMode === "unir" && !(document.getElementById("celulaExistenteSelect")?.value || "")) {
+      return setMsg("msg", "Seleccioná una Célula existente.", true);
+    }
 
     // division/squad_code singulares deprecados (Opción A, ago 2026):
     // bright-task ya no los lee ni los persiste en profiles. Se manda solo
@@ -175,6 +480,16 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       }
 
       setMsg("msg", `Cuenta creada: ${parsed.email}`, false);
+
+      if (role === "user" && squads.length === 1) {
+        const celulaResult = await applyCelulaAssignment(parsed.user_id, squads[0]);
+        if (!celulaResult.ok) {
+          setMsg("msg", `Cuenta creada: ${parsed.email}. ⚠️ ${celulaResult.error} Podés asignar la Célula después desde "Administrar Usuarios".`, true);
+        } else {
+          resetCelulaBlock();
+        }
+      }
+
       const message = `¡Hola ${full_name}! 👋\n\nTe invitamos a formar parte de la *Bitácora Virtual*. Para activar tu cuenta y crear tu contraseña, entra a este link:\n\n${parsed.invite_link}\n\nCualquier duda, contáctanos. ¡Bienvenido/a!`;
       await showMatMessagePreview({
         title: `Link de invitación para ${full_name}`,
@@ -184,6 +499,9 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       btnInvite.disabled = false;
     }
   });
+
+  // Estado inicial del bloque Célula (rol por defecto = user, sin escuadrón marcado)
+  toggleCelulaBlock();
 
   // -----------------------------
   // Anuncios (actividades: tabla "calendar_activities") — CRUD
@@ -2239,6 +2557,18 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           await loadAllUsers();
         });
         tdActions.appendChild(btnSquad);
+      }
+
+      // Gestionar Célula(s): solo aplica a Lider_de_Célula (role === "user").
+      if (u.role === "user") {
+        const btnCelula = document.createElement("button");
+        btnCelula.type = "button";
+        btnCelula.className = "mat-icon-btn";
+        btnCelula.title = "Gestionar Célula";
+        btnCelula.setAttribute("aria-label", "Gestionar Célula");
+        btnCelula.innerHTML = '<i class="fa-solid fa-virus"></i>';
+        btnCelula.addEventListener("click", () => openCelulaManageModal(u));
+        tdActions.appendChild(btnCelula);
       }
 
       // Generar link de reset sin correo (respaldo cuando Brevo falla, ver

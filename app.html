@@ -17,6 +17,8 @@
 <script type="module" src="./js/install-gate.js"></script>
 <link href="css/app.css" rel="stylesheet"/>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 <script>
   /* Aplica el tema guardado ANTES de pintar, para evitar parpadeo claro->oscuro */
   (function(){
@@ -195,6 +197,10 @@
 	<span class="nav-btn__icon"><i class="fa-solid fa-clipboard-check"></i></span>
 	<span class="nav-btn__text">Revisión de Notas</span>
 	</button>
+	<button class="nav-btn is-hidden" data-view="estadistica" id="navEstadistica" type="button">
+	<span class="nav-btn__icon"><i class="fa-solid fa-chart-pie"></i></span>
+	<span class="nav-btn__text">Estadística</span>
+	</button>
 <button class="nav-btn" data-view="lectura" type="button">
 <span class="nav-btn__icon"><i class="fa-solid fa-book-open-reader"></i></span>
 <span class="nav-btn__text">Lectura Bíblica</span>
@@ -248,6 +254,7 @@
 	<div class="cards">
 		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas (1–52)</div></button>
 		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title"><i class="fa-solid fa-clipboard-check"></i> Revisión de Notas</div><div class="card__body">Líderes y Admin</div></button>
+		<button class="card card--action is-hidden" data-view="estadistica" id="cardEstadistica" type="button"><div class="card__title"><i class="fa-solid fa-chart-pie"></i> Estadística</div><div class="card__body">Asistencia y ofrendas por escuadrón/red</div></button>
 		<button class="card card--action" data-view="lectura" type="button"><div class="card__title"><i class="fa-solid fa-book-open-reader"></i> Lectura Bíblica</div><div class="card__body">Plan de lectura diaria.</div></button>
 		<button class="card card--action" data-view="memorizar" type="button"><div class="card__title"><i class="fa-solid fa-graduation-cap"></i> Memorizar</div><div class="card__body">Versículos para memorizar.</div></button>
 		<button class="card card--action" data-view="biblia360" type="button"><div class="card__title"><i class="fa-solid fa-church"></i> Biblia360</div><div class="card__body">Recorrido bíblico.</div></button>
@@ -338,6 +345,73 @@
       </div>
       <div class="table-wrap" id="reviewCommentsList" style="margin-top:10px;">Selecciona una semana para ver el historial.</div>
     </div>
+  </div>
+</section>
+<section class="view" data-view-section="estadistica" id="view-estadistica">
+  <div class="view__header">
+    <h1>Estadística</h1>
+    <div class="view__nav">
+      <button class="pill pill--icon" data-go="back" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
+      <button class="pill" aria-label="Inicio" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel__title is-hidden" id="estSquadTitle">Escuadrón</div>
+    <select class="input is-hidden" id="estSquadSelect"></select>
+
+    <div class="tabs" style="margin-top:12px;">
+      <button class="pill est-tab is-active" data-est-tab="semanal" type="button">Semanal</button>
+      <button class="pill est-tab" data-est-tab="mensual" type="button">Mensual</button>
+      <button class="pill est-tab" data-est-tab="cuatrimestral" type="button">Cuatrimestral</button>
+    </div>
+
+    <div class="est-period-picker" id="estPeriodSemanal">
+      <div class="panel__title" style="margin-top:12px;">Semana</div>
+      <select class="input" id="estWeekSelect"></select>
+    </div>
+    <div class="est-period-picker is-hidden" id="estPeriodMensual">
+      <div class="panel__title" style="margin-top:12px;">Mes</div>
+      <select class="input" id="estMonthSelect">
+        <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
+        <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
+        <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
+        <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+      </select>
+    </div>
+    <div class="est-period-picker is-hidden" id="estPeriodCuatrimestral">
+      <div class="panel__title" style="margin-top:12px;">Cuatrimestre</div>
+      <select class="input" id="estQuarterSelect">
+        <option value="1">I (Enero–Abril)</option>
+        <option value="2">II (Mayo–Agosto)</option>
+        <option value="3">III (Septiembre–Diciembre)</option>
+      </select>
+    </div>
+
+    <div class="muted tiny" id="estStatus" style="margin-top:8px;"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <div class="panel__title">Detalle por Célula</div>
+    <div class="table-wrap" id="estTableWrap">Seleccioná un período.</div>
+    <div class="est-totals" id="estTotalsRow"></div>
+    <button class="pill is-hidden" id="estBtnExcel" type="button" style="margin-top:10px;"><i class="fa-solid fa-file-excel"></i> Exportar Excel</button>
+  </div>
+
+  <!-- Exclusivo Pastor/Admin: agrupa todas las células por Unidad (color), combinando escuadrones Taker+Maker -->
+  <div class="panel" id="estUnitSummaryPanel" style="display:none;margin-top:12px;">
+    <div class="panel__title">Resumen por Unidad (Red Completa)</div>
+    <div class="table-wrap" id="estUnitTableWrap"></div>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <div class="panel__title" id="estTrendTitle">Tendencia — Célula / Red-Culto</div>
+    <canvas id="estChartTrend" height="220"></canvas>
+  </div>
+
+  <div class="panel" style="margin-top:12px;">
+    <div class="panel__title">Real vs Meta (período seleccionado)</div>
+    <canvas id="estChartMeta" height="220"></canvas>
   </div>
 </section>
 <section class="view" data-view-section="notas" id="view-notas">
@@ -585,43 +659,22 @@
     <div class="dc-att-app" id="dcAttApp">
 
       <div class="dc-att__header">
-        <div class="dc-att__unit-row">
-          <div class="dc-att__select-wrap dc-optwheel" data-for-select="attColorSelector">
-            <select id="attColorSelector" class="dc-att__select-native" tabindex="-1" aria-hidden="true">
-              <option value="purple">🟣 Equipos</option>
-              <option value="red">🔴 Roja</option>
-              <option value="blue">🔵 Azul</option>
-              <option value="yellow">🟡 Amarilla</option>
-              <option value="orange">🟠 Naranja</option>
-              <option value="green">🟢 Verde</option>
-            </select>
-            <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
-            <div class="dc-optwheel__panel is-hidden">
-              <div class="dc-optwheel__marker"></div>
-              <div class="dc-optwheel__list"></div>
-            </div>
-          </div>
-          <div class="dc-att__select-wrap dc-optwheel" data-for-select="attSectionSelector">
-            <select id="attSectionSelector" class="dc-att__select-native" tabindex="-1" aria-hidden="true">
-              <option value="rj">RJ</option>
-              <option value="takers">TAKERS</option>
-              <option value="makers">MAKERS</option>
-            </select>
-            <input class="input dc-optwheel__value" type="text" readonly placeholder="" value=""/>
-            <div class="dc-optwheel__panel is-hidden">
-              <div class="dc-optwheel__marker"></div>
-              <div class="dc-optwheel__list"></div>
-            </div>
-          </div>
+        <div class="dc-att__celula-badge" id="attCelulaBadge">
+          <span class="dc-att__celula-dot" id="attCelulaDot"></span>
+          <span id="attCelulaLabel">Cargando célula…</span>
         </div>
-        <div class="dc-att__select-wrap dc-att__select-wrap--leader dc-optwheel" data-for-select="attLeaderName">
-          <select class="dc-att__select-native" id="attLeaderName" tabindex="-1" aria-hidden="true"></select>
-          <input class="input dc-optwheel__value" type="text" readonly placeholder="— Seleccionar Líder —" value=""/>
+
+        <!-- Solo se muestra si la cuenta tiene 2+ células asignadas -->
+        <div class="dc-att__select-wrap dc-optwheel is-hidden" id="attCelulaSelectorWrap" data-for-select="attCelulaSelector">
+          <select id="attCelulaSelector" class="dc-att__select-native" tabindex="-1" aria-hidden="true"></select>
+          <input class="input dc-optwheel__value" type="text" readonly placeholder="— Seleccionar Célula —" value=""/>
           <div class="dc-optwheel__panel is-hidden">
             <div class="dc-optwheel__marker"></div>
             <div class="dc-optwheel__list"></div>
           </div>
         </div>
+
+        <div class="dc-att__lock-banner is-hidden" id="attLockBanner"></div>
       </div>
 
       <div class="dc-att__offering">
@@ -680,11 +733,6 @@
         <div class="dc-att__summary-row"><span id="attLblCel">Total Célula:</span><span id="attSumCel">0</span></div>
         <div class="dc-att__summary-row"><span id="attLblRed">Total Red:</span><span id="attSumRed">0</span></div>
         <div class="dc-att__summary-nuevos" id="attSumNuevosRow" style="display:none;">🌟 Nuevos: <span id="attSumNuevos">0</span></div>
-      </div>
-
-      <div class="dc-att__actions">
-        <button class="pill" type="button" id="attCopyTodo"><i class="fa-solid fa-copy"></i> TODO</button>
-        <button class="pill" type="button" id="attCopyOfrendas"><i class="fa-solid fa-copy"></i> Ofrendas</button>
       </div>
 
     </div>

@@ -1754,3 +1754,16 @@ body.notes-fullheight .rte__editor{
 }
 #estTableWrap tr.est-row--total td{ font-weight:700; border-top:2px solid var(--line); border-bottom:none; }
 .est-totals{ margin-top:10px; font-size:0.85em; color:var(--muted); }
+
+/* ---------- Sub-pestañas de Estadística: Tendencia/Meta (Fases 2-4) ---------- */
+.est-subtab.is-active{ background: var(--accent); border-color: var(--accent); color:#fff; }
+.est-metric-toggle.is-active{ background: var(--accent2, var(--accent)); border-color: var(--accent2, var(--accent)); color:#fff; }
+
+.est-gauge-svg{ max-width:220px; margin:0 auto; }
+
+.est-meta-lider-list{ display:flex; flex-direction:column; gap:10px; }
+.est-meta-lider-row{ display:flex; align-items:center; gap:10px; }
+.est-meta-lider-name{ flex:0 0 140px; font-size:0.85em; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.est-meta-lider-track{ flex:1 1 auto; height:10px; border-radius:999px; background:var(--panel2); overflow:hidden; }
+.est-meta-lider-fill{ height:100%; border-radius:999px; background:var(--accent); transition:width .3s ease; }
+.est-meta-lider-detail{ flex:0 0 150px; font-size:0.78em; color:var(--muted); text-align:right; }

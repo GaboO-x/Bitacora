@@ -9,7 +9,7 @@
 // ============================================================================
 
 // Sube este número en cada release. Cambiar la versión invalida el caché viejo.
-const SW_VERSION = "1.0.3";
+const SW_VERSION = "1.0.4";
 const CACHE_NAME = `bitacora-shell-v${SW_VERSION}`;
 
 // Archivos del "app shell": lo mínimo para que la app cargue offline.
@@ -33,6 +33,13 @@ const SHELL_FILES = [
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
   "./icons/favicon-32.png",
+  // Fase 6 (offline): estas 3 son HTML autocontenido (sin llamadas a
+  // Supabase) que ya se cacheaban solas la primera vez que se abrían — acá
+  // quedan precacheadas desde el instalar, para que funcionen offline
+  // aunque el usuario nunca las haya visitado antes con conexión.
+  "./Yadá/Lectura_Biblica.html",
+  "./Yadá/Memorizar.html",
+  "./Yadá/Biblia360.html",
 ];
 
 // ---- INSTALL: precachea el shell de la nueva versión, pero NO toma control aún ----

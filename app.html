@@ -389,7 +389,17 @@
     </div>
 
     <div class="muted tiny" id="estStatus" style="margin-top:8px;"></div>
+
+    <div class="tabs" style="margin-top:12px;">
+      <button class="pill est-subtab is-active" data-est-subtab="resumen" type="button">Resumen</button>
+      <button class="pill est-subtab" data-est-subtab="tendencia" type="button">Tendencia por Célula</button>
+      <button class="pill est-subtab" data-est-subtab="metaGeneral" type="button">Meta General</button>
+      <button class="pill est-subtab" data-est-subtab="metaCelula" type="button">Meta por Célula</button>
+    </div>
   </div>
+
+  <!-- ============ Sub-pestaña: Resumen (todo lo existente, sin cambios) ============ -->
+  <div id="estSubviewResumen">
 
   <div class="panel" style="margin-top:12px;">
     <div class="panel__title">Detalle por Célula</div>
@@ -413,6 +423,71 @@
     <div class="panel__title">Real vs Meta (período seleccionado)</div>
     <canvas id="estChartMeta" height="220"></canvas>
   </div>
+
+  </div>
+  <!-- ============ /Resumen ============ -->
+
+  <!-- ============ Sub-pestaña: Tendencia por Célula (nuevo) ============ -->
+  <div id="estSubviewTendencia" class="is-hidden">
+    <div class="panel" style="margin-top:12px;">
+      <div class="tabs">
+        <button class="pill est-metric-toggle is-active" data-est-metric="cel" type="button">Célula</button>
+        <button class="pill est-metric-toggle" data-est-metric="red" type="button">Red / Culto</button>
+      </div>
+      <div class="panel__title" id="estTendenciaTitle" style="margin-top:12px;">Tendencia por Célula — Célula</div>
+      <canvas id="estChartTendenciaLider" height="260"></canvas>
+      <p class="muted tiny" style="margin-top:8px;">Pasá el mouse sobre el nombre de una célula en la leyenda para resaltar su línea y ver su meta (punteada).</p>
+    </div>
+  </div>
+  <!-- ============ /Tendencia por Célula ============ -->
+
+  <!-- ============ Sub-pestaña: Meta General (nuevo — guardado en localStorage, no en Supabase) ============ -->
+  <div id="estSubviewMetaGeneral" class="is-hidden">
+    <div class="panel" style="margin-top:12px;">
+      <label>Meta General del período (solo vos la ves — se guarda en este navegador)</label>
+      <input class="input" id="estMetaGeneralInput" type="number" min="0" step="1" placeholder="Ej: 70" />
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <div style="display:flex;gap:20px;flex-wrap:wrap;justify-content:center;">
+        <div style="text-align:center;min-width:200px;">
+          <div class="panel__title">Meta — Célula</div>
+          <div id="estGaugeCelula"></div>
+          <div class="muted tiny" id="estGaugeCelulaCaption"></div>
+        </div>
+        <div style="text-align:center;min-width:200px;">
+          <div class="panel__title">Meta — Red/Culto</div>
+          <div id="estGaugeRed"></div>
+          <div class="muted tiny" id="estGaugeRedCaption"></div>
+        </div>
+      </div>
+      <div class="est-totals" id="estMetaGeneralCards" style="margin-top:10px;text-align:center;"></div>
+    </div>
+
+    <div class="panel" style="margin-top:12px;">
+      <div class="panel__title">Real vs Meta General — Célula</div>
+      <canvas id="estChartMetaGeneralCelula" height="200"></canvas>
+    </div>
+    <div class="panel" style="margin-top:12px;">
+      <div class="panel__title">Real vs Meta General — Red/Culto</div>
+      <canvas id="estChartMetaGeneralRed" height="200"></canvas>
+    </div>
+  </div>
+  <!-- ============ /Meta General ============ -->
+
+  <!-- ============ Sub-pestaña: Meta por Célula (nuevo) ============ -->
+  <div id="estSubviewMetaCelula" class="is-hidden">
+    <div class="panel" style="margin-top:12px;">
+      <div class="panel__title">Cumplimiento de Meta — Célula</div>
+      <div id="estMetaCelulaListCel" class="est-meta-lider-list"></div>
+    </div>
+    <div class="panel" style="margin-top:12px;">
+      <div class="panel__title">Cumplimiento de Meta — Red/Culto</div>
+      <div id="estMetaCelulaListRed" class="est-meta-lider-list"></div>
+    </div>
+  </div>
+  <!-- ============ /Meta por Célula ============ -->
+
 </section>
 <section class="view" data-view-section="notas" id="view-notas">
 <div class="view__header">

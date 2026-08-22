@@ -2879,9 +2879,10 @@ btnBack?.addEventListener('click', () => {
       el.addEventListener('click', (e) => {
         const a = e.target.closest('a.rte-verse-link');
         if (!a) return;
-        if (longPressFired) { e.preventDefault(); longPressFired = false; return; } // ya se abrió por el mantener-presionado, evita navegar 2 veces
-        if (e.ctrlKey || e.metaKey) return; // Ctrl/Cmd+Click en desktop: dejar navegar normal
-        e.preventDefault(); // click simple: solo cursor, nunca navega
+        e.preventDefault(); // dentro de contenteditable, el navegador NO abre el link solo ni con Ctrl/Cmd — lo hacemos siempre por código.
+        if (longPressFired) { longPressFired = false; return; } // ya se abrió por el mantener-presionado, evita abrirlo 2 veces
+        if (e.ctrlKey || e.metaKey) window.open(a.href, '_blank', 'noopener');
+        // click simple sin modificador: no hace nada más que mover el cursor (comportamiento por defecto de contenteditable).
       });
     });
     const takersMeta = qs('#takersMeta');

@@ -154,6 +154,23 @@
 
       const supabase = await ensureSupabase();
       if (!supabase) return;
+
+      // Sin conexión: no podemos validar la sesión contra el servidor
+      // (getUser hace una llamada de red), pero si ya existe una sesión
+      // guardada localmente (getSession, 100% local, sin red) la dejamos
+      // pasar igual — la propia app.html ya maneja con calma cualquier
+      // llamada que falle por falta de conexión una vez adentro. Sin este
+      // fallback, cerrar la app y reabrirla sin señal dejaba a cualquiera
+      // trabado en la pantalla de login para siempre, aunque su sesión
+      // siguiera siendo válida.
+      if (!navigator.onLine) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData?.session) redirectAfterLogin();
+        return;
+      }
+
+      // Con conexión: se sigue validando contra el servidor como antes
+      // (evita bucles con sesiones viejas en caché que ya no son válidas).
       // Evita bucles: getSession puede devolver una sesión vieja en cache.
       // getUser valida con el servidor.
       const { data: userData, error } = await supabase.auth.getUser();

@@ -58,12 +58,25 @@ export async function requireSession() {
   const session = sessData?.session || null;
   if (!session) return { supabase, session: null };
 
+  // Sin conexión: no hay forma de validar contra el servidor (getUser
+  // requiere red). Antes esto se trataba igual que "no logueado" y
+  // mandaba de vuelta al login — rompía la app entera sin internet, ya
+  // que app.js usa esta función como puerta de entrada. Con sesión local
+  // guardada, se deja pasar igual; app.html ya maneja con calma cualquier
+  // llamada a Supabase que falle por falta de conexión una vez adentro.
+  if (!navigator.onLine) {
+    return { supabase, session };
+  }
+
   // 2) Validate against the server (avoids redirect loops caused by stale local sessions)
   try {
     const { data: userData, error } = await supabase.auth.getUser();
     if (error || !userData?.user) return { supabase, session: null };
   } catch {
-    return { supabase, session: null };
+    // Falló la llamada de red (p.ej. se cortó la conexión justo acá,
+    // aunque navigator.onLine todavía no se haya actualizado): mejor
+    // dejar pasar con la sesión local que trabar la app entera.
+    return { supabase, session };
   }
 
   return { supabase, session };

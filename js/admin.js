@@ -329,8 +329,32 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   function toggleCelulaManageFields() {
     const squadCode = document.getElementById("celulaManageSquadSelect")?.value || "URM";
     const isMakers = squadIsMakers(squadCode);
-    document.getElementById("celulaManageSeccionWrap").style.display = isMakers ? "none" : "block";
-    document.getElementById("celulaManageSeccionFixedMsg").style.display = isMakers ? "block" : "none";
+    const isEquipos = squadCode === "EQUIPOS";
+    const seccionWrap = document.getElementById("celulaManageSeccionWrap");
+    const seccionFixedMsg = document.getElementById("celulaManageSeccionFixedMsg");
+    const optA = document.getElementById("celulaManageSeccionOptA");
+    const optB = document.getElementById("celulaManageSeccionOptB");
+    const optALabel = document.getElementById("celulaManageSeccionOptALabel");
+    const optBLabel = document.getElementById("celulaManageSeccionOptBLabel");
+
+    if (isEquipos) {
+      // Equipos no tiene "RJ" (igual que en las apps viejas: Pra Rita
+      // Takers / Pra Rita Makers) — se pregunta Takers o Makers.
+      optA.value = "takers"; optALabel.textContent = "Takers";
+      optB.value = "makers"; optBLabel.textContent = "Makers";
+      if (optA.value !== "takers" && optB.value !== "takers") optA.checked = true;
+      seccionWrap.style.display = "block";
+      seccionFixedMsg.style.display = "none";
+    } else if (isMakers) {
+      seccionWrap.style.display = "none";
+      seccionFixedMsg.style.display = "block";
+    } else {
+      // Escuadrón normal terminado en T: RJ o Takers (default histórico).
+      optA.value = "rj"; optALabel.textContent = "RJ";
+      optB.value = "takers"; optBLabel.textContent = "Takers";
+      seccionWrap.style.display = "block";
+      seccionFixedMsg.style.display = "none";
+    }
 
     const mode = document.querySelector('input[name="celulaManageMode"]:checked')?.value || "crear";
     document.getElementById("celulaManageCrearFields").style.display = mode === "crear" ? "block" : "none";
@@ -2345,17 +2369,31 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   async function loadAllUsers() {
     const tbody = document.getElementById("usersTbody");
     setMsg("usersMsg", "", false);
-    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">Cargando…</td></tr>';
 
     const { data, error } = await callManageUsersEdge(supabase, { action: "list" });
 
     if (error || !data?.ok) {
       setMsg("usersMsg", (data && data.error) || "No se pudo cargar la lista de usuarios.", true);
-      if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Error al cargar.</td></tr>';
+      if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">Error al cargar.</td></tr>';
       return;
     }
 
     usersCache = data.users || [];
+
+    // Adjunta la(s) célula(s) activa(s) de cada usuario (solo aplica a
+    // Lider_de_Célula, pero se resuelve para todos de una sola consulta).
+    const { data: memberships } = await supabase
+      .from("celula_members")
+      .select("user_id, celulas(name)")
+      .eq("is_active", true);
+    const celulaMap = {};
+    (memberships || []).forEach((m) => {
+      if (!m.celulas) return;
+      (celulaMap[m.user_id] = celulaMap[m.user_id] || []).push(m.celulas.name);
+    });
+    usersCache.forEach((u) => { u.celulas = celulaMap[u.id] || []; });
+
     populateSquadFilterOptions(usersDivisionFilter);
     renderUsersTable(usersActiveRole);
   }
@@ -2367,7 +2405,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
     const rows = usersCache.filter((u) => u.role === role && userPassesFilters(u));
     if (rows.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Sin usuarios que coincidan con el filtro.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">Sin usuarios que coincidan con el filtro.</td></tr>';
       return;
     }
 
@@ -2388,16 +2426,19 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const tdSquads = document.createElement("td");
       tdSquads.style.padding = "8px";
+      tdSquads.style.whiteSpace = "nowrap";
+      tdSquads.style.overflow = "hidden";
+      tdSquads.style.textOverflow = "ellipsis";
+      tdSquads.title = (u.squads && u.squads.length) ? u.squads.join(", ") : "";
       tdSquads.textContent = (u.squads && u.squads.length) ? u.squads.join(", ") : "—";
       tr.appendChild(tdSquads);
 
-      const tdStatus = document.createElement("td");
-      tdStatus.style.padding = "8px";
-      const statusSpan = document.createElement("span");
-      statusSpan.className = u.active ? "badge-active" : "badge-suspended";
-      statusSpan.textContent = u.active ? "Activo" : "Suspendido";
-      tdStatus.appendChild(statusSpan);
-      tr.appendChild(tdStatus);
+      const tdCelula = document.createElement("td");
+      tdCelula.style.padding = "8px";
+      const celulaNames = u.celulas && u.celulas.length ? u.celulas.join(", ") : "—";
+      tdCelula.title = celulaNames;
+      tdCelula.textContent = celulaNames;
+      tr.appendChild(tdCelula);
 
       const tdRole = document.createElement("td");
       tdRole.style.padding = "8px";
@@ -2405,6 +2446,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         tdRole.textContent = ROLE_LABELS[u.role] + " (vos)";
       } else {
         const select = document.createElement("select");
+        select.className = "users-role-select";
         Object.keys(ROLE_LABELS).forEach((r) => {
           const opt = document.createElement("option");
           opt.value = r;
@@ -2442,13 +2484,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const tdActions = document.createElement("td");
       tdActions.style.padding = "8px";
-      // Grid en vez de flex-wrap: garantiza exactamente 3 íconos por fila
-      // sin importar cuántos aplican por usuario (flex-wrap depende del
-      // ancho disponible, no de una cantidad fija).
-      tdActions.style.display = "grid";
-      tdActions.style.gridTemplateColumns = "repeat(5, auto)";
-      tdActions.style.gap = "8px";
-      tdActions.style.width = "max-content";
+      tdActions.className = "users-actions-row";
 
       if (!isSelf) {
         const btnToggle = document.createElement("button");
@@ -2559,8 +2595,12 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         tdActions.appendChild(btnSquad);
       }
 
-      // Gestionar Célula(s): solo aplica a Lider_de_Célula (role === "user").
-      if (u.role === "user") {
+      // Gestionar Célula(s): disponible para los 4 roles. Un Líder de
+      // Escuadrón/Pastor/Admin puede además dirigir/codirigir una célula
+      // propia — la agregación en Estadística funciona por celulas.
+      // squad_code sin importar el rol de sus miembros, así que esto no
+      // requiere ningún cambio de RLS ni de las Edge Functions.
+      {
         const btnCelula = document.createElement("button");
         btnCelula.type = "button";
         btnCelula.className = "mat-icon-btn";
@@ -2649,9 +2689,83 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       }
 
       tr.appendChild(tdActions);
+
+      // Estado (ST): última columna, ícono en vez de texto.
+      const tdStatus = document.createElement("td");
+      tdStatus.style.padding = "8px";
+      tdStatus.style.textAlign = "center";
+      let statusIconClass, statusTitle;
+      if (u.active === true) { statusIconClass = "fa-solid fa-toggle-on users-status-icon users-status-icon--active"; statusTitle = "Activo"; }
+      else if (u.active === false) { statusIconClass = "fa-solid fa-toggle-off users-status-icon users-status-icon--inactive"; statusTitle = "Suspendido"; }
+      else { statusIconClass = "fa-solid fa-triangle-exclamation users-status-icon users-status-icon--unknown"; statusTitle = "Sin estado"; }
+      tdStatus.innerHTML = `<i class="${statusIconClass}" title="${statusTitle}" aria-label="${statusTitle}"></i>`;
+      tr.appendChild(tdStatus);
+
       tbody.appendChild(tr);
     });
   }
+
+  // -----------------------------
+  // Columnas ajustables (Administrar Usuarios) — el admin arrastra el borde
+  // derecho de cada columna; el ancho queda guardado en localStorage (por
+  // navegador/admin, no compartido entre cuentas) y se restaura solo.
+  // -----------------------------
+  const USERS_COL_WIDTHS_KEY = "bitacora_admin_users_col_widths_v1";
+
+  function loadUsersColWidths() {
+    try {
+      const raw = localStorage.getItem(USERS_COL_WIDTHS_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch { return {}; }
+  }
+  function saveUsersColWidths(widths) {
+    try { localStorage.setItem(USERS_COL_WIDTHS_KEY, JSON.stringify(widths)); } catch {}
+  }
+
+  function initUsersColumnResize() {
+    const table = document.getElementById("usersTable");
+    if (!table) return;
+
+    // Restaurar anchos guardados de una sesión anterior.
+    const saved = loadUsersColWidths();
+    Object.entries(saved).forEach(([colId, widthPx]) => {
+      const col = document.getElementById(colId);
+      if (col) col.style.width = widthPx + "px";
+    });
+
+    let resizing = null; // { col, colId, startX, startWidth }
+
+    table.querySelectorAll(".users-col-resizer").forEach((handle) => {
+      handle.addEventListener("mousedown", (ev) => {
+        const colId = handle.getAttribute("data-col");
+        const col = document.getElementById(colId);
+        if (!col) return;
+        ev.preventDefault();
+        resizing = { col, colId, startX: ev.clientX, startWidth: col.getBoundingClientRect().width };
+        handle.classList.add("is-resizing");
+        document.body.style.cursor = "col-resize";
+      });
+    });
+
+    document.addEventListener("mousemove", (ev) => {
+      if (!resizing) return;
+      const delta = ev.clientX - resizing.startX;
+      const newWidth = Math.max(50, Math.round(resizing.startWidth + delta));
+      resizing.col.style.width = newWidth + "px";
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!resizing) return;
+      const widths = loadUsersColWidths();
+      widths[resizing.colId] = Math.round(resizing.col.getBoundingClientRect().width);
+      saveUsersColWidths(widths);
+      table.querySelectorAll(".users-col-resizer.is-resizing").forEach((h) => h.classList.remove("is-resizing"));
+      document.body.style.cursor = "";
+      resizing = null;
+    });
+  }
+
+  initUsersColumnResize();
 
   function setUsersTabActive(id) {
     ["usersTabAdmin", "usersTabPastor", "usersTabLeader", "usersTabUser"].forEach((tid) => {

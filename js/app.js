@@ -1293,6 +1293,10 @@ btnBack?.addEventListener('click', () => {
     const estUnitTableWrap = qs('#estUnitTableWrap');
 
     let estLastPerCelula = [];
+    let estLastRecords = [];   // filas crudas de asistencia_records del período activo (sin agregar)
+    let estLastCelulas = [];   // células activas del/los escuadrón(es) activo(s)
+    let estLastWeeks = [];     // semanas incluidas en el período activo
+    let estLastSquadCodes = []; // escuadrones activos (clave de storage de Meta General)
 
     let estActiveTab = 'semanal';
     let estChartTrendInstance = null;
@@ -1565,6 +1569,270 @@ btnBack?.addEventListener('click', () => {
       });
     };
 
+    // ======================================================================
+    // Sub-pestañas de Estadística (Fase 1-4, a pedido del usuario tras
+    // comparar contra "Estadística Mensual" de la vieja app2): Resumen (ya
+    // existía, sin cambios) / Tendencia por Célula / Meta General / Meta
+    // por Célula. Reusan exactamente los mismos datos ya cacheados por
+    // estLoadAndRender (estLastRecords/estLastCelulas/estLastWeeks) — cero
+    // queries nuevas a Supabase.
+    // ======================================================================
+    const estSubtabButtons = qsa('.est-subtab');
+    const estSubviews = {
+      resumen: qs('#estSubviewResumen'),
+      tendencia: qs('#estSubviewTendencia'),
+      metaGeneral: qs('#estSubviewMetaGeneral'),
+      metaCelula: qs('#estSubviewMetaCelula'),
+    };
+    let estActiveSubtab = 'resumen';
+
+    const estRenderActiveSubview = () => {
+      if (estActiveSubtab === 'tendencia') estRenderTendenciaSubview();
+      else if (estActiveSubtab === 'metaGeneral') estRenderMetaGeneralSubview();
+      else if (estActiveSubtab === 'metaCelula') estRenderMetaCelulaSubview();
+      // 'resumen' ya se renderiza dentro de estLoadAndRender.
+    };
+
+    const estSetActiveSubtab = (key) => {
+      estActiveSubtab = key;
+      estSubtabButtons.forEach(b => b.classList.toggle('is-active', b.dataset.estSubtab === key));
+      Object.entries(estSubviews).forEach(([k, el]) => el?.classList.toggle('is-hidden', k !== key));
+      estRenderActiveSubview();
+    };
+    estSubtabButtons.forEach(b => b.addEventListener('click', () => estSetActiveSubtab(b.dataset.estSubtab)));
+
+    // ---- Fase 2: Tendencia por Célula (una línea por célula, con hover
+    //      que aísla + revela la meta punteada — mismo patrón que app2) ----
+    const EST_LINE_COLORS = ['#3498db', '#e67e22', '#2ecc71', '#e74c3c', '#9b59b6', '#1abc9c', '#f1c40f', '#34495e', '#e84393', '#00b894'];
+    let estTendenciaMetric = 'cel'; // 'cel' | 'red'
+    let estChartTendenciaInstance = null;
+
+    qsa('.est-metric-toggle').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        estTendenciaMetric = btn.getAttribute('data-est-metric');
+        qsa('.est-metric-toggle').forEach((b) => b.classList.toggle('is-active', b === btn));
+        estRenderTendenciaSubview();
+      });
+    });
+
+    // Agrupa estLastRecords en buckets (semana o mes, según la pestaña de
+    // período activa) por CÉLULA — a diferencia de estBucketByWeek/
+    // estBucketByMonth (Resumen) que suman TODAS las células juntas.
+    const estBuildPerCelulaSeries = (metricKey) => {
+      const year = estYear();
+      const dbKey = metricKey === 'cel' ? 'cel' : 'red_culto';
+      let labels, bucketWeeksList;
+
+      if (estActiveTab === 'cuatrimestral') {
+        const byMonth = {};
+        estLastWeeks.forEach((w) => {
+          const m = getWeekMonday(w, year).getMonth() + 1;
+          (byMonth[m] = byMonth[m] || []).push(w);
+        });
+        const monthKeys = Object.keys(byMonth).sort((a, b) => a - b);
+        labels = monthKeys.map((m) => EST_MONTH_SHORT[Number(m) - 1]);
+        bucketWeeksList = monthKeys.map((m) => byMonth[m]);
+      } else {
+        labels = estLastWeeks.map((w) => `S${String(w).padStart(2, '0')}`);
+        bucketWeeksList = estLastWeeks.map((w) => [w]);
+      }
+
+      const series = estLastCelulas.map((c) => {
+        const celRecs = estLastRecords.filter((r) => r.celula_id === c.id);
+        const data = bucketWeeksList.map((wlist) => {
+          const recs = celRecs.filter((r) => wlist.includes(r.week));
+          if (!recs.length) return null;
+          return recs.reduce((s, r) => s + (Number(r[dbKey]) || 0), 0);
+        });
+        const metaRecs = celRecs.filter((r) => r.meta !== null && r.meta !== undefined).sort((a, b) => b.week - a.week);
+        const meta = metaRecs.length ? metaRecs[0].meta : null;
+        return { name: c.name, data, meta };
+      });
+
+      return { labels, series };
+    };
+
+    const estRenderTendenciaSubview = () => {
+      const titleEl = qs('#estTendenciaTitle');
+      if (titleEl) titleEl.textContent = `Tendencia por Célula — ${estTendenciaMetric === 'cel' ? 'Célula' : 'Red / Culto'}`;
+
+      const ctx = qs('#estChartTendenciaLider');
+      if (!ctx || typeof Chart === 'undefined') return;
+      if (estChartTendenciaInstance) { estChartTendenciaInstance.destroy(); estChartTendenciaInstance = null; }
+
+      const { labels, series } = estBuildPerCelulaSeries(estTendenciaMetric);
+      if (!series.length) return;
+
+      const lineDatasets = series.map((s, idx) => {
+        const color = EST_LINE_COLORS[idx % EST_LINE_COLORS.length];
+        return {
+          label: s.name, data: s.data, borderColor: color, backgroundColor: color + '33',
+          borderWidth: 2, tension: 0.35, spanGaps: true, fill: false, _originalColor: color,
+        };
+      });
+      const metaDatasets = series.map((s, idx) => {
+        const color = EST_LINE_COLORS[idx % EST_LINE_COLORS.length];
+        return {
+          label: `Meta ${s.name}`, data: Array(labels.length).fill(s.meta ?? null),
+          borderColor: color, borderWidth: 2, borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 0,
+          tension: 0, fill: false, hidden: true, _isMetaLine: true,
+        };
+      });
+      const nLeaders = lineDatasets.length;
+
+      estChartTendenciaInstance = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: [...lineDatasets, ...metaDatasets] },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { boxWidth: 10, font: { size: 9 }, filter: (item, data) => !data.datasets[item.datasetIndex]._isMetaLine },
+              onHover: (evt, legendItem, legend) => {
+                const chart = legend.chart;
+                chart.data.datasets.forEach((ds, idx) => {
+                  if (ds._isMetaLine) { ds.hidden = (idx - nLeaders) !== legendItem.datasetIndex; return; }
+                  if (idx === legendItem.datasetIndex) { ds.borderColor = ds._originalColor; ds.borderWidth = 4; }
+                  else { ds.borderColor = 'rgba(150,150,150,0.25)'; ds.borderWidth = 2; }
+                });
+                chart.update();
+              },
+              onLeave: (evt, legendItem, legend) => {
+                const chart = legend.chart;
+                chart.data.datasets.forEach((ds) => {
+                  if (ds._isMetaLine) { ds.hidden = true; return; }
+                  ds.borderColor = ds._originalColor; ds.borderWidth = 2;
+                });
+                chart.update();
+              },
+            },
+          },
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+    };
+
+    // ---- Fase 3: Meta General — dato PURAMENTE local (localStorage), a
+    //      pedido explícito del usuario: "es un dato interno del líder de
+    //      escuadrón y nadie más influye". Nunca viaja a Supabase, nunca se
+    //      comparte entre dispositivos/cuentas. Clave por escuadrón(es) +
+    //      pestaña de período, para no mezclar metas de alcances distintos. ----
+    const ESTADO_META_GENERAL_KEY = 'bitacora_est_meta_general_v1';
+
+    const estMetaGeneralStorageKey = () => {
+      const squadKey = (estLastSquadCodes || []).slice().sort().join(',') || 'none';
+      return `${ESTADO_META_GENERAL_KEY}::${squadKey}::${estActiveTab}`;
+    };
+    const estLoadMetaGeneral = () => {
+      try {
+        const v = localStorage.getItem(estMetaGeneralStorageKey());
+        return v !== null && v !== '' ? parseFloat(v) : null;
+      } catch { return null; }
+    };
+    const estSaveMetaGeneral = (v) => {
+      try { localStorage.setItem(estMetaGeneralStorageKey(), String(v)); } catch {}
+    };
+
+    const estBuildGaugeSVG = (pct, color) => {
+      const displayPct = Math.max(0, Math.min(100, pct));
+      const r = 80, circumference = Math.PI * r;
+      const offset = circumference * (1 - displayPct / 100);
+      return `<svg class="est-gauge-svg" viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="var(--line)" stroke-width="18" stroke-linecap="round"/>
+        <path d="M20,100 A80,80 0 0,1 180,100" fill="none" stroke="${color}" stroke-width="18" stroke-linecap="round"
+              stroke-dasharray="${circumference}" stroke-dashoffset="${offset}"/>
+        <text x="100" y="95" text-anchor="middle" font-size="26" font-weight="bold" fill="${color}">${Math.round(pct)}%</text>
+      </svg>`;
+    };
+
+    const estMetaGeneralChartInstances = {};
+
+    const estRenderMetaGeneralSubview = () => {
+      const input = qs('#estMetaGeneralInput');
+      const stored = estLoadMetaGeneral();
+      if (input && document.activeElement !== input) input.value = stored !== null ? stored : '';
+      const metaObjetivo = stored !== null ? stored : 0;
+
+      const bucketed = estActiveTab === 'cuatrimestral'
+        ? estBucketByMonth(estLastRecords, estLastWeeks, estYear())
+        : estBucketByWeek(estLastRecords, estLastWeeks);
+
+      const celTotals = bucketed.map((b) => b.cel);
+      const redTotals = bucketed.map((b) => b.red_culto);
+      const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
+      const celAvg = avg(celTotals), redAvg = avg(redTotals);
+      const celPct = metaObjetivo ? (celAvg / metaObjetivo) * 100 : 0;
+      const redPct = metaObjetivo ? (redAvg / metaObjetivo) * 100 : 0;
+
+      const gCel = qs('#estGaugeCelula'); if (gCel) gCel.innerHTML = estBuildGaugeSVG(celPct, '#3498db');
+      const gCelCap = qs('#estGaugeCelulaCaption'); if (gCelCap) gCelCap.textContent = `${celAvg.toFixed(1)} / ${metaObjetivo}`;
+      const gRed = qs('#estGaugeRed'); if (gRed) gRed.innerHTML = estBuildGaugeSVG(redPct, '#e67e22');
+      const gRedCap = qs('#estGaugeRedCaption'); if (gRedCap) gRedCap.textContent = `${redAvg.toFixed(1)} / ${metaObjetivo}`;
+
+      const cardsEl = qs('#estMetaGeneralCards');
+      if (cardsEl) {
+        cardsEl.innerHTML = `Meta objetivo: <b>${metaObjetivo}</b> &nbsp;·&nbsp; Promedio Célula: <b>${celAvg.toFixed(1)}</b> &nbsp;·&nbsp; Promedio Red/Culto: <b>${redAvg.toFixed(1)}</b>`;
+      }
+
+      const buildCombo = (canvasId, totals, label, color) => {
+        const ctx = qs('#' + canvasId);
+        if (!ctx || typeof Chart === 'undefined') return;
+        if (estMetaGeneralChartInstances[canvasId]) estMetaGeneralChartInstances[canvasId].destroy();
+        estMetaGeneralChartInstances[canvasId] = new Chart(ctx, {
+          data: {
+            labels: bucketed.map((b) => b.label),
+            datasets: [
+              { type: 'bar', label, data: totals, backgroundColor: color, borderRadius: 4 },
+              { type: 'line', label: 'Meta General', data: Array(bucketed.length).fill(metaObjetivo), borderColor: '#aaaaaa', borderDash: [6, 4], pointRadius: 0, borderWidth: 2 },
+            ],
+          },
+          options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+        });
+      };
+      buildCombo('estChartMetaGeneralCelula', celTotals, 'Real Célula', '#3498db');
+      buildCombo('estChartMetaGeneralRed', redTotals, 'Real Red/Culto', '#e67e22');
+    };
+
+    qs('#estMetaGeneralInput')?.addEventListener('input', (ev) => {
+      const v = parseFloat(ev.target.value);
+      estSaveMetaGeneral(isNaN(v) ? 0 : v);
+      estRenderMetaGeneralSubview();
+    });
+
+    // ---- Fase 4: "Meta por Célula" (ranking, barras horizontales) ----
+    const estBuildMetaCelulaRanking = (metricKey) => {
+      const dbKey = metricKey === 'cel' ? 'cel' : 'red_culto';
+      return estLastCelulas.map((c) => {
+        const celRecs = estLastRecords.filter((r) => r.celula_id === c.id);
+        const vals = celRecs.map((r) => Number(r[dbKey]) || 0);
+        const promedio = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        const metaRecs = celRecs.filter((r) => r.meta !== null && r.meta !== undefined).sort((a, b) => b.week - a.week);
+        const meta = metaRecs.length ? metaRecs[0].meta : 12;
+        const pct = meta ? (promedio / meta) * 100 : 0;
+        return { name: c.name, promedio, meta, pct };
+      }).sort((a, b) => b.pct - a.pct);
+    };
+
+    const estRenderMetaCelulaList = (containerId, metricKey) => {
+      const el = qs('#' + containerId);
+      if (!el) return;
+      const stats = estBuildMetaCelulaRanking(metricKey);
+      if (!stats.length) { el.innerHTML = '<p class="muted small">Sin datos.</p>'; return; }
+      el.innerHTML = stats.map((s) => `
+        <div class="est-meta-lider-row">
+          <div class="est-meta-lider-name" title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</div>
+          <div class="est-meta-lider-track"><div class="est-meta-lider-fill" style="width:${Math.min(100, s.pct)}%"></div></div>
+          <div class="est-meta-lider-detail">${Math.round(s.pct)}% · Meta ${s.meta} · Prom ${s.promedio.toFixed(1)}</div>
+        </div>
+      `).join('');
+    };
+
+    const estRenderMetaCelulaSubview = () => {
+      estRenderMetaCelulaList('estMetaCelulaListCel', 'cel');
+      estRenderMetaCelulaList('estMetaCelulaListRed', 'red');
+    };
+
     // ---- Resumen por Unidad (Sesión 5, exclusivo Pastor/Admin) ----
     // Une escuadrones Taker+Maker del mismo color en una sola "Unidad", igual
     // que agrupaba el viejo app3 (Reporte_Red_Completo). Mismo cuidado de
@@ -1668,10 +1936,11 @@ btnBack?.addEventListener('click', () => {
       setEstStatus('Cargando…');
 
       const squadCodes = await estGetSelectedSquadCodes(role);
+      estLastSquadCodes = squadCodes;
       if (!squadCodes.length) {
         setEstStatus('Sin escuadrón asignado.');
         estRenderTable([], role);
-        estLastPerCelula = [];
+        estLastPerCelula = []; estLastRecords = []; estLastCelulas = []; estLastWeeks = [];
         if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
         return;
       }
@@ -1680,6 +1949,7 @@ btnBack?.addEventListener('click', () => {
       if (estActiveTab === 'semanal') weeks = [parseInt(estWeekSelect?.value || '1', 10)];
       else if (estActiveTab === 'mensual') weeks = estWeeksForMonth(parseInt(estMonthSelect?.value || '1', 10));
       else weeks = estWeeksForQuarter(parseInt(estQuarterSelect?.value || '1', 10));
+      estLastWeeks = weeks;
 
       if (!weeks.length) { setEstStatus('No hay semanas en ese período.'); return; }
 
@@ -1692,12 +1962,13 @@ btnBack?.addEventListener('click', () => {
         .eq('is_active', true)
         .order('name');
       if (celulasErr) { setEstStatus('Error al cargar células.'); return; }
+      estLastCelulas = celulas || [];
       if (!celulas || !celulas.length) {
         setEstStatus('No hay células en este escuadrón.');
         estRenderTable([], role);
         estRenderTrendChart([]);
         estRenderMetaChart([]);
-        estLastPerCelula = [];
+        estLastPerCelula = []; estLastRecords = [];
         if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
         return;
       }
@@ -1711,6 +1982,7 @@ btnBack?.addEventListener('click', () => {
         .in('week', weeks)
         .eq('year', year);
       if (recErr) { setEstStatus('Error al cargar asistencia.'); return; }
+      estLastRecords = records || [];
 
       const perCelula = celulas.map(c => {
         const recs = (records || []).filter(r => r.celula_id === c.id);
@@ -1734,6 +2006,12 @@ btnBack?.addEventListener('click', () => {
         : estBucketByWeek(records || [], weeks);
       estRenderTrendChart(bucketed);
       estRenderMetaChart(perCelula);
+
+      // Sub-pestañas nuevas (Tendencia/Meta General/Meta por Célula): se
+      // renderizan con los mismos datos ya cacheados arriba, sin queries
+      // adicionales. Si la sub-pestaña activa es "Resumen" (default), esto
+      // no hace nada — ya se renderizó arriba.
+      estRenderActiveSubview();
 
       setEstStatus('');
     };

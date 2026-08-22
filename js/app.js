@@ -2911,6 +2911,232 @@ btnBack?.addEventListener('click', () => {
     const dcNotes = qs('#dcNotes');
     const dcStatus = qs('#dcStatus');
 
+    // ======================================================================
+    // Publicar anuncio (dc/Anuncios) — envía el texto un nivel jerárquico
+    // hacia abajo con pop-up de recepción. Admin->Pastor y/o Líder de
+    // Escuadrón (con Makers/Takers); Pastor->Líder de Escuadrón (con
+    // Makers/Takers); Líder de Escuadrón->TODOS sus Líderes de Célula
+    // asignados (sin selección, confirmado por el usuario).
+    // ======================================================================
+    const btnPublicarAnuncio = qs('#btnPublicarAnuncio');
+    const publicarModal = qs('#publicarModal');
+    const publicarModalScopeAdmin = qs('#publicarModalScopeAdmin');
+    const publicarModalScopePastor = qs('#publicarModalScopePastor');
+    const publicarModalScopeLeader = qs('#publicarModalScopeLeader');
+    const publicarToPastor = qs('#publicarToPastor');
+    const publicarToLeader = qs('#publicarToLeader');
+    const publicarModalDivisionWrapAdmin = qs('#publicarModalDivisionWrapAdmin');
+    const publicarDivMakersAdmin = qs('#publicarDivMakersAdmin');
+    const publicarDivTakersAdmin = qs('#publicarDivTakersAdmin');
+    const publicarDivMakersPastor = qs('#publicarDivMakersPastor');
+    const publicarDivTakersPastor = qs('#publicarDivTakersPastor');
+    const publicarModalMsg = qs('#publicarModalMsg');
+    const publicarModalCancel = qs('#publicarModalCancel');
+    const publicarModalSend = qs('#publicarModalSend');
+
+    const setPublicarMsg = (text, isErr) => {
+      if (!publicarModalMsg) return;
+      publicarModalMsg.textContent = text || '';
+      publicarModalMsg.style.color = isErr ? 'var(--danger, #dc3545)' : 'var(--green, #2ecc71)';
+    };
+
+    // Mostrar el botón solo a quien tiene a quién publicarle (admin/pastor/leader).
+    (async () => {
+      const role = await getRole();
+      if (['admin', 'pastor', 'leader'].includes(role)) {
+        btnPublicarAnuncio?.classList.remove('is-hidden');
+      }
+    })();
+
+    btnPublicarAnuncio?.addEventListener('click', async () => {
+      if (!(dcNotes?.value || '').trim()) { alert('Escribí algo en Anuncios antes de publicar.'); return; }
+      const role = await getRole();
+
+      publicarModalScopeAdmin.classList.toggle('is-hidden', role !== 'admin');
+      publicarModalScopePastor.classList.toggle('is-hidden', role !== 'pastor');
+      publicarModalScopeLeader.classList.toggle('is-hidden', role !== 'leader');
+
+      [publicarToPastor, publicarToLeader, publicarDivMakersAdmin, publicarDivTakersAdmin, publicarDivMakersPastor, publicarDivTakersPastor]
+        .forEach((el) => { if (el) el.checked = false; });
+      publicarModalDivisionWrapAdmin.style.display = 'none';
+      setPublicarMsg('', false);
+
+      publicarModal.classList.remove('is-hidden');
+    });
+
+    publicarToLeader?.addEventListener('change', () => {
+      publicarModalDivisionWrapAdmin.style.display = publicarToLeader.checked ? 'block' : 'none';
+    });
+
+    publicarModalCancel?.addEventListener('click', () => publicarModal.classList.add('is-hidden'));
+
+    // Escuadrón -> división por sufijo (mismo criterio que el resto del sistema).
+    const squadDivisionLetter = (squadCode) => (squadCode || '').endsWith('M') ? 'M' : 'T';
+
+    const resolveLeaderRecipients = async (divisions) => {
+      const { data } = await supabase.from('leader_squads').select('leader_id, squad_code');
+      const ids = [];
+      (data || []).forEach((r) => { if (divisions.includes(squadDivisionLetter(r.squad_code))) ids.push(r.leader_id); });
+      return ids;
+    };
+
+    publicarModalSend?.addEventListener('click', async () => {
+      const role = await getRole();
+      const content = (dcNotes?.value || '').trim();
+      if (!content) { setPublicarMsg('No hay texto en Anuncios para publicar.', true); return; }
+
+      let recipientIds = [];
+
+      if (role === 'admin') {
+        const toPastor = !!publicarToPastor?.checked;
+        const toLeader = !!publicarToLeader?.checked;
+        if (!toPastor && !toLeader) { setPublicarMsg('Marcá al menos un destino.', true); return; }
+
+        if (toPastor) {
+          const { data } = await supabase.from('profiles').select('id').eq('role', 'pastor').eq('active', true);
+          (data || []).forEach((p) => recipientIds.push(p.id));
+        }
+        if (toLeader) {
+          const divisions = [];
+          if (publicarDivMakersAdmin?.checked) divisions.push('M');
+          if (publicarDivTakersAdmin?.checked) divisions.push('T');
+          if (!divisions.length) { setPublicarMsg('Marcá Makers y/o Takers para Líder de Escuadrón.', true); return; }
+          recipientIds.push(...await resolveLeaderRecipients(divisions));
+        }
+      } else if (role === 'pastor') {
+        const divisions = [];
+        if (publicarDivMakersPastor?.checked) divisions.push('M');
+        if (publicarDivTakersPastor?.checked) divisions.push('T');
+        if (!divisions.length) { setPublicarMsg('Marcá Makers y/o Takers.', true); return; }
+        recipientIds.push(...await resolveLeaderRecipients(divisions));
+      } else if (role === 'leader') {
+        const mySquads = await loadLeaderSquadCodes();
+        if (!mySquads.length) { setPublicarMsg('No tenés escuadrón asignado.', true); return; }
+        const { data: celulas } = await supabase.from('celulas').select('id').in('squad_code', mySquads).eq('is_active', true);
+        const celulaIds = (celulas || []).map((c) => c.id);
+        if (celulaIds.length) {
+          const { data: members } = await supabase.from('celula_members').select('user_id').in('celula_id', celulaIds).eq('is_active', true);
+          (members || []).forEach((m) => recipientIds.push(m.user_id));
+        }
+      } else {
+        setPublicarMsg('Tu rol no puede publicar anuncios.', true);
+        return;
+      }
+
+      recipientIds = Array.from(new Set(recipientIds)).filter((id) => id !== user.id);
+      if (!recipientIds.length) { setPublicarMsg('No se encontraron destinatarios para ese alcance.', true); return; }
+
+      publicarModalSend.disabled = true;
+      setPublicarMsg('Publicando…', false);
+
+      const senderName = cachedProfile?.full_name || user.email || 'Alguien';
+      const { data: broadcast, error: bErr } = await supabase
+        .from('dc_broadcasts')
+        .insert({ sender_id: user.id, sender_name: senderName, content, week: state.selectedWeek, year: new Date().getFullYear() })
+        .select('id')
+        .single();
+
+      if (bErr || !broadcast?.id) {
+        publicarModalSend.disabled = false;
+        setPublicarMsg('No se pudo publicar: ' + (bErr?.message || 'error'), true);
+        return;
+      }
+
+      const { error: rErr } = await supabase
+        .from('dc_broadcast_recipients')
+        .insert(recipientIds.map((uid) => ({ broadcast_id: broadcast.id, user_id: uid })));
+
+      publicarModalSend.disabled = false;
+      if (rErr) { setPublicarMsg('Se publicó, pero falló asignar destinatarios: ' + rErr.message, true); return; }
+
+      setPublicarMsg(`Publicado a ${recipientIds.length} persona(s).`, false);
+      setTimeout(() => publicarModal.classList.add('is-hidden'), 1200);
+    });
+
+    // ======================================================================
+    // Recepción de anuncios publicados — pop-up al abrir la app (una vez,
+    // de a uno si hay varios pendientes, confirmado por el usuario).
+    // ======================================================================
+    const broadcastPopupModal = qs('#broadcastPopupModal');
+    const broadcastPopupSender = qs('#broadcastPopupSender');
+    const broadcastPopupContent = qs('#broadcastPopupContent');
+    const broadcastPopupClose = qs('#broadcastPopupClose');
+    const broadcastPopupNote = qs('#broadcastPopupNote');
+
+    let currentBroadcastRow = null;
+
+    const showNextPendingBroadcast = async () => {
+      if (isOffline) return; // requiere red; se revisa de nuevo la próxima vez que abra con conexión
+      const { data, error } = await supabase
+        .from('dc_broadcast_recipients')
+        .select('id, dc_broadcasts(sender_name, content)')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(1);
+      if (error || !data || !data.length) return;
+      currentBroadcastRow = data[0];
+      if (broadcastPopupSender) broadcastPopupSender.textContent = data[0].dc_broadcasts?.sender_name || 'Alguien';
+      if (broadcastPopupContent) broadcastPopupContent.textContent = data[0].dc_broadcasts?.content || '';
+      broadcastPopupModal?.classList.remove('is-hidden');
+    };
+
+    // Agrega el anuncio al final de Notas/Semana actual real/Anuncios —
+    // trae primero lo que ya exista en Supabase (fuente de verdad), lo
+    // funde con el borrador local, y refresca el textarea si esa hoja
+    // está abierta en pantalla en este momento.
+    const appendToCurrentWeekAnuncios = async (extraText) => {
+      const week = getCurrentWeekNumber();
+      if (!week) return;
+
+      const { data: existing } = await supabase
+        .from('notes')
+        .select('data')
+        .eq('user_id', user.id)
+        .eq('week', week)
+        .eq('sheet', 'dc')
+        .maybeSingle();
+
+      const prevDraft = existing?.data || getWeekDraft(week).dc || {};
+      const prevNotes = (prevDraft.notes || '').trim();
+      const newNotes = prevNotes ? `${prevNotes}\n\n${extraText}` : extraText;
+      const newDraft = { ...prevDraft, notes: newNotes };
+
+      setWeekDraft(week, { dc: newDraft });
+
+      await supabase.from('notes').upsert({
+        user_id: user.id,
+        week,
+        sheet: 'dc',
+        data: newDraft,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,week,sheet' });
+
+      if (state.selectedWeek === week && state.notesOpenSheet === 'dc' && dcNotes) {
+        dcNotes.value = newNotes;
+      }
+    };
+
+    const resolveBroadcastPopup = async (newStatus) => {
+      if (!currentBroadcastRow) return;
+      const id = currentBroadcastRow.id;
+      currentBroadcastRow = null;
+      broadcastPopupModal?.classList.add('is-hidden');
+      await supabase.from('dc_broadcast_recipients').update({ status: newStatus, resolved_at: new Date().toISOString() }).eq('id', id);
+      await showNextPendingBroadcast(); // el siguiente pendiente, si hay más
+    };
+
+    broadcastPopupClose?.addEventListener('click', () => resolveBroadcastPopup('dismissed'));
+
+    broadcastPopupNote?.addEventListener('click', async () => {
+      if (!currentBroadcastRow) return;
+      const content = currentBroadcastRow.dc_broadcasts?.content || '';
+      await appendToCurrentWeekAnuncios(content);
+      await resolveBroadcastPopup('noted');
+    });
+
+    showNextPendingBroadcast();
+
     // Botones únicos Atrás/Guardar/Compartir, ubicados junto al tail del <h1>Notas</h1>
     const notesHeaderActions = qs('#notesHeaderActions');
     const notesBtnBack = qs('#notesBtnBack');

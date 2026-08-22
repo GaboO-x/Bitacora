@@ -49,7 +49,7 @@
        sección está activa; el resto de la app (incluyendo Invitar usuario)
        sigue en 980px. */
     .container:has(#sectionUsers.active){
-      max-width:1280px;
+      max-width:1440px;
     }
 
     .admin-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -58,6 +58,20 @@
     .users-tab.active{background:var(--accent-bg);border-color:var(--accent2);color:var(--accent)}
     .badge-active{color:var(--green);font-weight:600}
     .badge-suspended{color:var(--red);font-weight:600}
+    .users-status-icon{font-size:16px;}
+    .users-status-icon--active{color:var(--green);}
+    .users-status-icon--inactive{color:var(--danger, #dc3545);}
+    .users-status-icon--unknown{color:#d9a406;}
+    .users-role-select{width:auto;max-width:140px;}
+    .users-actions-row{display:flex;flex-wrap:nowrap;gap:6px;width:max-content;}
+    .users-actions-row .mat-icon-btn{flex-shrink:0;padding:6px 8px;}
+
+    .users-th-resizable{position:relative;}
+    .users-col-resizer{
+      position:absolute; top:0; right:0; height:100%; width:6px;
+      cursor:col-resize; user-select:none; touch-action:none;
+    }
+    .users-col-resizer:hover, .users-col-resizer.is-resizing{background:var(--accent2, #b7860b); opacity:.5;}
 
     .users-toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
     .users-toolbar button{width:auto;margin-top:0;padding:8px 14px;white-space:nowrap}
@@ -332,13 +346,18 @@
         <button id="backFromInvite" class="secondary mat-icon-btn mat-icon-btn--lg" type="button" title="Volver al inicio" aria-label="Volver al inicio"><i class="fa-solid fa-circle-left"></i></button>
       </div>
 
+      <div style="margin-top:14px;display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label>Email</label>
+          <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
+        </div>
+        <div>
+          <label>Nombre completo</label>
+          <input id="inviteName" type="text" placeholder="Nombre Apellido" />
+        </div>
+      </div>
+
       <div style="margin-top:14px;">
-        <label>Email</label>
-        <input id="inviteEmail" type="email" placeholder="usuario@correo.com" />
-
-        <label>Nombre completo</label>
-        <input id="inviteName" type="text" placeholder="Nombre Apellido" />
-
         <label>Rol</label>
         <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
           <label style="display:flex;gap:8px;align-items:center;margin:0;">
@@ -385,10 +404,10 @@
 
         <div id="celulaBlock" style="display:none;margin-top:14px;padding:12px;border:1px solid var(--line);border-radius:12px;">
           <label style="margin-top:0;">Célula</label>
-          <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:6px;">
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="crear" checked /><span>Crear Célula nueva</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="unir" /><span>Unir a Célula existente</span></label>
-            <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaMode" value="ninguna" /><span>Sin célula por ahora</span></label>
+          <div style="display:flex;flex-wrap:nowrap;gap:16px;margin-top:6px;">
+            <label style="display:flex;gap:8px;align-items:center;margin:0;white-space:nowrap;"><input type="radio" name="celulaMode" value="crear" checked /><span>Crear Célula</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;white-space:nowrap;"><input type="radio" name="celulaMode" value="unir" /><span>Célula existente</span></label>
+            <label style="display:flex;gap:8px;align-items:center;margin:0;white-space:nowrap;"><input type="radio" name="celulaMode" value="ninguna" /><span>Sin célula</span></label>
           </div>
 
           <div id="celulaCrearFields" style="margin-top:10px;">
@@ -567,19 +586,29 @@
       </div>
 
       <div style="overflow:auto;margin-top:14px;">
-        <table style="width:100%;border-collapse:collapse;min-width:860px;">
+        <table id="usersTable" style="width:100%;border-collapse:collapse;min-width:900px;table-layout:fixed;">
+          <colgroup>
+            <col id="usersColName" style="width:16%;">
+            <col id="usersColEmail" style="width:20%;">
+            <col id="usersColSquad" style="width:8%;">
+            <col id="usersColCelula" style="width:14%;">
+            <col id="usersColRol" style="width:12%;">
+            <col id="usersColAcciones" style="width:auto;">
+            <col id="usersColEstado" style="width:5%;">
+          </colgroup>
           <thead>
             <tr>
-              <th style="text-align:left;padding:8px;">Nombre</th>
-              <th style="text-align:left;padding:8px;">Email</th>
-              <th style="text-align:left;padding:8px;">Escuadrón(es)</th>
-              <th style="text-align:left;padding:8px;">Estado</th>
-              <th style="text-align:left;padding:8px;">Rol</th>
-              <th style="text-align:left;padding:8px;">Acciones</th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;">Nombre<span class="users-col-resizer" data-col="usersColName"></span></th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;">Email<span class="users-col-resizer" data-col="usersColEmail"></span></th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;white-space:nowrap;">Squad<span class="users-col-resizer" data-col="usersColSquad"></span></th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;">Célula<span class="users-col-resizer" data-col="usersColCelula"></span></th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;">Rol<span class="users-col-resizer" data-col="usersColRol"></span></th>
+              <th class="users-th-resizable" style="text-align:left;padding:8px;">Acciones<span class="users-col-resizer" data-col="usersColAcciones"></span></th>
+              <th style="text-align:center;padding:8px;">ST</th>
             </tr>
           </thead>
           <tbody id="usersTbody">
-            <tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>
+            <tr><td colspan="7" style="padding:10px;" class="muted">Cargando…</td></tr>
           </tbody>
         </table>
       </div>
@@ -616,6 +645,7 @@
           <option value="UAT">UAT</option>
           <option value="UNT">UNT</option>
           <option value="UAZT">UAZT</option>
+          <option value="EQUIPOS">🟣 Equipos</option>
         </select>
 
         <div id="celulaManageCrearFields" style="margin-top:10px;">
@@ -624,8 +654,8 @@
           <div id="celulaManageSeccionWrap" style="margin-top:10px;">
             <label>Sección</label>
             <div style="display:flex;gap:16px;margin-top:6px;">
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageSeccion" value="rj" checked /><span>RJ</span></label>
-              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" name="celulaManageSeccion" value="takers" /><span>Takers</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" id="celulaManageSeccionOptA" name="celulaManageSeccion" value="rj" checked /><span id="celulaManageSeccionOptALabel">RJ</span></label>
+              <label style="display:flex;gap:8px;align-items:center;margin:0;"><input type="radio" id="celulaManageSeccionOptB" name="celulaManageSeccion" value="takers" /><span id="celulaManageSeccionOptBLabel">Takers</span></label>
             </div>
           </div>
           <p id="celulaManageSeccionFixedMsg" class="muted small" style="display:none;margin-top:10px;">Sección: Makers (automática por escuadrón)</p>

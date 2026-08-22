@@ -2723,7 +2723,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       // Editar escuadrón: solo aplica a Líder_de_Escuadrón y Líder_de_Célula
       // (admin/pastor no tienen escuadrón propio, ver notas en bright-task
       // / manage-users sobre por qué esas tablas quedan vacías para ellos).
-      if (u.role === "leader" || u.role === "user") {
+      if (u.role === "leader" || u.role === "user" || u.role === "admin") {
         const btnSquad = document.createElement("button");
         btnSquad.type = "button";
         btnSquad.className = "mat-icon-btn";

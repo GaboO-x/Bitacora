@@ -59,6 +59,133 @@ btnBack?.addEventListener('click', () => {
     const qs = (sel, el=document) => el.querySelector(sel);
     const qsa = (sel, el=document) => Array.from(el.querySelectorAll(sel));
 
+    // ======================================================================
+    // Fase 1 — Infraestructura offline (base reusada por las fases 2-6):
+    // detección central online/offline, caché genérico en localStorage con
+    // timestamp, pop-up de aviso (mismo estilo .modal-overlay/.modal-box de
+    // siempre), y greyout automático de las secciones que NO soportan
+    // offline. Las secciones offline-capaces (Notas, Lectura Bíblica,
+    // Memorizar, Biblia360, Anuncios, Calendario, Mis Doce) implementan su
+    // propia lectura/escritura de caché en sus fases correspondientes; acá
+    // solo vive lo compartido.
+    // ======================================================================
+    const OFFLINE_CACHE_PREFIX = 'bitacora_offline_cache_v1::';
+
+    const offlineCacheSet = (key, data) => {
+      try {
+        localStorage.setItem(OFFLINE_CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }));
+      } catch {}
+    };
+    const offlineCacheGet = (key) => {
+      try {
+        const raw = localStorage.getItem(OFFLINE_CACHE_PREFIX + key);
+        if (!raw) return null;
+        return JSON.parse(raw); // { data, ts }
+      } catch { return null; }
+    };
+    // Cola de escrituras pendientes por falta de red (Fases 3-4 la consumen;
+    // vive acá porque es infraestructura compartida, no de una sola sección).
+    const OFFLINE_QUEUE_KEY = 'bitacora_offline_queue_v1';
+    const offlineQueueGet = () => {
+      try { return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch { return []; }
+    };
+    const offlineQueueSet = (queue) => {
+      try { localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue)); } catch {}
+    };
+    const offlineQueuePush = (item) => {
+      const q = offlineQueueGet();
+      q.push({ ...item, queuedAt: Date.now() });
+      offlineQueueSet(q);
+    };
+
+    const formatOfflineTimestamp = (ts) => {
+      if (!ts) return '';
+      try {
+        return new Date(ts).toLocaleString('es-CR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
+    };
+    const getMostRecentCacheTimestamp = () => {
+      let max = 0;
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (!k || !k.startsWith(OFFLINE_CACHE_PREFIX)) continue;
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed?.ts && parsed.ts > max) max = parsed.ts;
+        }
+      } catch {}
+      return max || null;
+    };
+
+    // ---- Detección central online/offline ----
+    let isOffline = !navigator.onLine;
+    const offlineListeners = new Set();
+    const onOfflineChange = (cb) => { offlineListeners.add(cb); return () => offlineListeners.delete(cb); };
+    const setOfflineState = (offline) => {
+      if (offline === isOffline) return;
+      isOffline = offline;
+      offlineListeners.forEach((cb) => { try { cb(isOffline); } catch {} });
+    };
+    window.addEventListener('online', () => setOfflineState(false));
+    window.addEventListener('offline', () => setOfflineState(true));
+
+    // ---- Pop-up de aviso ----
+    let offlineModalDismissed = false;
+    const showOfflineModal = () => {
+      if (offlineModalDismissed) return;
+      const lastUpdateEl = qs('#offlineModalLastUpdate');
+      if (lastUpdateEl) {
+        const ts = getMostRecentCacheTimestamp();
+        lastUpdateEl.textContent = ts ? `Última actualización: ${formatOfflineTimestamp(ts)}` : 'Todavía no hay nada guardado para ver sin conexión.';
+      }
+      qs('#offlineModal')?.classList.remove('is-hidden');
+    };
+    const hideOfflineModal = () => {
+      qs('#offlineModal')?.classList.add('is-hidden');
+    };
+    qs('#offlineModalOk')?.addEventListener('click', () => {
+      offlineModalDismissed = true;
+      hideOfflineModal();
+    });
+
+    // ---- Greyout de secciones sin soporte offline ----
+    // data-view de las secciones que SÍ funcionan offline (a pedido del
+    // usuario): Notas, Lectura Bíblica, Memorizar, Biblia360, Anuncios,
+    // Calendario, Mis Doce. Todo lo demás (Estadística, Revisión de Notas,
+    // Material de apoyo) se deshabilita visualmente sin conexión. "home"
+    // nunca se deshabilita (es la pantalla de aterrizaje).
+    const OFFLINE_CAPABLE_VIEWS = new Set(['notas', 'lectura', 'memorizar', 'biblia360', 'anuncios', 'calendario', 'misdoce']);
+
+    const applyOfflineGreyout = (offline) => {
+      qsa('[data-view]').forEach((el) => {
+        const view = el.getAttribute('data-view');
+        if (view === 'home') return;
+        const shouldDisable = offline && !OFFLINE_CAPABLE_VIEWS.has(view);
+        el.classList.toggle('is-offline-disabled', shouldDisable);
+        if ('disabled' in el) el.disabled = shouldDisable;
+        if (shouldDisable) el.setAttribute('aria-disabled', 'true'); else el.removeAttribute('aria-disabled');
+      });
+      // Botón "Admin" del sidebar: navega a admin.html (página aparte, sin
+      // soporte offline hoy) — no es un data-view, se gatea aparte.
+      const btnAdmin = document.getElementById('navAdminPanel');
+      if (btnAdmin) {
+        btnAdmin.classList.toggle('is-offline-disabled', offline);
+        btnAdmin.disabled = offline;
+      }
+    };
+
+    onOfflineChange((offline) => {
+      applyOfflineGreyout(offline);
+      if (offline) showOfflineModal();
+      else { offlineModalDismissed = false; hideOfflineModal(); }
+    });
+
+    // Estado inicial al cargar (antes de que el usuario navegue a ningún lado).
+    applyOfflineGreyout(isOffline);
+    if (isOffline) showOfflineModal();
+
     const state = {
       view: 'home',
       selectedWeek: null,
@@ -208,7 +335,7 @@ btnBack?.addEventListener('click', () => {
     attInfoModal?.addEventListener('click', (e) => { if (e.target === attInfoModal) closeAttInfoModal(); });
 
     const showView = (view) => {
-      if (state.view === 'misdoce' && view !== 'misdoce') flushMisDoceSave();
+      if (state.view === 'misdoce' && view !== 'misdoce') { flushMisDoceSave(); mdStopWatching(); }
       state.view = view;
       qsa('.view').forEach(v => v.classList.remove('is-visible'));
       const section = qs(`#view-${view}`);
@@ -1955,16 +2082,47 @@ btnBack?.addEventListener('click', () => {
 
       const year = estYear();
 
-      const { data: celulas, error: celulasErr } = await supabase
+      const { data: allCelulas, error: celulasErr } = await supabase
         .from('celulas')
-        .select('id, name, squad_code, section')
+        .select('id, name, squad_code, section, is_active')
         .in('squad_code', squadCodes)
-        .eq('is_active', true)
         .order('name');
       if (celulasErr) { setEstStatus('Error al cargar células.'); return; }
-      estLastCelulas = celulas || [];
-      if (!celulas || !celulas.length) {
+
+      if (!allCelulas || !allCelulas.length) {
         setEstStatus('No hay células en este escuadrón.');
+        estRenderTable([], role);
+        estRenderTrendChart([]);
+        estRenderMetaChart([]);
+        estLastPerCelula = []; estLastRecords = []; estLastCelulas = [];
+        if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
+        return;
+      }
+
+      const allCelulaIds = allCelulas.map(c => c.id);
+
+      const { data: allRecords, error: recErr } = await supabase
+        .from('asistencia_records')
+        .select('celula_id, week, cel, red_culto, nuevos, sinpe, efectivo, meta')
+        .in('celula_id', allCelulaIds)
+        .in('week', weeks)
+        .eq('year', year);
+      if (recErr) { setEstStatus('Error al cargar asistencia.'); return; }
+
+      // Una célula desactivada NO se pierde de Estadística para los
+      // períodos donde sí tuvo datos (Opción B, a pedido explícito del
+      // usuario) — solo se excluye si está inactiva Y no reportó nada en
+      // este período específico. Sigue sin poder elegirse para NUEVOS
+      // reportes (eso lo controla "Unir a Célula existente" en admin.html,
+      // que sí filtra is_active=true).
+      const celulas = allCelulas.filter(c =>
+        c.is_active === true || (allRecords || []).some(r => r.celula_id === c.id)
+      );
+      const records = (allRecords || []).filter(r => celulas.some(c => c.id === r.celula_id));
+      estLastCelulas = celulas;
+
+      if (!celulas.length) {
+        setEstStatus('No hay células activas (ni con datos) en este período.');
         estRenderTable([], role);
         estRenderTrendChart([]);
         estRenderMetaChart([]);
@@ -1973,16 +2131,7 @@ btnBack?.addEventListener('click', () => {
         return;
       }
 
-      const celulaIds = celulas.map(c => c.id);
-
-      const { data: records, error: recErr } = await supabase
-        .from('asistencia_records')
-        .select('celula_id, week, cel, red_culto, nuevos, sinpe, efectivo, meta')
-        .in('celula_id', celulaIds)
-        .in('week', weeks)
-        .eq('year', year);
-      if (recErr) { setEstStatus('Error al cargar asistencia.'); return; }
-      estLastRecords = records || [];
+      estLastRecords = records;
 
       const perCelula = celulas.map(c => {
         const recs = (records || []).filter(r => r.celula_id === c.id);
@@ -2139,6 +2288,20 @@ btnBack?.addEventListener('click', () => {
 
     const loadCalendarioPosts = async () => {
       if (!calendarioList) return;
+
+      const cacheKey = 'calendario_posts';
+
+      if (isOffline) {
+        const cached = offlineCacheGet(cacheKey);
+        if (cached?.data) {
+          renderCalendarioList(cached.data);
+          calendarioList.insertAdjacentHTML('afterbegin', `<div class="muted tiny" style="margin-bottom:8px;"><i class="fa-solid fa-wifi-slash"></i> Sin conexión — última actualización: ${escapeHtml(formatOfflineTimestamp(cached.ts))}</div>`);
+        } else {
+          calendarioList.innerHTML = '<div class="muted">Sin conexión y sin publicaciones guardadas todavía.</div>';
+        }
+        return;
+      }
+
       calendarioList.textContent = 'Cargando…';
 
       const { data, error } = await supabase
@@ -2147,10 +2310,17 @@ btnBack?.addEventListener('click', () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        calendarioList.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+        const cached = offlineCacheGet(cacheKey);
+        if (cached?.data) {
+          renderCalendarioList(cached.data);
+          calendarioList.insertAdjacentHTML('afterbegin', `<div class="msg err">No se pudo actualizar — mostrando la última versión guardada.</div>`);
+        } else {
+          calendarioList.innerHTML = '<div class="msg err">' + escapeHtml(error.message) + '</div>';
+        }
         return;
       }
 
+      offlineCacheSet(cacheKey, data || []);
       renderCalendarioList(data);
     };
 
@@ -2478,10 +2648,24 @@ btnBack?.addEventListener('click', () => {
     const loadAnuncios = async () => {
       if (!anuncioContainer) return;
 
-      setStatus(anuncioStatus, 'Cargando…');
-
+      const cacheKey = 'anuncios_activities';
       const role = await getRole();
       const isAdmin = role === 'admin';
+
+      if (isOffline) {
+        const cached = offlineCacheGet(cacheKey);
+        if (cached?.data) {
+          anuncioRowsCache = sortAnuncioActivities(cached.data);
+          renderAnuncioTable(anuncioRowsCache, isAdmin);
+          setStatus(anuncioStatus, `Sin conexión — última actualización: ${formatOfflineTimestamp(cached.ts)}`);
+        } else {
+          anuncioContainer.textContent = 'Sin conexión y sin datos guardados todavía.';
+          setStatus(anuncioStatus, '');
+        }
+        return;
+      }
+
+      setStatus(anuncioStatus, 'Cargando…');
 
       const { data, error } = await supabase
         .from('calendar_activities')
@@ -2489,11 +2673,19 @@ btnBack?.addEventListener('click', () => {
         .order('event_date', { ascending: true });
 
       if (error) {
-        setStatus(anuncioStatus, 'Error cargando calendario.');
-        anuncioContainer.textContent = 'No se pudo cargar.';
+        const cached = offlineCacheGet(cacheKey);
+        if (cached?.data) {
+          anuncioRowsCache = sortAnuncioActivities(cached.data);
+          renderAnuncioTable(anuncioRowsCache, isAdmin);
+          setStatus(anuncioStatus, 'No se pudo actualizar — mostrando la última versión guardada.');
+        } else {
+          setStatus(anuncioStatus, 'Error cargando calendario.');
+          anuncioContainer.textContent = 'No se pudo cargar.';
+        }
         return;
       }
 
+      offlineCacheSet(cacheKey, data || []);
       anuncioRowsCache = sortAnuncioActivities(data || []);
       renderAnuncioTable(anuncioRowsCache, isAdmin);
       setStatus(anuncioStatus, '');
@@ -2546,6 +2738,152 @@ btnBack?.addEventListener('click', () => {
     const takersDate = qs('#takersDate');
     const cultosDate = qs('#cultosDate');
     const lideresDate = qs('#lideresDate');
+
+    // ======================================================================
+    // Auto-link de referencias bíblicas (Takers/Cultos/Líderes) — convierte
+    // texto tipo "Gn11:25", "Jn 3:16-18", "Sal119:9,11" en links a bible.com
+    // (RVR1960, version_id 149). SOLO se linkifica al perder el foco del
+    // campo (blur) o al mostrar la hoja recién abierta — NUNCA mientras se
+    // está escribiendo — y se "deshace" a texto plano de nuevo apenas se
+    // vuelve a entrar a editar (focus), para que jamás haya un link activo
+    // durante la edición (riesgo de toque accidental en móvil). El campo
+    // de notas de "Dinámica Celular" es un <textarea> simple (no soporta
+    // HTML), así que queda fuera de esto.
+    // ======================================================================
+    const BIBLE_VERSION_ID = 149; // RVR1960
+
+    const BIBLE_BOOK_ABBR = [
+      [['Gn', 'Gen'], 'GEN'], [['Ex', 'Exo'], 'EXO'], [['Lv', 'Lev'], 'LEV'],
+      [['Nm', 'Num'], 'NUM'], [['Dt', 'Deut'], 'DEU'], [['Jos'], 'JOS'],
+      [['Jue', 'Jc'], 'JDG'], [['Rt'], 'RUT'], [['1S', '1Sa'], '1SA'],
+      [['2S', '2Sa'], '2SA'], [['1R', '1Re'], '1KI'], [['2R', '2Re'], '2KI'],
+      [['1Cr', '1Cro'], '1CH'], [['2Cr', '2Cro'], '2CH'], [['Esd'], 'EZR'],
+      [['Neh'], 'NEH'], [['Est'], 'EST'], [['Job'], 'JOB'],
+      [['Sal', 'Sl'], 'PSA'], [['Pr', 'Prov'], 'PRO'], [['Ec', 'Ecl'], 'ECC'],
+      [['Cnt', 'Cant'], 'SNG'], [['Is', 'Isa'], 'ISA'], [['Jer'], 'JER'],
+      [['Lm', 'Lam'], 'LAM'], [['Ez', 'Eze'], 'EZK'], [['Dn', 'Dan'], 'DAN'],
+      [['Os', 'Ose'], 'HOS'], [['Jl', 'Joe'], 'JOL'], [['Am', 'Amo'], 'AMO'],
+      [['Abd', 'Ab'], 'OBA'], [['Jon'], 'JON'], [['Mi', 'Miq'], 'MIC'],
+      [['Nah'], 'NAM'], [['Hab'], 'HAB'], [['Sof'], 'ZEP'], [['Hag'], 'HAG'],
+      [['Zac'], 'ZEC'], [['Mal'], 'MAL'], [['Mt'], 'MAT'], [['Mr', 'Mc'], 'MRK'],
+      [['Lc'], 'LUK'], [['Jn'], 'JHN'], [['Hch', 'Hec'], 'ACT'],
+      [['Ro', 'Rom'], 'ROM'], [['1Co', '1Cor'], '1CO'], [['2Co', '2Cor'], '2CO'],
+      [['Ga', 'Gal'], 'GAL'], [['Ef', 'Efe'], 'EPH'], [['Fil', 'Flp'], 'PHP'],
+      [['Col'], 'COL'], [['1Ts', '1Tes'], '1TH'], [['2Ts', '2Tes'], '2TH'],
+      [['1Ti', '1Tim'], '1TI'], [['2Ti', '2Tim'], '2TI'], [['Tit'], 'TIT'],
+      [['Flm'], 'PHM'], [['Heb'], 'HEB'], [['Stg', 'Sant'], 'JAS'],
+      [['1P', '1Pe'], '1PE'], [['2P', '2Pe'], '2PE'], [['1Jn'], '1JN'],
+      [['2Jn'], '2JN'], [['3Jn'], '3JN'], [['Jud'], 'JUD'], [['Ap', 'Apo'], 'REV'],
+    ];
+
+    const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const BIBLE_ABBR_TO_CODE = {};
+    const bibleAbbrevList = [];
+    BIBLE_BOOK_ABBR.forEach(([abbrevs, code]) => {
+      abbrevs.forEach(a => {
+        BIBLE_ABBR_TO_CODE[a.toLowerCase()] = code;
+        bibleAbbrevList.push(a);
+      });
+    });
+    bibleAbbrevList.sort((a, b) => b.length - a.length); // más largas primero
+
+    const BIBLE_REF_REGEX = new RegExp(
+      `(^|[^\\p{L}\\p{N}])(${bibleAbbrevList.map(escapeRegExp).join('|')})\\.?\\s*(\\d{1,3})\\s*[:.](\\d{1,3}(?:\\s*[-,]\\s*\\d{1,3})*)`,
+      'giu'
+    );
+
+    // Versículos intercalados (coma) o en rango (guion): bible.com confirma
+    // soporte de rango con guion (EPH.4.1-7), pero no encontramos
+    // confirmación de que soporte comas — para no armar un link roto, se
+    // linkea al RANGO COMPLETO (mínimo a máximo) en vez de a la lista exacta.
+    const buildBibleVerseUrl = (bookCode, chapter, versePart) => {
+      const nums = versePart.split(',').flatMap(p => p.split('-').map(n => parseInt(n.trim(), 10))).filter(n => !isNaN(n));
+      if (!nums.length) return null;
+      const min = Math.min(...nums);
+      const max = Math.max(...nums);
+      const verseSpec = min === max ? String(min) : `${min}-${max}`;
+      return `https://www.bible.com/bible/${BIBLE_VERSION_ID}/${bookCode}.${chapter}.${verseSpec}`;
+    };
+
+    const linkifyVerseReferences = (editorEl) => {
+      if (!editorEl) return;
+      const walker = document.createTreeWalker(editorEl, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (node.parentElement && node.parentElement.closest('a')) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT,
+      });
+      const textNodes = [];
+      let n;
+      while ((n = walker.nextNode())) textNodes.push(n);
+
+      textNodes.forEach((node) => {
+        const text = node.data;
+        BIBLE_REF_REGEX.lastIndex = 0;
+        if (!BIBLE_REF_REGEX.test(text)) return;
+        BIBLE_REF_REGEX.lastIndex = 0;
+
+        const frag = document.createDocumentFragment();
+        let lastIndex = 0;
+        let m;
+        while ((m = BIBLE_REF_REGEX.exec(text))) {
+          const [full, pre, abbrev, chapter, versePart] = m;
+          const matchStart = m.index + pre.length;
+          const matchEnd = m.index + full.length;
+          const bookCode = BIBLE_ABBR_TO_CODE[abbrev.toLowerCase()];
+          const url = bookCode ? buildBibleVerseUrl(bookCode, chapter, versePart) : null;
+
+          frag.appendChild(document.createTextNode(text.slice(lastIndex, matchStart)));
+          const refText = text.slice(matchStart, matchEnd);
+          if (url) {
+            const a = document.createElement('a');
+            a.className = 'rte-verse-link';
+            a.href = url;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            a.textContent = refText;
+            frag.appendChild(a);
+          } else {
+            frag.appendChild(document.createTextNode(refText));
+          }
+          lastIndex = matchEnd;
+        }
+        frag.appendChild(document.createTextNode(text.slice(lastIndex)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    };
+
+    // Interacción con los links ya generados: un click/toque simple NUNCA
+    // navega — solo posiciona el cursor para seguir editando (mismo criterio
+    // que ya charlamos: cero riesgo de interrumpir la escritura). Para abrir
+    // de verdad el versículo hace falta un gesto explícito distinto:
+    // Ctrl/Cmd+Click en computadora, o mantener presionado (~500ms) en
+    // móvil — mismo patrón que usan Google Docs/Notion para este problema.
+    [takersNotes, cultosNotes, lideresNotes].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('blur', () => linkifyVerseReferences(el));
+
+      let touchTimer = null;
+      let longPressFired = false;
+
+      el.addEventListener('touchstart', (e) => {
+        const a = e.target.closest('a.rte-verse-link');
+        if (!a) return;
+        longPressFired = false;
+        touchTimer = setTimeout(() => {
+          longPressFired = true;
+          window.open(a.href, '_blank', 'noopener');
+        }, 500);
+      }, { passive: true });
+      el.addEventListener('touchend', () => clearTimeout(touchTimer));
+      el.addEventListener('touchmove', () => clearTimeout(touchTimer));
+
+      el.addEventListener('click', (e) => {
+        const a = e.target.closest('a.rte-verse-link');
+        if (!a) return;
+        if (longPressFired) { e.preventDefault(); longPressFired = false; return; } // ya se abrió por el mantener-presionado, evita navegar 2 veces
+        if (e.ctrlKey || e.metaKey) return; // Ctrl/Cmd+Click en desktop: dejar navegar normal
+        e.preventDefault(); // click simple: solo cursor, nunca navega
+      });
+    });
     const takersMeta = qs('#takersMeta');
     const cultosMeta = qs('#cultosMeta');
     const lideresMeta = qs('#lideresMeta');
@@ -2639,26 +2977,45 @@ btnBack?.addEventListener('click', () => {
       } catch {}
     };
 
+    // Fase 4: además de correr una vez al login, la cola de borradores
+    // locales (Takers/Cultos/Líderes admiten edición offline; "dc" queda
+    // de solo lectura offline así que normalmente no acumula pendientes,
+    // pero re-subirla es inofensivo/idempotente) se vuelve a sincronizar
+    // sola apenas vuelve la conexión — sin esto, los cambios hechos sin
+    // red se quedaban local hasta el próximo login.
+    onOfflineChange(async (offline) => {
+      if (offline) return;
+      await migrateLocalDraftsToSupabase();
+      if (['takers', 'cultos', 'lideres'].includes(state.notesOpenSheet)) {
+        const statusEl = { takers: takersStatus, cultos: cultosStatus, lideres: lideresStatus }[state.notesOpenSheet];
+        if (statusEl) statusEl.textContent = `Sincronizado — ${nowLabel()}`;
+      }
+    });
+
+
     // Complemento de migrateLocalDraftsToSupabase (sube), en la dirección
-    // contraria: trae de Supabase TODAS las semanas de la hoja "dc" de este
-    // usuario y las funde en el borrador local. Sin esto, abrir la app en
-    // otro dispositivo/navegador (o después de limpiar caché) mostraba la
-    // hoja "dc" vacía —incluida Asistencia/ofrenda— aunque ya hubiera datos
-    // guardados en Supabase, porque nada los volvía a bajar. Se llama una
-    // vez al iniciar sesión, DESPUÉS de migrateLocalDraftsToSupabase (para
-    // no pisar con datos viejos de Supabase un cambio local reciente que
-    // todavía no se había subido).
-    const hydrateDcHistoryFromSupabase = async () => {
+    // contraria: trae de Supabase TODAS las semanas de las 4 hojas
+    // (dc/takers/cultos/lideres) de este usuario y las funde en el borrador
+    // local. Sin esto, abrir la app en otro dispositivo/navegador (o
+    // después de limpiar caché) mostraba las hojas vacías aunque ya
+    // hubiera datos guardados en Supabase, porque nada los volvía a bajar.
+    // Se llama una vez al iniciar sesión, DESPUÉS de
+    // migrateLocalDraftsToSupabase (para no pisar con datos viejos de
+    // Supabase un cambio local reciente que todavía no se había subido).
+    // (Fase 4: ampliada de solo "dc" a las 4 hojas — Takers/Cultos/Líderes
+    // admiten edición offline y necesitan el mismo respaldo para que
+    // "recuerde lo último visto" funcione también en un dispositivo nuevo.)
+    const hydrateNotesHistoryFromSupabase = async () => {
       try {
         const res = await supabase
           .from('notes')
-          .select('week, data')
+          .select('week, sheet, data')
           .eq('user_id', user.id)
-          .eq('sheet', 'dc');
+          .in('sheet', ['dc', 'takers', 'cultos', 'lideres']);
         if (res.error) return;
         (res.data || []).forEach(row => {
-          if (!row || row.week == null || !row.data) return;
-          setWeekDraft(row.week, { dc: row.data });
+          if (!row || row.week == null || !row.sheet || !row.data) return;
+          setWeekDraft(row.week, { [row.sheet]: row.data });
         });
       } catch {}
     };
@@ -3675,19 +4032,29 @@ btnBack?.addEventListener('click', () => {
 
       // ---- Carga de membresías (celula_members activos del usuario) ----
       const attLoadMemberships = async () => {
+        if (isOffline) {
+          const cached = offlineCacheGet('att_memberships::' + user.id);
+          attMemberships = cached?.data || [];
+          return;
+        }
         const { data, error } = await supabase
           .from('celula_members')
           .select('celula_id, celulas!inner(id, name, squad_code, section, is_active)')
           .eq('user_id', user.id)
           .eq('is_active', true)
           .eq('celulas.is_active', true);
-        if (error) { attMemberships = []; return; }
+        if (error) {
+          const cached = offlineCacheGet('att_memberships::' + user.id);
+          attMemberships = cached?.data || [];
+          return;
+        }
         attMemberships = (data || []).map(r => ({
           celula_id: r.celulas.id,
           name: r.celulas.name,
           squad_code: r.celulas.squad_code,
           section: r.celulas.section,
         }));
+        offlineCacheSet('att_memberships::' + user.id, attMemberships);
       };
 
       const attRenderCelulaBadgeAndSelector = () => {
@@ -3750,13 +4117,16 @@ btnBack?.addEventListener('click', () => {
         if (attLockPollTimer) { clearInterval(attLockPollTimer); attLockPollTimer = null; }
       };
 
-      const attSetReadOnly = (readOnly, lockedByName) => {
+      const attSetReadOnly = (readOnly, lockedByName, reason) => {
         attReadOnly = readOnly;
         attRoot.querySelectorAll('input, button, select').forEach(el => {
           if (el === attCelulaSelector) return; // el selector de célula siempre queda usable
           el.disabled = readOnly;
         });
-        if (readOnly) {
+        if (readOnly && reason === 'offline') {
+          attLockBanner.classList.remove('is-hidden');
+          attLockBanner.innerHTML = `<i class="fa-solid fa-wifi-slash"></i> Sin conexión — mostrando la última versión guardada (solo lectura).`;
+        } else if (readOnly) {
           attLockBanner.classList.remove('is-hidden');
           attLockBanner.innerHTML = `<i class="fa-solid fa-lock"></i> Editando: ${escapeHtml(lockedByName || 'otro líder')} — modo solo lectura.`;
         } else {
@@ -3841,6 +4211,25 @@ btnBack?.addEventListener('click', () => {
         const year = attCurrentYear();
         if (!week) return;
 
+        const cacheKey = `att_record::${attCelula.celula_id}::${week}::${year}`;
+
+        // Sin conexión: no intentar Supabase, mostrar la última versión
+        // cacheada (si existe) en modo solo lectura — sin lock, sin
+        // herencia de nombres (eso requiere red), sin guardado posible.
+        if (isOffline) {
+          const cached = offlineCacheGet(cacheKey);
+          const roster = cached?.data?.roster || attEmptyRoster();
+          attRecordId = cached?.data?.id || null;
+          attOffSinpe.value = cached?.data?.sinpe || '';
+          attOffEfectivo.value = cached?.data?.efectivo || '';
+          attRenderSection(attMainBody, roster.main, false);
+          attRenderSection(attVisitBody, roster.visit, true);
+          attUpdateCounts();
+          attCalculateOffering();
+          attSetReadOnly(true, null, 'offline');
+          return;
+        }
+
         const { data: record } = await supabase
           .from('asistencia_records')
           .select('id, roster, sinpe, efectivo')
@@ -3855,6 +4244,7 @@ btnBack?.addEventListener('click', () => {
           roster = record.roster && (record.roster.main || record.roster.visit) ? record.roster : attEmptyRoster();
           attOffSinpe.value = record.sinpe || '';
           attOffEfectivo.value = record.efectivo || '';
+          offlineCacheSet(cacheKey, record);
         } else {
           attRecordId = null;
           const inherited = await attFindInheritedRoster(attCelula.celula_id, week, year);
@@ -4028,6 +4418,28 @@ btnBack?.addEventListener('click', () => {
       };
     })();
 
+    // Fase 3 — offline: "Notas/Célula" (hoja dc, incluye Asistencia) queda
+    // SIEMPRE en solo lectura sin conexión, a pedido explícito del usuario
+    // (a diferencia de Takers/Cultos/Líderes, que sí admiten edición
+    // offline con cola de sincronización — Fase 4). Deshabilita todo dentro
+    // de #notesSheetScreen; el widget de Asistencia (attRoot) ya se
+    // deshabilita solo vía attSetReadOnly, esto cubre el resto (fecha,
+    // bloques Tiempo/Responsable, seguimiento, notas).
+    const applyDcSheetOfflineState = (offline) => {
+      if (!notesSheetScreen) return;
+      notesSheetScreen.querySelectorAll('input, textarea, button, select').forEach(el => {
+        if (el.closest('#dcAttApp')) return; // el widget de Asistencia se maneja solo
+        el.disabled = offline;
+      });
+      if (dcStatus) {
+        dcStatus.textContent = offline ? 'Sin conexión — Notas/Célula en modo solo lectura.' : '';
+      }
+    };
+
+    onOfflineChange((offline) => {
+      if (state.notesOpenSheet === 'dc') applyDcSheetOfflineState(offline);
+    });
+
     const openDinamicaCelular = () => {
       if (!state.selectedWeek) {
         alert('Primero selecciona una semana.');
@@ -4055,6 +4467,7 @@ btnBack?.addEventListener('click', () => {
       }
       rebuildJustNames();
       attRefreshForWeek();
+      applyDcSheetOfflineState(isOffline);
       updateNotesCrumb();
       updateNotesHeaderActions();
     };
@@ -4087,10 +4500,11 @@ btnBack?.addEventListener('click', () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
       takersMeta && (takersMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 5)));
-      takersStatus && (takersStatus.textContent = '');
+      takersStatus && (takersStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
       setDateIfEmpty(takersDate);
       const draft = getWeekDraft(state.selectedWeek).takers;
       if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
+      linkifyVerseReferences(takersNotes);
       showNoteSheet(notesSheetTakers);
       updateNotesCrumb();
       updateNotesHeaderActions();
@@ -4188,11 +4602,12 @@ btnBack?.addEventListener('click', () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
       cultosMeta && (cultosMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 6)));
-      cultosStatus && (cultosStatus.textContent = '');
+      cultosStatus && (cultosStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
       setDateIfEmpty(cultosDate);
       const draft = getWeekDraft(state.selectedWeek).cultos;
       if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
-      loadCultoAudioForWeek(state.selectedWeek);
+      linkifyVerseReferences(cultosNotes);
+      if (!isOffline) loadCultoAudioForWeek(state.selectedWeek);
       showNoteSheet(notesSheetCultos);
       updateNotesCrumb();
       updateNotesHeaderActions();
@@ -4202,10 +4617,11 @@ btnBack?.addEventListener('click', () => {
       if (!state.selectedWeek) { alert('Primero selecciona una semana.'); return; }
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
       lideresMeta && (lideresMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 0)));
-      lideresStatus && (lideresStatus.textContent = '');
+      lideresStatus && (lideresStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
       setDateIfEmpty(lideresDate);
       const draft = getWeekDraft(state.selectedWeek).lideres;
       if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
+      linkifyVerseReferences(lideresNotes);
       showNoteSheet(notesSheetLideres);
       updateNotesCrumb();
       updateNotesHeaderActions();
@@ -4357,7 +4773,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     // hoja se vea igual sin importar el dispositivo/navegador usado.
     (async () => {
       await migrateLocalDraftsToSupabase();
-      await hydrateDcHistoryFromSupabase();
+      await hydrateNotesHistoryFromSupabase();
     })();
 
     // ---- Editor RTE (Takers / Cultos / Reunión de Líderes)
@@ -4399,9 +4815,13 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       const positionBar = (rect) => {
         const barRect = bar.getBoundingClientRect();
         const margin = 8;
-        let top = rect.top - barRect.height - margin;
+        // Preferimos DEBAJO de la selección: en móvil, el menú nativo del
+        // navegador (Copiar/Pegar/Traducir) aparece ARRIBA de la selección
+        // y tapaba nuestro toolbar cuando también intentábamos ir arriba.
+        let top = rect.bottom + margin;
         let left = rect.left + (rect.width / 2) - (barRect.width / 2);
-        if (top < 8) top = rect.bottom + margin; // si no cabe arriba, se muestra debajo
+        // Si no entra abajo (selección muy cerca del borde inferior), va arriba.
+        if (top + barRect.height > window.innerHeight - 8) top = rect.top - barRect.height - margin;
         left = Math.max(8, Math.min(left, window.innerWidth - barRect.width - 8));
         bar.style.top = `${top}px`;
         bar.style.left = `${left}px`;
@@ -4485,6 +4905,152 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const btnMdRemoveRow = qs('#btnMdRemoveRow');
     const btnMdShareAll = qs('#btnMdShareAll');
     const mdSaveStatus = qs('#mdSaveStatus');
+    const mdCelulaBadge = qs('#mdCelulaBadge');
+    const mdCelulaDot = qs('#mdCelulaDot');
+    const mdCelulaLabel = qs('#mdCelulaLabel');
+    const mdCelulaSelector = qs('#mdCelulaSelector');
+    const mdLockBanner = qs('#mdLockBanner');
+
+    // ======================================================================
+    // Fase 2 — Identidad por célula (mismo modelo que Asistencia): "Mis
+    // Doce" pasa de ser una lista personal (owner_id) a una lista
+    // COMPARTIDA por célula (celula_id) — así los co-líderes de una misma
+    // célula ven y editan el mismo roster de 12. Si la cuenta no tiene
+    // ninguna célula asignada, la sección queda completamente en greyout
+    // (mismo mecanismo de la Fase 1) con aviso de pedir asignación al Admin.
+    // ======================================================================
+    let mdMemberships = [];   // [{celula_id, name, squad_code, section}]
+    let mdCelula = null;      // membresía activa elegida
+    let mdReadOnly = false;
+    let mdHeartbeatTimer = null;
+    let mdLockPollTimer = null;
+
+    const mdLoadMemberships = async () => {
+      if (isOffline) {
+        const cached = offlineCacheGet('md_memberships::' + user.id);
+        mdMemberships = cached?.data || [];
+        return;
+      }
+      const { data, error } = await supabase
+        .from('celula_members')
+        .select('celula_id, celulas!inner(id, name, squad_code, section, is_active)')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .eq('celulas.is_active', true);
+      if (error) {
+        const cached = offlineCacheGet('md_memberships::' + user.id);
+        mdMemberships = cached?.data || [];
+        return;
+      }
+      mdMemberships = (data || []).map(r => ({
+        celula_id: r.celulas.id,
+        name: r.celulas.name,
+        squad_code: r.celulas.squad_code,
+        section: r.celulas.section,
+      }));
+      offlineCacheSet('md_memberships::' + user.id, mdMemberships);
+    };
+
+    const mdApplyNoCelulaState = () => {
+      mdCelulaBadge.style.display = 'flex';
+      mdCelulaDot.style.background = 'transparent';
+      mdCelulaLabel.textContent = 'Sin célula asignada — pedile al Admin del App que te asigne una.';
+      mdCelulaSelector.classList.add('is-hidden');
+      // Greyout total de la sección (mismo mecanismo que la Fase 1, pero acá
+      // se aplica al contenedor entero, no a la navegación).
+      qs('#misDoceContainer')?.classList.add('is-offline-disabled');
+    };
+
+    const mdRenderCelulaBadgeAndSelector = () => {
+      qs('#misDoceContainer')?.classList.remove('is-offline-disabled');
+
+      if (mdMemberships.length === 0) {
+        mdApplyNoCelulaState();
+        return null;
+      }
+
+      if (mdMemberships.length === 1) {
+        mdCelulaSelector.classList.add('is-hidden');
+      } else {
+        mdCelulaSelector.classList.remove('is-hidden');
+        const prev = mdCelulaSelector.value;
+        mdCelulaSelector.innerHTML = mdMemberships.map(m => `<option value="${m.celula_id}">${escapeHtml(m.name)}</option>`).join('');
+        const stillValid = mdMemberships.some(m => m.celula_id === prev);
+        mdCelulaSelector.value = stillValid ? prev : mdMemberships[0].celula_id;
+      }
+
+      const activeId = mdMemberships.length === 1 ? mdMemberships[0].celula_id : mdCelulaSelector.value;
+      mdCelula = mdMemberships.find(m => m.celula_id === activeId) || mdMemberships[0];
+
+      mdCelulaDot.style.background = 'var(--accent)';
+      mdCelulaLabel.textContent = `${mdCelula.name} — ${mdCelula.squad_code} · ${mdCelula.section === 'rj' ? 'RJ' : mdCelula.section === 'takers' ? 'Takers' : 'Makers'}`;
+
+      return mdCelula;
+    };
+
+    // ---- Lock de edición (mismo mecanismo que Asistencia, pero sin
+    //      week/year — un único lock activo por célula) ----
+    const mdStopHeartbeat = () => { if (mdHeartbeatTimer) { clearInterval(mdHeartbeatTimer); mdHeartbeatTimer = null; } };
+    const mdStopLockPoll = () => { if (mdLockPollTimer) { clearInterval(mdLockPollTimer); mdLockPollTimer = null; } };
+
+    const mdSetReadOnly = (readOnly, lockedByName, reason) => {
+      mdReadOnly = readOnly;
+      qs('#misDoceContainer')?.querySelectorAll('input, button, select').forEach(el => {
+        if (el === mdCelulaSelector) return;
+        el.disabled = readOnly;
+      });
+      if (readOnly && reason === 'offline') {
+        mdLockBanner.classList.remove('is-hidden');
+        mdLockBanner.innerHTML = `<i class="fa-solid fa-wifi-slash"></i> Sin conexión — mostrando la última versión guardada (solo lectura).`;
+      } else if (readOnly) {
+        mdLockBanner.classList.remove('is-hidden');
+        mdLockBanner.innerHTML = `<i class="fa-solid fa-lock"></i> Editando: ${escapeHtml(lockedByName || 'otro líder')} — modo solo lectura.`;
+      } else {
+        mdLockBanner.classList.add('is-hidden');
+        mdLockBanner.innerHTML = '';
+      }
+    };
+
+    const mdAcquireOrCheckLock = async () => {
+      mdStopHeartbeat(); mdStopLockPoll();
+      if (!mdCelula) { mdSetReadOnly(false); return; }
+
+      const { data: lockRow } = await supabase
+        .from('mis_doce_locks')
+        .select('locked_by, last_heartbeat, profiles(full_name)')
+        .eq('celula_id', mdCelula.celula_id)
+        .maybeSingle();
+
+      const isStale = !lockRow || (Date.now() - new Date(lockRow.last_heartbeat).getTime()) > 60 * 1000;
+
+      if (lockRow && lockRow.locked_by !== user.id && !isStale) {
+        mdSetReadOnly(true, lockRow.profiles?.full_name);
+        mdLockPollTimer = setInterval(mdAcquireOrCheckLock, 20000);
+        return;
+      }
+
+      await supabase.from('mis_doce_locks').upsert({
+        celula_id: mdCelula.celula_id, locked_by: user.id, last_heartbeat: new Date().toISOString(),
+      }, { onConflict: 'celula_id' });
+
+      mdSetReadOnly(false);
+      mdHeartbeatTimer = setInterval(async () => {
+        await supabase.from('mis_doce_locks').upsert({
+          celula_id: mdCelula.celula_id, locked_by: user.id, last_heartbeat: new Date().toISOString(),
+        }, { onConflict: 'celula_id' });
+      }, 20000);
+    };
+
+    // Se llama al salir de la vista "Mis Doce" (ver showView) para no seguir
+    // renovando el lock en segundo plano sin necesidad.
+    const mdStopWatching = () => { mdStopHeartbeat(); mdStopLockPoll(); };
+
+    mdCelulaSelector.addEventListener('change', async () => {
+      mdStopWatching();
+      mdRenderCelulaBadgeAndSelector();
+      await loadMisDoce();
+    });
+
 
     // ---- Wheel de DRC (solo visual en móvil) ------------------------------
     // Mismo look que .dc-optwheel ("Asistencia"), pero con su propia clase
@@ -4866,7 +5432,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     };
 
     const saveMisDoceNow = async () => {
-      if (!misDoceBody) return;
+      if (!misDoceBody || !mdCelula || mdReadOnly) return;
       if (mdSaving) { mdSaveQueued = true; return; }
       mdSaving = true;
       clearTimeout(mdSaveTimer);
@@ -4878,12 +5444,14 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         // Filas que existían en el servidor pero ya no están en el DOM (se quitaron con "−").
         const toDelete = [...mdKnownIds].filter(id => !currentIds.has(id));
         if (toDelete.length) {
-          const { error } = await supabase.from('mis_doce').delete().in('id', toDelete).eq('owner_id', user.id);
+          const { error } = await supabase.from('mis_doce').delete().in('id', toDelete).eq('celula_id', mdCelula.celula_id);
           if (!error) toDelete.forEach(id => mdKnownIds.delete(id));
         }
 
         for (const r of rows) {
           const payload = {
+            celula_id: mdCelula.celula_id,
+            updated_by: user.id,
             position: r.position,
             name: r.name,
             birthday_day: r.birthday_day,
@@ -4898,7 +5466,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
             waze_link: r.waze_link,
           };
           if (r.id) {
-            await supabase.from('mis_doce').update(payload).eq('id', r.id).eq('owner_id', user.id);
+            await supabase.from('mis_doce').update(payload).eq('id', r.id).eq('celula_id', mdCelula.celula_id);
           } else {
             const { data, error } = await supabase.from('mis_doce').insert(payload).select('id').single();
             if (!error && data?.id) {
@@ -4924,6 +5492,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     flushMisDoceSave = saveMisDoceNow;
 
     const scheduleMisDoceSave = () => {
+      if (!mdCelula || mdReadOnly) return;
       setMdStatus('Editando…');
       clearTimeout(mdSaveTimer);
       mdSaveTimer = setTimeout(saveMisDoceNow, 700);
@@ -4974,26 +5543,66 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const loadMisDoce = async () => {
       if (!misDoceBody) return;
       setMdStatus('Cargando…');
-      // Filtro explícito por owner_id: "Mis Doce" es una vista PERSONAL, no
-      // una revisión tipo "Notas". La RLS (mis_doce_select_own) deja pasar
-      // TODAS las filas cuando el usuario es admin/pastor (is_pastor_or_admin()),
-      // pensado para una futura pantalla de revisión que hoy no existe. Sin
-      // este filtro, un admin/pastor ve mezclados los "Doce" de todo el
-      // mundo en su propia tabla (y el autosave podría llegar a pisar o
-      // borrar filas ajenas). No quitar este .eq aunque el usuario actual
-      // sea admin.
+
+      await mdLoadMemberships();
+      const celula = mdRenderCelulaBadgeAndSelector();
+      if (!celula) {
+        // Sin célula asignada: la sección ya quedó en greyout total
+        // (mdApplyNoCelulaState), no hay nada más que cargar.
+        misDoceBody.innerHTML = '';
+        setMdStatus('');
+        return;
+      }
+
+      const cacheKey = `md_roster::${celula.celula_id}`;
+
+      if (isOffline) {
+        const cached = offlineCacheGet(cacheKey);
+        const rows = cached?.data || [];
+        mdKnownIds = new Set(rows.map(r => r.id));
+
+        const tpl = qs('tr', misDoceBody) || mdStaticRowTemplate?.cloneNode(true) || null;
+        if (!tpl) return;
+        const cleanTpl = tpl.cloneNode(true);
+        mdClearRow(cleanTpl);
+        mdResetClonedWheels(cleanTpl);
+        delete cleanTpl.dataset.mdId;
+
+        misDoceBody.innerHTML = '';
+        rows.forEach(row => {
+          const tr = cleanTpl.cloneNode(true);
+          misDoceBody.appendChild(tr);
+          mdResetClonedWheels(tr);
+          mdPopulateRow(tr, row);
+        });
+        initDcWheels();
+        initDrcWheels();
+
+        // Offline: nunca se intenta el lock (no hay red), y queda forzado
+        // a solo lectura hasta volver a tener conexión.
+        mdSetReadOnly(true, null, 'offline');
+        setMdStatus(rows.length ? 'Sin conexión — mostrando la última versión guardada.' : 'Sin conexión y sin datos guardados todavía.');
+        return;
+      }
+
+      // Filtro explícito por celula_id: "Mis Doce" es compartida entre
+      // co-líderes de una MISMA célula (Fase 2), no una revisión tipo
+      // "Notas" de todo el mundo. La RLS ya limita esto también, pero se
+      // deja explícito acá por claridad y consistencia con el resto del
+      // patrón (mismo criterio que asistencia_records).
       const { data, error } = await supabase
         .from('mis_doce')
         .select('*')
-        .eq('owner_id', user.id)
+        .eq('celula_id', celula.celula_id)
         .order('position', { ascending: true });
 
       if (error) {
-        setMdStatus('No se pudo cargar tu lista.');
+        setMdStatus('No se pudo cargar la lista.');
         return;
       }
 
       const rows = data || [];
+      offlineCacheSet(cacheKey, rows);
       mdKnownIds = new Set(rows.map(r => r.id));
 
       const tpl = qs('tr', misDoceBody) || mdStaticRowTemplate?.cloneNode(true) || null;
@@ -5016,10 +5625,12 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       initDrcWheels();
 
       if (!rows.length) {
-        // Cuenta nueva: 4 filas en blanco de arranque (igual que antes),
-        // pero ahora sí se guardan al primer cambio.
+        // Célula recién asignada, sin lista todavía: 4 filas en blanco de
+        // arranque (igual que antes), se guardan al primer cambio.
         for (let i = 0; i < 4; i++) mdAddRow();
       }
+
+      await mdAcquireOrCheckLock();
 
       setMdStatus('');
     };

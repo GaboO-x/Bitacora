@@ -255,7 +255,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   async function loadCelulaMemberships(userId) {
     const { data, error } = await supabase
       .from("celula_members")
-      .select("id, celula_id, celulas(name, section, squad_code)")
+      .select("id, celula_id, celulas(name, section, squad_code, is_active)")
       .eq("user_id", userId)
       .eq("is_active", true);
     if (error) return { data: null, error };
@@ -271,18 +271,67 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     }
     listEl.innerHTML = "";
     memberships.forEach((m) => {
+      const celulaActive = m.celulas?.is_active !== false;
+
       const row = document.createElement("div");
       row.style.display = "flex";
-      row.style.alignItems = "center";
-      row.style.justifyContent = "space-between";
-      row.style.gap = "8px";
-      row.style.padding = "6px 0";
+      row.style.flexDirection = "column";
+      row.style.gap = "6px";
+      row.style.padding = "8px 0";
       row.style.borderBottom = "1px solid var(--line)";
+
+      // --- Fila de solo lectura (nombre + acciones) ---
+      const viewRow = document.createElement("div");
+      viewRow.style.display = "flex";
+      viewRow.style.alignItems = "center";
+      viewRow.style.justifyContent = "space-between";
+      viewRow.style.gap = "8px";
 
       const info = document.createElement("span");
       info.textContent = `${m.celulas?.name || "(sin nombre)"} — ${m.celulas?.squad_code || ""} · ${sectionLabel(m.celulas?.section)}`;
-      row.appendChild(info);
+      if (!celulaActive) info.style.opacity = "0.55";
+      viewRow.appendChild(info);
 
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.gap = "6px";
+      actions.style.flexShrink = "0";
+
+      // Editar (nombre + sección)
+      const btnEditar = document.createElement("button");
+      btnEditar.type = "button";
+      btnEditar.className = "mat-icon-btn";
+      btnEditar.title = "Editar nombre/sección";
+      btnEditar.setAttribute("aria-label", "Editar nombre/sección");
+      btnEditar.innerHTML = '<i class="fa-solid fa-pen-to-square"></i>';
+      actions.appendChild(btnEditar);
+
+      // Activar/Desactivar (soft — conserva el historial ya reportado)
+      const btnToggleActive = document.createElement("button");
+      btnToggleActive.type = "button";
+      btnToggleActive.className = "mat-icon-btn";
+      btnToggleActive.title = celulaActive ? "Desactivar Célula" : "Reactivar Célula";
+      btnToggleActive.setAttribute("aria-label", btnToggleActive.title);
+      btnToggleActive.innerHTML = celulaActive
+        ? '<i class="fa-solid fa-toggle-on" style="color:var(--green,#2ecc71);"></i>'
+        : '<i class="fa-solid fa-toggle-off" style="color:var(--danger,#dc3545);"></i>';
+      btnToggleActive.addEventListener("click", async () => {
+        const nextActive = !celulaActive;
+        const msg = nextActive
+          ? `¿Reactivar "${m.celulas?.name}"? Vuelve a estar disponible para asignar y reportar.`
+          : `¿Desactivar "${m.celulas?.name}"? Deja de poder asignarse/reportar hacia adelante, pero las semanas que ya reportó siguen contando en Estadística para esos períodos.`;
+        const ok = window.confirm(msg);
+        if (!ok) return;
+        btnToggleActive.disabled = true;
+        const { error } = await supabase.from("celulas").update({ is_active: nextActive }).eq("id", m.celula_id);
+        btnToggleActive.disabled = false;
+        if (error) return setMsg("celulaManageMsg", "No se pudo actualizar: " + error.message, true);
+        setMsg("celulaManageMsg", nextActive ? "Célula reactivada." : "Célula desactivada.", false);
+        await refreshCelulaManageModal();
+      });
+      actions.appendChild(btnToggleActive);
+
+      // Retirar a ESTA persona de esta célula (no toca la célula en sí)
       const btnRetirar = document.createElement("button");
       btnRetirar.type = "button";
       btnRetirar.className = "mat-icon-btn";
@@ -302,8 +351,122 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         setMsg("celulaManageMsg", "Retirado de la Célula.", false);
         await refreshCelulaManageModal();
       });
-      row.appendChild(btnRetirar);
+      actions.appendChild(btnRetirar);
 
+      // Eliminar definitivamente — solo llega a ejecutarse si la célula no
+      // tiene NINGUNA semana reportada (asistencia_records). Si tiene, se
+      // avisa y no se borra: hay que usar Desactivar en su lugar.
+      const btnEliminar = document.createElement("button");
+      btnEliminar.type = "button";
+      btnEliminar.className = "mat-icon-btn users-action-btn--danger";
+      btnEliminar.title = "Eliminar Célula (solo si nunca reportó)";
+      btnEliminar.setAttribute("aria-label", "Eliminar Célula");
+      btnEliminar.innerHTML = '<i class="fa-solid fa-trash"></i>';
+      btnEliminar.addEventListener("click", async () => {
+        btnEliminar.disabled = true;
+        const { count, error: countErr } = await supabase
+          .from("asistencia_records")
+          .select("id", { count: "exact", head: true })
+          .eq("celula_id", m.celula_id);
+        if (countErr) {
+          setMsg("celulaManageMsg", "No se pudo verificar actividad: " + countErr.message, true);
+          btnEliminar.disabled = false;
+          return;
+        }
+        if (count && count > 0) {
+          setMsg("celulaManageMsg", `"${m.celulas?.name}" ya tiene ${count} semana(s) reportada(s) — no se puede eliminar. Usá Desactivar en su lugar.`, true);
+          btnEliminar.disabled = false;
+          return;
+        }
+        const ok = window.confirm(`¿Eliminar definitivamente "${m.celulas?.name}"? Esto no se puede deshacer. Se quitará a todos sus miembros actuales (no tiene semanas reportadas, así que no hay historial que perder).`);
+        if (!ok) { btnEliminar.disabled = false; return; }
+
+        await supabase.from("asistencia_locks").delete().eq("celula_id", m.celula_id);
+        const { error: memErr } = await supabase.from("celula_members").delete().eq("celula_id", m.celula_id);
+        if (memErr) {
+          setMsg("celulaManageMsg", "No se pudo eliminar (miembros): " + memErr.message, true);
+          btnEliminar.disabled = false;
+          return;
+        }
+        const { error: celErr } = await supabase.from("celulas").delete().eq("id", m.celula_id);
+        btnEliminar.disabled = false;
+        if (celErr) return setMsg("celulaManageMsg", "No se pudo eliminar: " + celErr.message, true);
+        setMsg("celulaManageMsg", "Célula eliminada.", false);
+        await refreshCelulaManageModal();
+      });
+      actions.appendChild(btnEliminar);
+
+      viewRow.appendChild(actions);
+      row.appendChild(viewRow);
+
+      // --- Fila de edición (oculta hasta tocar el lápiz) ---
+      const editRow = document.createElement("div");
+      editRow.style.display = "none";
+      editRow.style.gap = "8px";
+      editRow.style.alignItems = "center";
+      editRow.style.flexWrap = "wrap";
+
+      const editNameInput = document.createElement("input");
+      editNameInput.type = "text";
+      editNameInput.value = m.celulas?.name || "";
+      editNameInput.style.flex = "1 1 160px";
+      editRow.appendChild(editNameInput);
+
+      const isMakersSquad = squadIsMakers(m.celulas?.squad_code || "");
+      const isEquiposSquad = m.celulas?.squad_code === "EQUIPOS";
+      let editSectionHtml = "";
+      if (isMakersSquad) {
+        editSectionHtml = '<span class="muted small">Sección: Makers (fija)</span>';
+      } else if (isEquiposSquad) {
+        editSectionHtml = `
+          <label style="display:flex;gap:4px;align-items:center;margin:0;"><input type="radio" name="editSeccion_${m.id}" value="takers" ${m.celulas?.section === "takers" ? "checked" : ""}/><span>Takers</span></label>
+          <label style="display:flex;gap:4px;align-items:center;margin:0;"><input type="radio" name="editSeccion_${m.id}" value="makers" ${m.celulas?.section === "makers" ? "checked" : ""}/><span>Makers</span></label>`;
+      } else {
+        editSectionHtml = `
+          <label style="display:flex;gap:4px;align-items:center;margin:0;"><input type="radio" name="editSeccion_${m.id}" value="rj" ${m.celulas?.section === "rj" ? "checked" : ""}/><span>RJ</span></label>
+          <label style="display:flex;gap:4px;align-items:center;margin:0;"><input type="radio" name="editSeccion_${m.id}" value="takers" ${m.celulas?.section === "takers" ? "checked" : ""}/><span>Takers</span></label>`;
+      }
+      const editSectionWrap = document.createElement("div");
+      editSectionWrap.style.display = "flex";
+      editSectionWrap.style.gap = "10px";
+      editSectionWrap.innerHTML = editSectionHtml;
+      editRow.appendChild(editSectionWrap);
+
+      const btnGuardar = document.createElement("button");
+      btnGuardar.type = "button";
+      btnGuardar.className = "mat-modal-btn mat-modal-btn--primary";
+      btnGuardar.textContent = "Guardar";
+      btnGuardar.addEventListener("click", async () => {
+        const newName = editNameInput.value.trim();
+        if (!newName) return setMsg("celulaManageMsg", "El nombre no puede quedar vacío.", true);
+        const newSection = isMakersSquad
+          ? "makers"
+          : (editSectionWrap.querySelector("input:checked")?.value || m.celulas?.section);
+        btnGuardar.disabled = true;
+        const { error } = await supabase.from("celulas").update({ name: newName, section: newSection }).eq("id", m.celula_id);
+        btnGuardar.disabled = false;
+        if (error) return setMsg("celulaManageMsg", "No se pudo guardar: " + error.message, true);
+        setMsg("celulaManageMsg", "Célula actualizada.", false);
+        await refreshCelulaManageModal();
+      });
+      editRow.appendChild(btnGuardar);
+
+      const btnCancelar = document.createElement("button");
+      btnCancelar.type = "button";
+      btnCancelar.className = "mat-modal-btn";
+      btnCancelar.textContent = "Cancelar";
+      btnCancelar.addEventListener("click", () => {
+        editRow.style.display = "none";
+        viewRow.style.display = "flex";
+      });
+      editRow.appendChild(btnCancelar);
+
+      btnEditar.addEventListener("click", () => {
+        viewRow.style.display = "none";
+        editRow.style.display = "flex";
+      });
+
+      row.appendChild(editRow);
       listEl.appendChild(row);
     });
   }

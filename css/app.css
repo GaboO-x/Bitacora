@@ -1480,22 +1480,45 @@ body.notes-fullheight .rte__editor{
   flex-direction:column;
   gap:8px;
 }
-.dc-att__unit-row{display:flex; gap:8px}
-.dc-att__unit-row .dc-att__select-wrap{flex:1 1 0; min-width:0}
 .dc-att__select-wrap{position:relative; width:100%}
-.dc-att__select-wrap--leader{width:100%}
 
-/* En PC los 3 selectores (Unidad, Sección, Líder) van en una sola línea.
-   En móvil (≤920px) se mantiene el apilado original: sin cambios ahí. */
-@media (min-width: 921px){
-  .dc-att__header{ flex-direction:row; align-items:stretch; }
-  .dc-att__unit-row{ display:contents; }
-  .dc-att__select-wrap--leader{ width:auto; flex:1 1 0; min-width:0; }
+.dc-att__celula-badge{
+  display:flex; align-items:center; gap:8px;
+  font-weight:600; font-size:0.95em;
+  padding:8px 12px;
+  border:1.5px solid var(--att-accent);
+  border-radius:8px;
+  background: var(--att-accent-bg);
+  color: var(--att-accent-dark);
+}
+.dc-att__celula-dot{
+  width:12px; height:12px; border-radius:50%;
+  background: var(--att-accent);
+  flex-shrink:0;
 }
 
-/* El <select> real sigue existiendo (attColorSelector/attSectionSelector/
-   attLeaderName) porque toda la lógica de app.js lee/escucha sobre él; solo
-   se oculta visualmente. Lo que se ve es el wheel de abajo (.dc-optwheel). */
+.dc-att__lock-banner{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px;
+  border:1.5px solid var(--att-accent-bdr);
+  border-radius:8px;
+  background: var(--att-accent-bg);
+  color: var(--att-accent-dark);
+  font-size:0.85em;
+  font-weight:600;
+}
+.dc-att__lock-banner i{ color: var(--att-accent); }
+
+/* En PC el badge y el selector de célula (si aplica) van en una sola línea. */
+@media (min-width: 921px){
+  .dc-att__header{ flex-direction:row; align-items:stretch; flex-wrap:wrap; }
+  .dc-att__celula-badge{ flex:1 1 auto; }
+  #attCelulaSelectorWrap{ width:auto; flex:1 1 220px; min-width:0; }
+}
+
+/* El <select> real sigue existiendo (attCelulaSelector) porque toda la
+   lógica de app.js lee/escucha sobre él; solo se oculta visualmente. Lo
+   que se ve es el wheel de abajo (.dc-optwheel). */
 .dc-att__select-native{
   position:absolute;
   width:1px; height:1px;
@@ -1714,3 +1737,20 @@ body.notes-fullheight .rte__editor{
   .dc-att__offering-item{font-size:11px; gap:4px}
   .dc-att__offering-item .input{padding:8px 6px; font-size:12px; text-align:center}
 }
+
+/* ---------- Estadística (Sesión 4/5) ---------- */
+.est-tab.is-active{
+  background: var(--accent);
+  border-color: var(--accent);
+  color:#fff;
+}
+.est-period-picker{ margin-top:4px; }
+#estTableWrap table{ width:100%; border-collapse:collapse; }
+#estTableWrap th, #estTableWrap td{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; font-size:0.85em; }
+#estTableWrap th{ color:var(--muted); font-weight:600; text-transform:uppercase; font-size:0.72em; }
+#estTableWrap input.est-meta-input{
+  width:60px; padding:4px 6px; border-radius:6px; border:1px solid var(--line);
+  background:var(--panel2); color:var(--text); text-align:center; font-size:0.9em;
+}
+#estTableWrap tr.est-row--total td{ font-weight:700; border-top:2px solid var(--line); border-bottom:none; }
+.est-totals{ margin-top:10px; font-size:0.85em; color:var(--muted); }

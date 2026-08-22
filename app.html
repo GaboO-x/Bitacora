@@ -139,6 +139,14 @@
   display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;
 }
 
+/* Fase 1 — infraestructura offline: secciones no disponibles sin conexión */
+.is-offline-disabled{
+  opacity:.4;
+  filter: grayscale(70%);
+  cursor: not-allowed !important;
+  pointer-events: none;
+}
+
 /* Menú flotante de formato (Takers/Cultos/Líderes): aparece al seleccionar texto
    dentro de .rte__editor, en vez de la barra fija de antes (optimiza espacio). */
 .rte-float-toolbar{
@@ -1076,6 +1084,15 @@
 
 <div class="panel" id="misDoceContainer">
 
+  <div class="md-celula-header" id="mdCelulaHeader">
+    <div class="md-celula-badge" id="mdCelulaBadge">
+      <span class="md-celula-dot" id="mdCelulaDot"></span>
+      <span id="mdCelulaLabel">Cargando célula…</span>
+    </div>
+    <select class="input is-hidden" id="mdCelulaSelector" style="max-width:220px;"></select>
+    <div class="md-lock-banner is-hidden" id="mdLockBanner"></div>
+  </div>
+
   <div class="md-general-bar">
     <span class="md-general-bar__label">General</span>
     <span class="muted tiny" id="mdSaveStatus"></span>
@@ -1431,6 +1448,20 @@
     updateIcon();
   })();
 </script>
+
+<!-- Modal: aviso de conexión offline (Fase 1 de infraestructura offline) -->
+<div class="modal-overlay is-hidden" id="offlineModal">
+<div aria-labelledby="offlineModalTitle" aria-modal="true" class="modal-box" role="dialog">
+<div class="modal-box__title" id="offlineModalTitle"><i class="fa-solid fa-wifi-slash"></i> Estás sin internet</div>
+<div class="modal-box__body">
+Tan pronto vuelvas a tener conexión, la información se actualizará sola.
+<div class="muted tiny" id="offlineModalLastUpdate" style="margin-top:8px;"></div>
+</div>
+<div class="modal-box__actions">
+<button class="pill pill--primary" id="offlineModalOk" type="button">Entendido</button>
+</div>
+</div>
+</div>
 
 <!-- Modal: aviso de Asistencia (validación/confirmación de TODO y Ofrendas) -->
 <div class="modal-overlay is-hidden" id="attInfoModal">

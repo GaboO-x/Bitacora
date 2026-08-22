@@ -1114,6 +1114,19 @@ select:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg
 }
 .rte__editor:focus{border-color: var(--accent2); box-shadow: 0 0 0 3px var(--accent-bg)}
 
+/* Links de referencias bíblicas (auto-generados al perder el foco / al
+   mostrar la hoja — ver linkifyVerseReferences en app.js). Solo existen
+   como <a> cuando el campo NO está enfocado; mientras se edita, quedan
+   como texto plano de nuevo (stripVerseLinks), así nunca hay riesgo de
+   click accidental mientras se escribe. */
+.rte-verse-link{
+  color: var(--accent2);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+.rte-verse-link:hover{ opacity:.8; }
+
 /* Revisión de Notas: render de solo lectura (reemplaza el volcado de JSON) */
 .review-note__tema{font-family: var(--font-serif); font-weight:600; font-size:1.05em; margin-bottom:4px}
 .review-note__meta{margin-bottom:10px}
@@ -1164,6 +1177,30 @@ body.notes-fullheight .rte__editor{
 /* -----------------------------
    Mis Doce (tabla tipo excel)
    ----------------------------- */
+/* Header de identidad de célula (Fase 2): mismo espíritu visual que
+   .dc-att__celula-badge de Asistencia — badge de solo lectura + selector
+   (si aplica multi-célula) + banner de lock. */
+.md-celula-header{
+  display:flex; flex-direction:column; gap:8px; margin-bottom:12px;
+}
+.md-celula-badge{
+  display:flex; align-items:center; gap:8px;
+  font-weight:600; font-size:0.95em;
+  padding:8px 12px;
+  border:1.5px solid var(--border-strong);
+  border-radius:8px;
+  background: var(--panel2);
+}
+.md-celula-dot{ width:12px; height:12px; border-radius:50%; background: var(--accent); flex-shrink:0; }
+.md-lock-banner{
+  display:flex; align-items:center; gap:8px;
+  padding:8px 12px;
+  border:1.5px solid var(--accent-border);
+  border-radius:8px;
+  background: var(--accent-bg);
+  font-size:0.85em; font-weight:600;
+}
+
 /* Barra "General": agrupa Compartir/Añadir/Quitar filas. En PC va como una
    franja de una sola línea justo arriba de la tabla; en móvil se convierte
    en la primera "mini tarjeta" de la lista (ver media query más abajo). */

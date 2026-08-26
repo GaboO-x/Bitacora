@@ -1418,6 +1418,13 @@ btnBack?.addEventListener('click', () => {
     const estBtnExcel = qs('#estBtnExcel');
     const estUnitSummaryPanel = qs('#estUnitSummaryPanel');
     const estUnitTableWrap = qs('#estUnitTableWrap');
+    const estTrendTableWrap = qs('#estTrendTableWrap');
+    // Paneles de detalle POR CÉLULA — se ocultan cuando el escuadrón
+    // seleccionado es "Todos los Escuadrones" (admin/pastor), porque ahí
+    // listarían la red completa célula por célula. Para ver el desglose de
+    // una unidad puntual está el filtro de Escuadrón.
+    const estDetailPanel = qs('#estDetailPanel');
+    const estMetaChartPanel = qs('#estMetaChartPanel');
 
     let estLastPerCelula = [];
     let estLastRecords = [];   // filas crudas de asistencia_records del período activo (sin agregar)
@@ -1426,7 +1433,6 @@ btnBack?.addEventListener('click', () => {
     let estLastSquadCodes = []; // escuadrones activos (clave de storage de Meta General)
 
     let estActiveTab = 'semanal';
-    let estChartTrendInstance = null;
     let estChartMetaInstance = null;
 
     const setEstStatus = (msg) => { if (estStatusEl) estStatusEl.textContent = msg || ''; };
@@ -1661,22 +1667,20 @@ btnBack?.addEventListener('click', () => {
       }
     };
 
-    // ---- Gráficos ----
-    const estRenderTrendChart = (bucketed) => {
-      const ctx = qs('#estChartTrend');
-      if (!ctx || typeof Chart === 'undefined') return;
-      if (estChartTrendInstance) estChartTrendInstance.destroy();
-      estChartTrendInstance = new Chart(ctx, {
-        type: 'bar',
-        data: {
-          labels: bucketed.map(b => b.label),
-          datasets: [
-            { label: 'Célula', data: bucketed.map(b => b.cel), backgroundColor: '#3498db' },
-            { label: 'Red/Culto', data: bucketed.map(b => b.red_culto), backgroundColor: '#e67e22' },
-          ],
-        },
-        options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } },
+    // ---- Tendencia: tabla numérica (antes era un bar chart de Chart.js;
+    //      se cambió a tabla a pedido del usuario para ocupar menos espacio) ----
+    const estRenderTrendTable = (bucketed) => {
+      if (!estTrendTableWrap) return;
+      if (!bucketed.length) { estTrendTableWrap.innerHTML = 'Sin datos.'; return; }
+      let totCel = 0, totRed = 0;
+      let html = '<table><thead><tr><th>Período</th><th>Célula</th><th>Red/Culto</th></tr></thead><tbody>';
+      bucketed.forEach(b => {
+        totCel += (b.cel || 0); totRed += (b.red_culto || 0);
+        html += `<tr><td>${escapeHtml(b.label)}</td><td>${b.cel}</td><td>${b.red_culto}</td></tr>`;
       });
+      html += `<tr class="est-row--total"><td>TOTAL</td><td>${totCel}</td><td>${totRed}</td></tr>`;
+      html += '</tbody></table>';
+      estTrendTableWrap.innerHTML = html;
     };
 
     const estRenderMetaChart = (perCelula) => {
@@ -1964,16 +1968,34 @@ btnBack?.addEventListener('click', () => {
     // Une escuadrones Taker+Maker del mismo color en una sola "Unidad", igual
     // que agrupaba el viejo app3 (Reporte_Red_Completo). Mismo cuidado de
     // orden que SQUAD_PREFIX_TO_ATT_COLOR: 'UAZ' se revisa ANTES que 'UA'.
-    const EST_UNIT_ORDER = ['equipos', 'roja', 'azul', 'amarilla', 'naranja', 'verde', 'otro'];
-    const EST_UNIT_LABELS = { equipos: '🟣 Equipos', roja: '🔴 Roja', azul: '🔵 Azul', amarilla: '🟡 Amarilla', naranja: '🟠 Naranja', verde: '🟢 Verde', otro: 'Otro' };
+    // Unidad = color (5) x sección (Taker/Maker) = 10 combinaciones, más
+    // 'equipos' y 'otro' que no se dividen (EQUIPOS no tiene sufijo T/M
+    // propio en este contexto — sección real de la célula, no del squad_code).
+    const EST_UNIT_LABELS = {
+      equipos: '🟣 Equipos',
+      roja_t: '🔴 Roja · Takers', roja_m: '🔴 Roja · Makers',
+      azul_t: '🔵 Azul · Takers', azul_m: '🔵 Azul · Makers',
+      amarilla_t: '🟡 Amarilla · Takers', amarilla_m: '🟡 Amarilla · Makers',
+      naranja_t: '🟠 Naranja · Takers', naranja_m: '🟠 Naranja · Makers',
+      verde_t: '🟢 Verde · Takers', verde_m: '🟢 Verde · Makers',
+      otro: 'Otro',
+    };
+    // Colores base para el modo "Completo" (suma Taker+Maker en una sola
+    // fila por color) — a diferencia de estGroupByUnit(), que ya viene
+    // separado por sección (_t/_m).
+    const EST_UNIT_COLOR_ORDER = ['roja', 'azul', 'amarilla', 'naranja', 'verde'];
+    const EST_UNIT_COLOR_LABELS = { roja: '🔴 Roja', azul: '🔵 Azul', amarilla: '🟡 Amarilla', naranja: '🟠 Naranja', verde: '🟢 Verde' };
+
     const estColorUnitForSquad = (squadCode) => {
       if (squadCode === 'EQUIPOS') return 'equipos';
       const c = String(squadCode || '').toUpperCase();
-      if (c.startsWith('UAZ')) return 'azul';
-      if (c.startsWith('UR'))  return 'roja';
-      if (c.startsWith('UV'))  return 'verde';
-      if (c.startsWith('UA'))  return 'amarilla';
-      if (c.startsWith('UN'))  return 'naranja';
+      const suffix = c.endsWith('T') ? '_t' : c.endsWith('M') ? '_m' : '';
+      if (!suffix) return 'otro';
+      if (c.startsWith('UAZ')) return 'azul' + suffix;
+      if (c.startsWith('UR'))  return 'roja' + suffix;
+      if (c.startsWith('UV'))  return 'verde' + suffix;
+      if (c.startsWith('UA'))  return 'amarilla' + suffix;
+      if (c.startsWith('UN'))  return 'naranja' + suffix;
       return 'otro';
     };
 
@@ -1988,27 +2010,125 @@ btnBack?.addEventListener('click', () => {
       return groups;
     };
 
-    const estRenderUnitSummary = (perCelula, role) => {
+    const estMergeUnitGroups = (a, b) => {
+      const base = { cel: 0, red_culto: 0, nuevos: 0, sinpe: 0, efectivo: 0, count: 0 };
+      [a, b].forEach(g => {
+        if (!g) return;
+        base.cel += g.cel; base.red_culto += g.red_culto; base.nuevos += g.nuevos;
+        base.sinpe += g.sinpe; base.efectivo += g.efectivo; base.count += g.count;
+      });
+      return base;
+    };
+
+    // Filas a mostrar según el modo elegido en el dropdown. 'equipos' y
+    // 'otro' no tienen sufijo T/M a nivel de squad_code, así que se
+    // muestran igual en los 3 modos (no se pueden separar de forma
+    // confiable). unitKey es el identificador real usado para Meta manual
+    // en Supabase — en 'completo' es el color solo (ej. 'roja'), en
+    // 'takers'/'makers' es el mismo key con sufijo _t/_m (ej. 'roja_t')
+    // para no mezclar metas de vistas distintas.
+    const estBuildUnitRows = (groups, mode) => {
+      const rows = [];
+      if (groups.equipos) rows.push({ unitKey: 'equipos', label: EST_UNIT_LABELS.equipos, g: groups.equipos });
+      EST_UNIT_COLOR_ORDER.forEach(color => {
+        if (mode === 'completo') {
+          const t = groups[color + '_t']; const m = groups[color + '_m'];
+          if (!t && !m) return;
+          rows.push({ unitKey: color, label: EST_UNIT_COLOR_LABELS[color], g: estMergeUnitGroups(t, m) });
+        } else {
+          const suffix = mode === 'takers' ? '_t' : '_m';
+          const g = groups[color + suffix];
+          if (!g) return;
+          rows.push({ unitKey: color + suffix, label: EST_UNIT_LABELS[color + suffix], g });
+        }
+      });
+      if (groups.otro) rows.push({ unitKey: 'otro', label: EST_UNIT_LABELS.otro, g: groups.otro });
+      return rows;
+    };
+
+    // ---- Meta manual por Unidad — Supabase (compartida entre admins/
+    //      pastores), fija (no depende de semana/mes/cuatrimestre por
+    //      ahora — ver migración create_est_unit_metas). Se recarga cada
+    //      vez que se abre/actualiza el panel para reflejar ediciones de
+    //      otros admins, pero cambiar el dropdown de vista NO recarga
+    //      (solo re-renderiza local). ----
+    let estUnitMetasCache = {};
+    const estLoadUnitMetas = async () => {
+      const { data, error } = await supabase.from('est_unit_metas').select('unit_key, meta');
+      if (!error) {
+        estUnitMetasCache = {};
+        (data || []).forEach(r => { estUnitMetasCache[r.unit_key] = r.meta; });
+      }
+    };
+    const estSaveUnitMeta = async (unitKey, meta) => {
+      const { error } = await supabase
+        .from('est_unit_metas')
+        .upsert({ unit_key: unitKey, meta, updated_by: user.id, updated_at: new Date().toISOString() }, { onConflict: 'unit_key' });
+      return error;
+    };
+
+    let estLastUnitPerCelula = [];
+    let estUnitViewMode = 'completo'; // 'takers' | 'makers' | 'completo'
+
+    const estRenderUnitTable = () => {
+      if (!estUnitTableWrap) return;
+      if (!estLastUnitPerCelula.length) { estUnitTableWrap.innerHTML = 'Sin datos.'; return; }
+      const groups = estGroupByUnit(estLastUnitPerCelula);
+      const rows = estBuildUnitRows(groups, estUnitViewMode);
+
+      let html = '<table><thead><tr><th>Unidad</th><th>Células</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Meta</th><th>Diferencia</th><th>Ofrenda ₡</th></tr></thead><tbody>';
+      let gCel = 0, gRed = 0, gNuevos = 0, gOfrenda = 0;
+      rows.forEach(({ unitKey, label, g }) => {
+        const ofrenda = g.sinpe + g.efectivo;
+        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gOfrenda += ofrenda;
+        const metaVal = estUnitMetasCache[unitKey];
+        const hasMeta = metaVal !== null && metaVal !== undefined && metaVal !== '';
+        const diff = hasMeta ? (g.red_culto - Number(metaVal)) : null;
+        const diffText = diff === null ? '—' : (diff > 0 ? `+${diff}` : String(diff));
+        const diffClass = diff === null ? '' : (diff < 0 ? 'est-diff--neg' : diff > 0 ? 'est-diff--pos' : '');
+        html += `<tr>
+          <td>${label}</td>
+          <td>${g.count}</td>
+          <td>${g.cel}</td>
+          <td>${g.red_culto}</td>
+          <td>${g.nuevos}</td>
+          <td><input type="number" class="est-unit-meta-input" data-unit-key="${unitKey}" value="${hasMeta ? metaVal : ''}" placeholder="—" style="width:70px;"></td>
+          <td class="${diffClass}">${diffText}</td>
+          <td>₡${ofrenda.toLocaleString('es-CR')}</td>
+        </tr>`;
+      });
+      html += `<tr class="est-row--total"><td colspan="2">RED COMPLETA</td><td>${gCel}</td><td>${gRed}</td><td>${gNuevos}</td><td colspan="2"></td><td>₡${gOfrenda.toLocaleString('es-CR')}</td></tr>`;
+      html += '</tbody></table>';
+      estUnitTableWrap.innerHTML = html;
+
+      qsa('.est-unit-meta-input', estUnitTableWrap).forEach(input => {
+        input.addEventListener('change', async () => {
+          const unitKey = input.dataset.unitKey;
+          const raw = input.value === '' ? null : (parseFloat(input.value) || 0);
+          input.value = raw ?? '';
+          input.disabled = true;
+          const err = await estSaveUnitMeta(unitKey, raw);
+          input.disabled = false;
+          if (err) { setEstStatus('No se pudo guardar la meta de unidad: ' + err.message); return; }
+          estUnitMetasCache[unitKey] = raw;
+          estRenderUnitTable(); // recalcula Diferencia de esa fila sin ir a Supabase
+        });
+      });
+    };
+
+    const estRenderUnitSummary = async (perCelula, role) => {
       if (!estUnitSummaryPanel || !estUnitTableWrap) return;
       if (role !== 'admin' && role !== 'pastor') { estUnitSummaryPanel.style.display = 'none'; return; }
       estUnitSummaryPanel.style.display = 'block';
-
-      if (!perCelula.length) { estUnitTableWrap.innerHTML = 'Sin datos.'; return; }
-      const groups = estGroupByUnit(perCelula);
-
-      let html = '<table><thead><tr><th>Unidad</th><th>Células</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Ofrenda ₡</th></tr></thead><tbody>';
-      let gCel = 0, gRed = 0, gNuevos = 0, gOfrenda = 0;
-      EST_UNIT_ORDER.forEach(key => {
-        const g = groups[key];
-        if (!g) return;
-        const ofrenda = g.sinpe + g.efectivo;
-        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gOfrenda += ofrenda;
-        html += `<tr><td>${EST_UNIT_LABELS[key] || key}</td><td>${g.count}</td><td>${g.cel}</td><td>${g.red_culto}</td><td>${g.nuevos}</td><td>₡${ofrenda.toLocaleString('es-CR')}</td></tr>`;
-      });
-      html += `<tr class="est-row--total"><td colspan="2">RED COMPLETA</td><td>${gCel}</td><td>${gRed}</td><td>${gNuevos}</td><td>₡${gOfrenda.toLocaleString('es-CR')}</td></tr>`;
-      html += '</tbody></table>';
-      estUnitTableWrap.innerHTML = html;
+      estLastUnitPerCelula = perCelula;
+      await estLoadUnitMetas();
+      estRenderUnitTable();
     };
+
+    qs('#estUnitViewMode')?.addEventListener('change', (ev) => {
+      estUnitViewMode = ev.target.value;
+      estRenderUnitTable();
+    });
 
     // ---- Export a Excel (SheetJS) — exclusivo Pastor/Admin ----
     const estPeriodLabel = () => {
@@ -2023,19 +2143,23 @@ btnBack?.addEventListener('click', () => {
 
       const wb = XLSX.utils.book_new();
 
-      // Hoja 1: Resumen por Unidad
+      // Hoja 1: Resumen por Unidad — refleja el modo de vista actual del
+      // dropdown (Completo/Solo Takers/Solo Makers), igual que la tabla en
+      // pantalla, incluyendo Meta y Diferencia por unidad.
       const groups = estGroupByUnit(estLastPerCelula);
-      const resumenAoa = [['Unidad', 'Células', 'Célula', 'Red/Culto', 'Nuevos', 'Sinpe', 'Efectivo', 'Total Ofrenda']];
+      const unitRows = estBuildUnitRows(groups, estUnitViewMode);
+      const resumenAoa = [['Unidad', 'Células', 'Célula', 'Red/Culto', 'Nuevos', 'Meta', 'Diferencia', 'Sinpe', 'Efectivo', 'Total Ofrenda']];
       let gCel = 0, gRed = 0, gNuevos = 0, gSinpe = 0, gEfectivo = 0;
-      EST_UNIT_ORDER.forEach(key => {
-        const g = groups[key];
-        if (!g) return;
+      unitRows.forEach(({ unitKey, label, g }) => {
         gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gSinpe += g.sinpe; gEfectivo += g.efectivo;
-        resumenAoa.push([EST_UNIT_LABELS[key] || key, g.count, g.cel, g.red_culto, g.nuevos, g.sinpe, g.efectivo, g.sinpe + g.efectivo]);
+        const metaVal = estUnitMetasCache[unitKey];
+        const hasMeta = metaVal !== null && metaVal !== undefined && metaVal !== '';
+        const diff = hasMeta ? (g.red_culto - Number(metaVal)) : '';
+        resumenAoa.push([label, g.count, g.cel, g.red_culto, g.nuevos, hasMeta ? metaVal : '', diff, g.sinpe, g.efectivo, g.sinpe + g.efectivo]);
       });
-      resumenAoa.push(['TOTAL RED', estLastPerCelula.length, gCel, gRed, gNuevos, gSinpe, gEfectivo, gSinpe + gEfectivo]);
+      resumenAoa.push(['TOTAL RED', estLastPerCelula.length, gCel, gRed, gNuevos, '', '', gSinpe, gEfectivo, gSinpe + gEfectivo]);
       const wsResumen = XLSX.utils.aoa_to_sheet(resumenAoa);
-      wsResumen['!cols'] = [{ wch: 16 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
+      wsResumen['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen por Unidad');
 
       // Hoja 2: Detalle por Célula
@@ -2064,6 +2188,18 @@ btnBack?.addEventListener('click', () => {
 
       const squadCodes = await estGetSelectedSquadCodes(role);
       estLastSquadCodes = squadCodes;
+
+      // "Todos los Escuadrones" (admin/pastor, selector vacío = toda la red):
+      // se ocultan los paneles que listan CÉLULA POR CÉLULA (Detalle, Real vs
+      // Meta) porque con ~10 escuadrones esa lista sería enorme. Para verla,
+      // el usuario elige un escuadrón puntual en el filtro. "Resumen por
+      // Unidad" y la tabla de Tendencia siguen visibles porque ya son datos
+      // sumarizados, no por célula.
+      const isAllSquadsView = (role === 'admin' || role === 'pastor') && !estSquadSelect?.value;
+      if (estDetailPanel) estDetailPanel.classList.toggle('is-hidden', isAllSquadsView);
+      if (estMetaChartPanel) estMetaChartPanel.classList.toggle('is-hidden', isAllSquadsView);
+      if (isAllSquadsView && estChartMetaInstance) { estChartMetaInstance.destroy(); estChartMetaInstance = null; }
+
       if (!squadCodes.length) {
         setEstStatus('Sin escuadrón asignado.');
         estRenderTable([], role);
@@ -2092,7 +2228,7 @@ btnBack?.addEventListener('click', () => {
       if (!allCelulas || !allCelulas.length) {
         setEstStatus('No hay células en este escuadrón.');
         estRenderTable([], role);
-        estRenderTrendChart([]);
+        estRenderTrendTable([]);
         estRenderMetaChart([]);
         estLastPerCelula = []; estLastRecords = []; estLastCelulas = [];
         if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
@@ -2124,7 +2260,7 @@ btnBack?.addEventListener('click', () => {
       if (!celulas.length) {
         setEstStatus('No hay células activas (ni con datos) en este período.');
         estRenderTable([], role);
-        estRenderTrendChart([]);
+        estRenderTrendTable([]);
         estRenderMetaChart([]);
         estLastPerCelula = []; estLastRecords = [];
         if (estUnitSummaryPanel) estUnitSummaryPanel.style.display = 'none';
@@ -2146,15 +2282,20 @@ btnBack?.addEventListener('click', () => {
         };
       });
 
-      estRenderTable(perCelula, role);
-      estRenderUnitSummary(perCelula, role);
+      if (!isAllSquadsView) {
+        estRenderTable(perCelula, role);
+      } else if (estTableWrap) {
+        estTableWrap.innerHTML = '';
+        if (estTotalsRow) estTotalsRow.textContent = '';
+      }
+      await estRenderUnitSummary(perCelula, role);
       estLastPerCelula = perCelula;
 
       const bucketed = estActiveTab === 'cuatrimestral'
         ? estBucketByMonth(records || [], weeks, year)
         : estBucketByWeek(records || [], weeks);
-      estRenderTrendChart(bucketed);
-      estRenderMetaChart(perCelula);
+      estRenderTrendTable(bucketed);
+      if (!isAllSquadsView) estRenderMetaChart(perCelula);
 
       // Sub-pestañas nuevas (Tendencia/Meta General/Meta por Célula): se
       // renderizan con los mismos datos ya cacheados arriba, sin queries
@@ -2861,37 +3002,20 @@ btnBack?.addEventListener('click', () => {
       if (!el) return;
       el.addEventListener('blur', () => linkifyVerseReferences(el));
 
-      // NOTA (iOS/Safari): antes se abría window.open() dentro de un
-      // setTimeout disparado desde touchstart. Funcionaba en PC/Android
-      // porque Chrome conserva el "user activation" un rato tras el gesto,
-      // pero WebKit (Safari/iOS, incluye TODOS los navegadores en
-      // iPhone/iPad) lo pierde apenas termina el evento original, así que
-      // bloqueaba el popup en silencio. Fix: solo MEDIMOS la duración con
-      // el timestamp de touchstart; window.open() se llama síncrono desde
-      // touchend, que sí cuenta como gesto de usuario válido en WebKit.
-      let touchStartTime = 0;
-      let touchTargetLink = null;
+      let touchTimer = null;
       let longPressFired = false;
 
       el.addEventListener('touchstart', (e) => {
         const a = e.target.closest('a.rte-verse-link');
-        touchTargetLink = a || null;
-        touchStartTime = a ? Date.now() : 0;
-      }, { passive: true });
-
-      el.addEventListener('touchmove', () => { touchTargetLink = null; });
-
-      el.addEventListener('touchend', (e) => {
-        if (!touchTargetLink) return;
-        const elapsed = Date.now() - touchStartTime;
-        const a = touchTargetLink;
-        touchTargetLink = null;
-        if (elapsed >= 500) {
-          e.preventDefault(); // evita que además se mueva el cursor / dispare el click de compatibilidad
+        if (!a) return;
+        longPressFired = false;
+        touchTimer = setTimeout(() => {
           longPressFired = true;
           window.open(a.href, '_blank', 'noopener');
-        }
-      });
+        }, 500);
+      }, { passive: true });
+      el.addEventListener('touchend', () => clearTimeout(touchTimer));
+      el.addEventListener('touchmove', () => clearTimeout(touchTimer));
 
       el.addEventListener('click', (e) => {
         const a = e.target.closest('a.rte-verse-link');
@@ -5185,6 +5309,18 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const mdCelulaLabel = qs('#mdCelulaLabel');
     const mdCelulaSelector = qs('#mdCelulaSelector');
     const mdLockBanner = qs('#mdLockBanner');
+    // Fase "Escuadrón + Célula" (mismo patrón de 2 pasos que Revisión de
+    // Notas/Estadística) + dashboard exclusivo Admin/Pastor para "Todos los
+    // escuadrones".
+    const mdSquadTitle = qs('#mdSquadTitle');
+    const mdSquadSelect = qs('#mdSquadSelect');
+    const mdRosterView = qs('#mdRosterView');
+    const mdDashboardPanel = qs('#mdDashboardPanel');
+    const mdDashboardTotal = qs('#mdDashboardTotal');
+    const mdGaugeGrid = qs('#mdGaugeGrid');
+    const mdMissingListWrap = qs('#mdMissingListWrap');
+    const mdMissingListTitle = qs('#mdMissingListTitle');
+    const mdMissingList = qs('#mdMissingList');
 
     // ======================================================================
     // Fase 2 — Identidad por célula (mismo modelo que Asistencia): "Mis
@@ -5200,6 +5336,65 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     let mdHeartbeatTimer = null;
     let mdLockPollTimer = null;
     let mdIsAdminOrPastor = false; // seteado en mdLoadMemberships, usado por mdApplyNoCelulaState
+
+    // Mismos emojis/orden que reviewSquadSelectFullHTML (color por color,
+    // Taker antes que Maker) + EQUIPOS al final — único squad_code que esa
+    // lista no cubre (Revisión de Notas/Estadística no lo necesitan, pero
+    // las células de Mis Doce sí pueden ser EQUIPOS). 🟣 ya usado para
+    // EQUIPOS en Estadística (EST_UNIT_LABELS), mismo criterio acá.
+    const MD_SQUAD_LABELS = {
+      URT: '🔴 URTAKER', URM: '🔴 URMAKER',
+      UAZT: '🔵 UAZTAKER', UAZM: '🔵 UAZMAKER',
+      UAT: '🟡 UATAKER', UAM: '🟡 UAMAKER',
+      UNT: '🟠 UNTAKER', UNM: '🟠 UNMAKER',
+      UVT: '🟢 UVTAKER', UVM: '🟢 UVMAKER',
+      EQUIPOS: '🟣 EQUIPOS',
+    };
+    const MD_SQUAD_ORDER = ['URT', 'URM', 'UAZT', 'UAZM', 'UAT', 'UAM', 'UNT', 'UNM', 'UVT', 'UVM', 'EQUIPOS'];
+
+    // Construye el selector "Escuadrón" solo con los squad_code que
+    // REALMENTE tienen alguna célula en mdMemberships (admin/pastor: todos
+    // los que existan en el sistema; líder de célula: los suyos). Con 1 solo
+    // escuadrón distinto, se oculta (ya está implícitamente filtrado) —
+    // mismo criterio que configureReviewSquadFilter/configureEstSquadFilter.
+    // "Todos los escuadrones" solo se agrega para admin/pastor: es la
+    // entrada al dashboard agregado, exclusivo de esos 2 roles.
+    const mdConfigureSquadFilter = () => {
+      if (!mdSquadTitle || !mdSquadSelect) return;
+      const distinct = Array.from(new Set(mdMemberships.map(m => m.squad_code).filter(Boolean)));
+
+      if (distinct.length <= 1) {
+        mdSquadSelect.innerHTML = '';
+        mdSquadTitle.classList.add('is-hidden');
+        mdSquadSelect.classList.add('is-hidden');
+        return;
+      }
+
+      const ordered = MD_SQUAD_ORDER.filter(code => distinct.includes(code));
+      const prev = mdSquadSelect.value;
+      let html = mdIsAdminOrPastor ? '<option value="">Todos los escuadrones</option>' : '';
+      ordered.forEach(code => { html += `<option value="${code}">${MD_SQUAD_LABELS[code] || code}</option>`; });
+      mdSquadSelect.innerHTML = html;
+      const stillValid = Array.from(mdSquadSelect.options).some(o => o.value === prev);
+      mdSquadSelect.value = stillValid ? prev : (mdSquadSelect.options[0]?.value ?? '');
+
+      mdSquadTitle.classList.remove('is-hidden');
+      mdSquadSelect.classList.remove('is-hidden');
+    };
+
+    // "Todos los escuadrones" solo es alcanzable si el selector está visible
+    // (>1 escuadrón distinto) Y el usuario es admin/pastor (única combinación
+    // en la que mdConfigureSquadFilter agrega la opción de valor vacío) —
+    // así se distingue de "selector oculto, un solo escuadrón implícito".
+    const mdIsDashboardMode = () => (
+      mdIsAdminOrPastor && !mdSquadSelect.classList.contains('is-hidden') && mdSquadSelect.value === ''
+    );
+
+    const mdGetFilteredMemberships = () => {
+      const squadVal = mdSquadSelect?.value || '';
+      if (!squadVal) return mdMemberships;
+      return mdMemberships.filter(m => m.squad_code === squadVal);
+    };
 
     // Admin/Pastor: la RLS de mis_doce/mis_doce_locks/celulas ya les da
     // acceso a CUALQUIER célula (is_pastor_or_admin(), verificado contra
@@ -5277,24 +5472,25 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
     const mdRenderCelulaBadgeAndSelector = () => {
       qs('#misDoceContainer')?.classList.remove('is-offline-disabled');
+      const memberships = mdGetFilteredMemberships();
 
-      if (mdMemberships.length === 0) {
+      if (memberships.length === 0) {
         mdApplyNoCelulaState(mdIsAdminOrPastor);
         return null;
       }
 
-      if (mdMemberships.length === 1) {
+      if (memberships.length === 1) {
         mdCelulaSelector.classList.add('is-hidden');
       } else {
         mdCelulaSelector.classList.remove('is-hidden');
         const prev = mdCelulaSelector.value;
-        mdCelulaSelector.innerHTML = mdMemberships.map(m => `<option value="${m.celula_id}">${escapeHtml(m.name)} — ${escapeHtml(m.squad_code || '')}</option>`).join('');
-        const stillValid = mdMemberships.some(m => m.celula_id === prev);
-        mdCelulaSelector.value = stillValid ? prev : mdMemberships[0].celula_id;
+        mdCelulaSelector.innerHTML = memberships.map(m => `<option value="${m.celula_id}">${escapeHtml(m.name)} — ${escapeHtml(m.squad_code || '')}</option>`).join('');
+        const stillValid = memberships.some(m => m.celula_id === prev);
+        mdCelulaSelector.value = stillValid ? prev : memberships[0].celula_id;
       }
 
-      const activeId = mdMemberships.length === 1 ? mdMemberships[0].celula_id : mdCelulaSelector.value;
-      mdCelula = mdMemberships.find(m => m.celula_id === activeId) || mdMemberships[0];
+      const activeId = memberships.length === 1 ? memberships[0].celula_id : mdCelulaSelector.value;
+      mdCelula = memberships.find(m => m.celula_id === activeId) || memberships[0];
 
       mdCelulaDot.style.background = 'var(--accent)';
       mdCelulaLabel.textContent = `${mdCelula.name} — ${mdCelula.squad_code} · ${mdCelula.section === 'rj' ? 'RJ' : mdCelula.section === 'takers' ? 'Takers' : 'Makers'}`;
@@ -5310,7 +5506,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     const mdSetReadOnly = (readOnly, lockedByName, reason) => {
       mdReadOnly = readOnly;
       qs('#misDoceContainer')?.querySelectorAll('input, button, select').forEach(el => {
-        if (el === mdCelulaSelector) return;
+        if (el === mdCelulaSelector || el === mdSquadSelect) return;
         el.disabled = readOnly;
       });
       if (readOnly && reason === 'offline') {
@@ -5362,6 +5558,12 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     mdCelulaSelector.addEventListener('change', async () => {
       mdStopWatching();
       mdRenderCelulaBadgeAndSelector();
+      await loadMisDoce();
+    });
+
+    mdSquadSelect?.addEventListener('change', async () => {
+      mdStopWatching();
+      mdCelulaSelector.value = ''; // fuerza tomar la primera célula del nuevo filtro
       await loadMisDoce();
     });
 
@@ -5854,11 +6056,110 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       mdUpdateZonaState(tr);
     };
 
+    // ---- Dashboard "Todos los escuadrones" — Plan 5 Estrellas, red
+    //      completa (exclusivo Admin/Pastor, mismo criterio de exclusividad
+    //      que "Resumen por Unidad" en Estadística). Reutiliza
+    //      estBuildGaugeSVG para mantener el mismo lenguaje visual del
+    //      ecosistema (gauges semicirculares, ya usados en Meta General). ----
+    const MD_PLAN_LABELS = { LE: 'Leche Espiritual', CN: 'Cumbre de Nuevos', AC: 'Acelera', LI: 'Líder', CC: 'Cumbre Clan' };
+    // 5 tonos ya presentes en la paleta base (misma saturación/luminosidad
+    // entre sí — ver comentarios de --blue/--orange en app.css), en vez de
+    // inventar colores nuevos: mantiene la armonía del ecosistema.
+    const MD_PLAN_COLORS = { LE: 'var(--accent)', CN: 'var(--green)', AC: 'var(--blue)', LI: 'var(--orange)', CC: 'var(--red)' };
+
+    let mdDashboardRows = []; // filas de mis_doce (con name) de TODA la red — cacheadas para no re-consultar Supabase al cambiar de gauge
+    let mdDashboardActivePlan = null;
+
+    const mdLoadDashboardRows = async () => {
+      const { data, error } = await supabase
+        .from('mis_doce')
+        .select('id, name, plan_le, plan_cn, plan_ac, plan_li, plan_cc, celulas!inner(name, squad_code, is_active)')
+        .eq('celulas.is_active', true);
+      if (error) { mdDashboardRows = []; return; }
+      // Solo cuenta como "persona" una fila con nombre real (no las filas
+      // en blanco de arranque de una célula recién asignada).
+      mdDashboardRows = (data || []).filter(r => (r.name || '').trim() !== '');
+    };
+
+    const mdRenderMissingList = (planCode) => {
+      mdDashboardActivePlan = planCode;
+      qsa('.md-gauge-card', mdGaugeGrid).forEach(card => {
+        card.classList.toggle('is-active', card.dataset.plan === planCode);
+      });
+      const field = `plan_${planCode.toLowerCase()}`;
+      const missing = mdDashboardRows.filter(r => !r[field]);
+      mdMissingListTitle.textContent = `Faltan "${planCode}" (${MD_PLAN_LABELS[planCode]}) — ${missing.length}`;
+      if (!missing.length) {
+        mdMissingList.innerHTML = 'Nadie falta — 100% completo. 🎉';
+      } else {
+        let html = '<table><thead><tr><th>Nombre</th><th>Célula</th><th>Escuadrón</th></tr></thead><tbody>';
+        missing
+          .slice()
+          .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'es'))
+          .forEach(r => {
+            const squadLabel = MD_SQUAD_LABELS[r.celulas?.squad_code] || r.celulas?.squad_code || '';
+            html += `<tr><td>${escapeHtml(r.name)}</td><td>${escapeHtml(r.celulas?.name || '')}</td><td>${escapeHtml(squadLabel)}</td></tr>`;
+          });
+        html += '</tbody></table>';
+        mdMissingList.innerHTML = html;
+      }
+      mdMissingListWrap.classList.remove('is-hidden');
+    };
+
+    const mdRenderDashboard = async () => {
+      if (!mdGaugeGrid) return;
+      mdGaugeGrid.innerHTML = 'Cargando…';
+      mdMissingListWrap?.classList.add('is-hidden');
+      mdDashboardActivePlan = null;
+
+      await mdLoadDashboardRows();
+      const total = mdDashboardRows.length;
+      if (mdDashboardTotal) mdDashboardTotal.textContent = `Total de personas registradas: ${total}`;
+
+      if (!total) { mdGaugeGrid.innerHTML = 'Sin datos todavía.'; return; }
+
+      mdGaugeGrid.innerHTML = '';
+      MD_PLAN_CODES.forEach(code => {
+        const field = `plan_${code.toLowerCase()}`;
+        const done = mdDashboardRows.filter(r => r[field]).length;
+        const pct = total ? (done / total) * 100 : 0;
+
+        const card = document.createElement('div');
+        card.className = 'md-gauge-card';
+        card.dataset.plan = code;
+        card.innerHTML = `
+          <div class="md-gauge-card__title">${code}</div>
+          ${estBuildGaugeSVG(pct, MD_PLAN_COLORS[code])}
+          <div class="md-gauge-card__caption">${done} / ${total}</div>
+        `;
+        card.addEventListener('click', () => mdRenderMissingList(code));
+        mdGaugeGrid.appendChild(card);
+      });
+    };
+
     const loadMisDoce = async () => {
       if (!misDoceBody) return;
       setMdStatus('Cargando…');
 
       await mdLoadMemberships();
+      mdConfigureSquadFilter();
+
+      if (mdIsDashboardMode()) {
+        // "Todos los escuadrones": no hay una célula puntual que editar —
+        // se corta el lock/heartbeat de cualquier célula anterior y se
+        // muestra el dashboard agregado en vez del roster.
+        mdStopWatching();
+        mdCelula = null;
+        qs('#misDoceContainer')?.classList.remove('is-offline-disabled');
+        mdRosterView?.classList.add('is-hidden');
+        if (mdDashboardPanel) mdDashboardPanel.style.display = 'block';
+        await mdRenderDashboard();
+        setMdStatus('');
+        return;
+      }
+      if (mdDashboardPanel) mdDashboardPanel.style.display = 'none';
+      mdRosterView?.classList.remove('is-hidden');
+
       const celula = mdRenderCelulaBadgeAndSelector();
       if (!celula) {
         // Sin célula asignada: la sección ya quedó en greyout total

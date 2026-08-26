@@ -1792,11 +1792,40 @@ body.notes-fullheight .rte__editor{
 #estTableWrap tr.est-row--total td{ font-weight:700; border-top:2px solid var(--line); border-bottom:none; }
 .est-totals{ margin-top:10px; font-size:0.85em; color:var(--muted); }
 
+/* Resumen por Unidad / Tendencia — mismas reglas visuales que Detalle por
+   Célula, para que las 3 tablas de "Resumen" se vean como un solo sistema. */
+#estUnitTableWrap table, #estTrendTableWrap table{ width:100%; border-collapse:collapse; }
+#estUnitTableWrap th, #estUnitTableWrap td,
+#estTrendTableWrap th, #estTrendTableWrap td{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; font-size:0.85em; }
+#estUnitTableWrap th, #estTrendTableWrap th{ color:var(--muted); font-weight:600; text-transform:uppercase; font-size:0.72em; }
+#estUnitTableWrap tr.est-row--total td, #estTrendTableWrap tr.est-row--total td{ font-weight:700; border-top:2px solid var(--line); border-bottom:none; }
+#estUnitTableWrap input.est-unit-meta-input{
+  padding:4px 6px; border-radius:6px; border:1px solid var(--line);
+  background:var(--panel2); color:var(--text); text-align:center; font-size:0.9em;
+}
+#estUnitTableWrap td.est-diff--pos{ color:var(--green); font-weight:600; }
+#estUnitTableWrap td.est-diff--neg{ color:var(--red); font-weight:600; }
+
 /* ---------- Sub-pestañas de Estadística: Tendencia/Meta (Fases 2-4) ---------- */
 .est-subtab.is-active{ background: var(--accent); border-color: var(--accent); color:#fff; }
 .est-metric-toggle.is-active{ background: var(--accent2, var(--accent)); border-color: var(--accent2, var(--accent)); color:#fff; }
 
 .est-gauge-svg{ max-width:220px; margin:0 auto; }
+
+/* ---------- Mis Doce: dashboard "Todos los escuadrones" (Plan 5 Estrellas) ---------- */
+.md-gauge-grid{ display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+.md-gauge-card{
+  min-width:150px; max-width:180px; text-align:center; padding:10px; border-radius:12px;
+  cursor:pointer; border:1px solid transparent; transition:background .15s, border-color .15s;
+}
+.md-gauge-card:hover{ background:var(--panel2); border-color:var(--line); }
+.md-gauge-card.is-active{ background:var(--panel2); border-color:var(--accent); }
+.md-gauge-card .est-gauge-svg{ max-width:150px; }
+.md-gauge-card__title{ font-weight:600; margin-bottom:2px; }
+.md-gauge-card__caption{ font-size:0.78em; color:var(--muted); }
+#mdMissingList table{ width:100%; border-collapse:collapse; }
+#mdMissingList th, #mdMissingList td{ padding:6px 8px; border-bottom:1px solid var(--line); text-align:left; font-size:0.85em; }
+#mdMissingList th{ color:var(--muted); font-weight:600; text-transform:uppercase; font-size:0.72em; }
 
 .est-meta-lider-list{ display:flex; flex-direction:column; gap:10px; }
 .est-meta-lider-row{ display:flex; align-items:center; gap:10px; }

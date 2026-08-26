@@ -2861,20 +2861,37 @@ btnBack?.addEventListener('click', () => {
       if (!el) return;
       el.addEventListener('blur', () => linkifyVerseReferences(el));
 
-      let touchTimer = null;
+      // NOTA (iOS/Safari): antes se abría window.open() dentro de un
+      // setTimeout disparado desde touchstart. Funcionaba en PC/Android
+      // porque Chrome conserva el "user activation" un rato tras el gesto,
+      // pero WebKit (Safari/iOS, incluye TODOS los navegadores en
+      // iPhone/iPad) lo pierde apenas termina el evento original, así que
+      // bloqueaba el popup en silencio. Fix: solo MEDIMOS la duración con
+      // el timestamp de touchstart; window.open() se llama síncrono desde
+      // touchend, que sí cuenta como gesto de usuario válido en WebKit.
+      let touchStartTime = 0;
+      let touchTargetLink = null;
       let longPressFired = false;
 
       el.addEventListener('touchstart', (e) => {
         const a = e.target.closest('a.rte-verse-link');
-        if (!a) return;
-        longPressFired = false;
-        touchTimer = setTimeout(() => {
+        touchTargetLink = a || null;
+        touchStartTime = a ? Date.now() : 0;
+      }, { passive: true });
+
+      el.addEventListener('touchmove', () => { touchTargetLink = null; });
+
+      el.addEventListener('touchend', (e) => {
+        if (!touchTargetLink) return;
+        const elapsed = Date.now() - touchStartTime;
+        const a = touchTargetLink;
+        touchTargetLink = null;
+        if (elapsed >= 500) {
+          e.preventDefault(); // evita que además se mueva el cursor / dispare el click de compatibilidad
           longPressFired = true;
           window.open(a.href, '_blank', 'noopener');
-        }, 500);
-      }, { passive: true });
-      el.addEventListener('touchend', () => clearTimeout(touchTimer));
-      el.addEventListener('touchmove', () => clearTimeout(touchTimer));
+        }
+      });
 
       el.addEventListener('click', (e) => {
         const a = e.target.closest('a.rte-verse-link');

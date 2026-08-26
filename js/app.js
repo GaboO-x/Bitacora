@@ -3545,6 +3545,20 @@ btnBack?.addEventListener('click', () => {
       if (!dateEl.value) dateEl.value = todayISO();
     };
 
+    // Limpia una hoja RTE (Takers/Cultos/Líderes) ANTES de aplicar el
+    // borrador de la semana recién abierta. Sin esto, si la semana nueva
+    // todavía no tiene borrador local (nunca se abrió en este dispositivo,
+    // o el hydrate desde Supabase no llegó a tiempo), los campos se quedan
+    // con el contenido de la semana anterior — y el autoguardado (debounce
+    // 700ms) lo termina persistiendo como si fuera de la semana nueva.
+    // openDinamicaCelular ya hacía este reset (initDcDefaults en su rama
+    // "sin borrador"); esto lleva el mismo criterio a las 3 hojas RTE.
+    const clearRteSheetFields = (temaEl, dateEl, editorEl) => {
+      if (temaEl) temaEl.value = '';
+      if (dateEl) dateEl.value = '';
+      if (editorEl) editorEl.innerHTML = '';
+    };
+
     const setDcDirty = (dirty = true) => {
       if (!state.dcOpen) return;
       state.dcDirty = dirty;
@@ -4728,9 +4742,10 @@ btnBack?.addEventListener('click', () => {
       takersSheetTitle && (takersSheetTitle.textContent = `Takers • Semana ${state.selectedWeek}`);
       takersMeta && (takersMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 5)));
       takersStatus && (takersStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
-      setDateIfEmpty(takersDate);
       const draft = getWeekDraft(state.selectedWeek).takers;
       if (draft) applyRteDraft(draft, takersTema, takersDate, takersNotes);
+      else clearRteSheetFields(takersTema, takersDate, takersNotes);
+      setDateIfEmpty(takersDate);
       linkifyVerseReferences(takersNotes);
       showNoteSheet(notesSheetTakers);
       updateNotesCrumb();
@@ -4774,7 +4789,18 @@ btnBack?.addEventListener('click', () => {
       cultoAudioEl.currentTime = Math.min(dur, cultoAudioEl.currentTime + 15);
     });
 
+    // Guard contra respuestas fuera de orden: si el admin cambia de semana
+    // rápido (ej. abre semana 33 y salta a la 34 antes de que resuelva la
+    // consulta de la 33), la respuesta "vieja" puede llegar DESPUÉS y pisar
+    // el input/reproductor de la semana nueva con datos de la semana
+    // anterior — eso fue lo que causó que semana 34 quedara con el audio de
+    // la 33 al guardar. Cada llamada saca su propio token; al resolver, si
+    // el token ya no es el más reciente (o si state.selectedWeek cambió),
+    // la respuesta se descarta sin tocar el DOM.
+    let cultoAudioLoadToken = 0;
     const loadCultoAudioForWeek = async (week) => {
+      const myToken = ++cultoAudioLoadToken;
+
       // Reset player al cambiar de semana
       if (cultoAudioEl) { cultoAudioEl.pause(); cultoAudioEl.removeAttribute('src'); cultoAudioEl.load(); }
       cultoAudioPlayer?.classList.add('is-hidden');
@@ -4784,6 +4810,7 @@ btnBack?.addEventListener('click', () => {
       if (cultoAudioAdminStatus) cultoAudioAdminStatus.textContent = '';
 
       const role = await getRole();
+      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek) return; // ya no es la semana activa
       const isAdminRole = (role === 'admin');
       if (cultoAudioAdminBox) cultoAudioAdminBox.style.display = isAdminRole ? '' : 'none';
 
@@ -4792,6 +4819,8 @@ btnBack?.addEventListener('click', () => {
         .select('public_url')
         .eq('week', week)
         .maybeSingle();
+
+      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek) return; // idem, tras el segundo await
 
       const url = res?.data?.public_url || '';
       if (url) {
@@ -4830,9 +4859,10 @@ btnBack?.addEventListener('click', () => {
       cultosSheetTitle && (cultosSheetTitle.textContent = `Cultos • Semana ${state.selectedWeek}`);
       cultosMeta && (cultosMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 6)));
       cultosStatus && (cultosStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
-      setDateIfEmpty(cultosDate);
       const draft = getWeekDraft(state.selectedWeek).cultos;
       if (draft) applyRteDraft(draft, cultosTema, cultosDate, cultosNotes);
+      else clearRteSheetFields(cultosTema, cultosDate, cultosNotes);
+      setDateIfEmpty(cultosDate);
       linkifyVerseReferences(cultosNotes);
       if (!isOffline) loadCultoAudioForWeek(state.selectedWeek);
       showNoteSheet(notesSheetCultos);
@@ -4845,9 +4875,10 @@ btnBack?.addEventListener('click', () => {
       lideresSheetTitle && (lideresSheetTitle.textContent = `Reunión de Líderes/Ministerios • Semana ${state.selectedWeek}`);
       lideresMeta && (lideresMeta.textContent = fmtWeekdayNote(getWeekWeekday(state.selectedWeek, 0)));
       lideresStatus && (lideresStatus.textContent = isOffline ? 'Sin conexión — podés seguir editando, se sincroniza al reconectar.' : '');
-      setDateIfEmpty(lideresDate);
       const draft = getWeekDraft(state.selectedWeek).lideres;
       if (draft) applyRteDraft(draft, lideresTema, lideresDate, lideresNotes);
+      else clearRteSheetFields(lideresTema, lideresDate, lideresNotes);
+      setDateIfEmpty(lideresDate);
       linkifyVerseReferences(lideresNotes);
       showNoteSheet(notesSheetLideres);
       updateNotesCrumb();
@@ -5151,13 +5182,50 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     let mdReadOnly = false;
     let mdHeartbeatTimer = null;
     let mdLockPollTimer = null;
+    let mdIsAdminOrPastor = false; // seteado en mdLoadMemberships, usado por mdApplyNoCelulaState
 
+    // Admin/Pastor: la RLS de mis_doce/mis_doce_locks/celulas ya les da
+    // acceso a CUALQUIER célula (is_pastor_or_admin(), verificado contra
+    // pg_policies), pero el frontend solo pedía las propias vía
+    // celula_members. Para esos 2 roles se trae el listado COMPLETO de
+    // células activas en vez de filtrar por membresía — así pueden
+    // consultar/editar el "Mis Doce" de cualquier célula, no solo la suya
+    // (si es que tienen una asignada). Líder de Célula sigue viendo SOLO
+    // sus propias células, sin cambios.
     const mdLoadMemberships = async () => {
+      const role = await getRole();
+      const isAdminOrPastor = (role === 'admin' || role === 'pastor');
+      mdIsAdminOrPastor = isAdminOrPastor;
+      const cacheKey = isAdminOrPastor ? ('md_memberships_all::' + user.id) : ('md_memberships::' + user.id);
+
       if (isOffline) {
-        const cached = offlineCacheGet('md_memberships::' + user.id);
+        const cached = offlineCacheGet(cacheKey);
         mdMemberships = cached?.data || [];
         return;
       }
+
+      if (isAdminOrPastor) {
+        const { data, error } = await supabase
+          .from('celulas')
+          .select('id, name, squad_code, section')
+          .eq('is_active', true)
+          .order('squad_code', { ascending: true })
+          .order('name', { ascending: true });
+        if (error) {
+          const cached = offlineCacheGet(cacheKey);
+          mdMemberships = cached?.data || [];
+          return;
+        }
+        mdMemberships = (data || []).map(r => ({
+          celula_id: r.id,
+          name: r.name,
+          squad_code: r.squad_code,
+          section: r.section,
+        }));
+        offlineCacheSet(cacheKey, mdMemberships);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('celula_members')
         .select('celula_id, celulas!inner(id, name, squad_code, section, is_active)')
@@ -5165,7 +5233,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         .eq('is_active', true)
         .eq('celulas.is_active', true);
       if (error) {
-        const cached = offlineCacheGet('md_memberships::' + user.id);
+        const cached = offlineCacheGet(cacheKey);
         mdMemberships = cached?.data || [];
         return;
       }
@@ -5175,13 +5243,15 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
         squad_code: r.celulas.squad_code,
         section: r.celulas.section,
       }));
-      offlineCacheSet('md_memberships::' + user.id, mdMemberships);
+      offlineCacheSet(cacheKey, mdMemberships);
     };
 
-    const mdApplyNoCelulaState = () => {
+    const mdApplyNoCelulaState = (isAdminOrPastor) => {
       mdCelulaBadge.style.display = 'flex';
       mdCelulaDot.style.background = 'transparent';
-      mdCelulaLabel.textContent = 'Sin célula asignada — pedile al Admin del App que te asigne una.';
+      mdCelulaLabel.textContent = isAdminOrPastor
+        ? 'No hay células activas en el sistema todavía.'
+        : 'Sin célula asignada — pedile al Admin del App que te asigne una.';
       mdCelulaSelector.classList.add('is-hidden');
       // Greyout total de la sección (mismo mecanismo que la Fase 1, pero acá
       // se aplica al contenedor entero, no a la navegación).
@@ -5192,7 +5262,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       qs('#misDoceContainer')?.classList.remove('is-offline-disabled');
 
       if (mdMemberships.length === 0) {
-        mdApplyNoCelulaState();
+        mdApplyNoCelulaState(mdIsAdminOrPastor);
         return null;
       }
 
@@ -5201,7 +5271,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
       } else {
         mdCelulaSelector.classList.remove('is-hidden');
         const prev = mdCelulaSelector.value;
-        mdCelulaSelector.innerHTML = mdMemberships.map(m => `<option value="${m.celula_id}">${escapeHtml(m.name)}</option>`).join('');
+        mdCelulaSelector.innerHTML = mdMemberships.map(m => `<option value="${m.celula_id}">${escapeHtml(m.name)} — ${escapeHtml(m.squad_code || '')}</option>`).join('');
         const stillValid = mdMemberships.some(m => m.celula_id === prev);
         mdCelulaSelector.value = stillValid ? prev : mdMemberships[0].celula_id;
       }

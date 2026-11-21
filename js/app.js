@@ -189,6 +189,7 @@ btnBack?.addEventListener('click', () => {
     const state = {
       view: 'home',
       selectedWeek: null,
+      notesYear: null, // año ISO que se está viendo en Notas (null = año ISO actual, ver viewYear)
       dcOpen: false,
       dcDirty: false,
       dcRowCount: 2,
@@ -383,25 +384,51 @@ btnBack?.addEventListener('click', () => {
       }
     };
 
-    const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v1';
+    // Bloque 2 (semanas ISO + año): el borrador local pasa a v2 con clave
+    // "AAAA-S" (ej. "2026-47") para que la semana 1 de un año no pise la
+    // semana 1 del anterior. La v1 (clave solo "S") se migra UNA vez, como
+    // año 2026: todo lo que existía antes de este cambio es de 2026.
+    const NOTES_DRAFT_KEY_V1 = 'bitacora_notes_drafts_v1';
+    const NOTES_DRAFT_KEY = 'bitacora_notes_drafts_v2';
+    const LEGACY_WEEK_YEAR = 2026;
+
+    // Convierte un objeto { "S": valor } (v1) a { "2026-S": valor } (v2).
+    const migrateWeekKeyedV1 = (obj) => {
+      const out = {};
+      Object.keys(obj || {}).forEach((k) => {
+        const n = Number(k);
+        if (Number.isInteger(n) && n >= 1 && n <= 53) out[`${LEGACY_WEEK_YEAR}-${n}`] = obj[k];
+        else if (/^\d{4}-\d{1,2}$/.test(k)) out[k] = obj[k];
+      });
+      return out;
+    };
 
     const readDrafts = () => {
-      try { return JSON.parse(localStorage.getItem(NOTES_DRAFT_KEY) || '{}'); }
-      catch { return {}; }
+      try {
+        const v2 = localStorage.getItem(NOTES_DRAFT_KEY);
+        if (v2 !== null) return JSON.parse(v2 || '{}');
+        const v1 = JSON.parse(localStorage.getItem(NOTES_DRAFT_KEY_V1) || '{}');
+        const migrated = migrateWeekKeyedV1(v1);
+        localStorage.setItem(NOTES_DRAFT_KEY, JSON.stringify(migrated));
+        return migrated;
+      } catch { return {}; }
     };
 
     const writeDrafts = (obj) => {
       try { localStorage.setItem(NOTES_DRAFT_KEY, JSON.stringify(obj)); } catch {}
     };
 
-    const getWeekDraft = (week) => {
+    // Clave única semana+año, usada en todos los mapas locales por semana.
+    const wkKey = (year, week) => `${year}-${week}`;
+
+    const getWeekDraft = (week, year = viewYear()) => {
       const all = readDrafts();
-      return all[String(week)] || {};
+      return all[wkKey(year, week)] || {};
     };
 
-    const setWeekDraft = (week, patch) => {
+    const setWeekDraft = (week, patch, year = viewYear()) => {
       const all = readDrafts();
-      const k = String(week);
+      const k = wkKey(year, week);
       all[k] = { ...(all[k] || {}), ...(patch || {}) };
       writeDrafts(all);
     };
@@ -483,10 +510,14 @@ btnBack?.addEventListener('click', () => {
     // semana más reciente con texto de Anuncios guardado. El resto de la
     // hoja (bloques de tiempo/responsable, Seguimiento, Asistencia/ofrenda)
     // nunca hereda — nace en blanco cada semana.
-    const findInheritedDcNotes = (week) => {
-      for (let w = week - 1; w >= 1; w--) {
-        const prev = getWeekDraft(w).dc;
-        if (prev && typeof prev.notes === 'string' && prev.notes.trim()) return prev.notes;
+    const findInheritedDcNotes = (week, year = viewYear()) => {
+      // Busca hacia atrás en el mismo año y, si no hay nada, sigue en el
+      // año anterior (la semana 1 de un año hereda de la última del previo).
+      for (let y = year, w = week - 1; y >= APP_FIRST_YEAR; y--, w = weeksInYear(y)) {
+        for (; w >= 1; w--) {
+          const prev = getWeekDraft(w, y).dc;
+          if (prev && typeof prev.notes === 'string' && prev.notes.trim()) return prev.notes;
+        }
       }
       return '';
     };
@@ -509,10 +540,11 @@ btnBack?.addEventListener('click', () => {
     // es opcional: se manda solo cuando saveNotesNow ya sabe el valor
     // vigente del checkbox "Semana completada" (ver `completed`, más abajo
     // en el archivo — closure, disponible en tiempo de ejecución).
-    const syncNoteSheetToSupabase = async (week, sheet, dataObj) => {
+    const syncNoteSheetToSupabase = async (week, sheet, dataObj, year = viewYear()) => {
       if (!week || !sheet) return { error: new Error('missing week/sheet') };
       const payload = {
         user_id: user.id,
+        year,
         week,
         sheet,
         data: dataObj || {},
@@ -520,10 +552,10 @@ btnBack?.addEventListener('click', () => {
       };
       try {
         if (typeof completed !== 'undefined' && completed) {
-          payload.week_done = !!completed[String(week)];
+          payload.week_done = !!completed[wkKey(year, week)];
         }
       } catch {}
-      return supabase.from('notes').upsert(payload, { onConflict: 'user_id,week,sheet' });
+      return supabase.from('notes').upsert(payload, { onConflict: 'user_id,year,week,sheet' });
     };
 
     // Guardado manual (botón "Guardar" / botón único Atrás en modo Guardar):
@@ -536,6 +568,7 @@ btnBack?.addEventListener('click', () => {
     const saveNotesNow = async () => {
       if (!state.selectedWeek || !state.notesOpenSheet) return;
       const week = state.selectedWeek;
+      const year = viewYear();
       const sheet = state.notesOpenSheet;
 
       let draft = null;
@@ -546,10 +579,10 @@ btnBack?.addEventListener('click', () => {
       else if (sheet === 'lideres') { draft = collectRteDraft(lideresTema, lideresDate, lideresNotes); statusEl = lideresStatus; }
       if (!draft) return;
 
-      setWeekDraft(week, { [sheet]: draft });
+      setWeekDraft(week, { [sheet]: draft }, year);
       setStatus(statusEl, 'Guardando…');
 
-      const res = await syncNoteSheetToSupabase(week, sheet, draft);
+      const res = await syncNoteSheetToSupabase(week, sheet, draft, year);
 
       if (sheet === 'dc') state.dcDirty = false;
       else if (sheet === 'takers') state.takersDirty = false;
@@ -807,6 +840,7 @@ btnBack?.addEventListener('click', () => {
     const reviewState = {
       userId: null,
       userName: null,
+      year: null, // año ISO que se está revisando (null = año ISO actual)
       week: null,
       userWeeksDone: {},
       weeksReviewed: {},
@@ -818,15 +852,19 @@ btnBack?.addEventListener('click', () => {
     const setReviewMeta = (msg) => setStatus(reviewMeta, msg);
     const setReviewCommentStatus = (msg) => setStatus(reviewCommentStatus, msg);
 
+    const reviewYear = () => reviewState.year || currentIsoYear();
+
     const populateReviewWeeks = () => {
       if (!reviewWeeksGrid) return;
       reviewWeeksGrid.innerHTML = '';
-      for (let i=1; i<=52; i++){
+      const year = reviewYear();
+      const total = weeksInYear(year);
+      for (let i=1; i<=total; i++){
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'week';
         b.textContent = `Sem ${i}`;
-        b.title = `Semana ${i}: ${weekRangeLabel(i)}`;
+        b.title = `Semana ${i}: ${weekRangeLabel(i, year)}`;
         b.dataset.week = String(i);
         b.addEventListener('click', () => selectReviewWeek(i));
         reviewWeeksGrid.appendChild(b);
@@ -835,11 +873,12 @@ btnBack?.addEventListener('click', () => {
 
     const paintReviewWeekTiles = () => {
       if (!reviewWeeksGrid) return;
-      const currentWeekNum = getCurrentWeekNumber();
+      const year = reviewYear();
+      const currentWeekNum = getCurrentWeekNumber(year);
       qsa('.week', reviewWeeksGrid).forEach(w => {
         const n = Number(w.dataset.week);
-        w.classList.toggle('is-done', !!reviewState.userWeeksDone[String(n)]);
-        const reviewed = !!reviewState.weeksReviewed[String(n)];
+        w.classList.toggle('is-done', !!reviewState.userWeeksDone[wkKey(year, n)]);
+        const reviewed = !!reviewState.weeksReviewed[wkKey(year, n)];
         w.classList.toggle('is-selected', reviewState.week === n);
         w.classList.toggle('is-reviewed', reviewed);
         w.classList.toggle('is-current', currentWeekNum != null && n === currentWeekNum);
@@ -1072,13 +1111,13 @@ btnBack?.addEventListener('click', () => {
     const loadUserWeekDoneMap = async (targetUserId) => {
       const res = await supabase
         .from('notes')
-        .select('week, week_done')
+        .select('year, week, week_done')
         .eq('user_id', targetUserId)
         .eq('week_done', true);
       const map = {};
       if (!res.error) {
         (res.data || []).forEach(r => {
-          if (r && r.week) map[String(r.week)] = true;
+          if (r && r.week) map[wkKey(r.year, r.week)] = true;
         });
       }
       return map;
@@ -1087,13 +1126,13 @@ btnBack?.addEventListener('click', () => {
     const loadWeeksReviewedMap = async (targetUserId) => {
       const res = await supabase
         .from('note_reviews')
-        .select('week, review_done')
+        .select('year, week, review_done')
         .eq('leader_id', user.id)
         .eq('user_id', targetUserId);
       const map = {};
       if (!res.error) {
         (res.data || []).forEach(r => {
-          if (r && r.week != null) map[String(r.week)] = !!r.review_done;
+          if (r && r.week != null) map[wkKey(r.year, r.week)] = !!r.review_done;
         });
       }
       return map;
@@ -1290,16 +1329,18 @@ btnBack?.addEventListener('click', () => {
 
       reviewWeekPicker?.classList.add('is-hidden');
       reviewWeekScreen?.classList.remove('is-hidden');
-      if (reviewWeekTitle) reviewWeekTitle.textContent = `Semana ${weekNum}`;
-      if (chkReviewWeekDone) chkReviewWeekDone.checked = !!reviewState.userWeeksDone[String(weekNum)];
-      if (chkWeekReviewed) chkWeekReviewed.checked = !!reviewState.weeksReviewed[String(weekNum)];
-      setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${weekNum}`);
+      const year = reviewYear();
+      if (reviewWeekTitle) reviewWeekTitle.textContent = `Semana ${weekNum} · ${year}`;
+      if (chkReviewWeekDone) chkReviewWeekDone.checked = !!reviewState.userWeeksDone[wkKey(year, weekNum)];
+      if (chkWeekReviewed) chkWeekReviewed.checked = !!reviewState.weeksReviewed[wkKey(year, weekNum)];
+      setReviewMeta(`Usuario: ${reviewState.userName || ''} • Semana ${weekNum} · ${year}`);
 
       // Cargar notas (si hay)
       const res = await supabase
         .from('notes')
         .select('id, sheet, data, week_done, updated_at')
         .eq('user_id', reviewState.userId)
+        .eq('year', year)
         .eq('week', weekNum);
 
       if (res.error) {
@@ -1327,12 +1368,13 @@ btnBack?.addEventListener('click', () => {
 
     const upsertReviewDone = async (val) => {
       if (!reviewState.userId || !reviewState.week) return;
+      const year = reviewYear();
       const res = await supabase
         .from('note_reviews')
-        .upsert({ leader_id: user.id, user_id: reviewState.userId, week: reviewState.week, review_done: !!val },
-          { onConflict: 'leader_id,user_id,week' });
+        .upsert({ leader_id: user.id, user_id: reviewState.userId, year, week: reviewState.week, review_done: !!val },
+          { onConflict: 'leader_id,user_id,year,week' });
       if (!res.error) {
-        reviewState.weeksReviewed[String(reviewState.week)] = !!val;
+        reviewState.weeksReviewed[wkKey(year, reviewState.week)] = !!val;
         paintReviewWeekTiles();
       }
     };
@@ -1353,6 +1395,16 @@ btnBack?.addEventListener('click', () => {
     btnReviewLideres?.addEventListener('click', () => showReviewSheet('lideres', 'Reunión de Líderes/Ministerios'));
 
     reviewUserSelect?.addEventListener('change', () => onSelectReviewUser());
+
+    // Selector de año (solo visible cuando hay más de un año con historial).
+    const reviewYearSelect = qs('#reviewYearSelect');
+    reviewYearSelect?.addEventListener('change', () => {
+      reviewState.year = Number(reviewYearSelect.value) || currentIsoYear();
+      reviewState.week = null;
+      resetReviewWeekUI();
+      populateReviewWeeks();
+      paintReviewWeekTiles();
+    });
 
     chkWeekReviewed?.addEventListener('change', () => {
       upsertReviewDone(!!chkWeekReviewed.checked);
@@ -1436,7 +1488,7 @@ btnBack?.addEventListener('click', () => {
     let estChartMetaInstance = null;
 
     const setEstStatus = (msg) => { if (estStatusEl) estStatusEl.textContent = msg || ''; };
-    const estYear = () => new Date().getFullYear();
+    const estYear = () => currentIsoYear();
 
     // Mostrar acceso "Estadística" a Líder de Escuadrón, Pastor y Admin del App
     (async () => {
@@ -1522,11 +1574,12 @@ btnBack?.addEventListener('click', () => {
     // ---- Selectores de período ----
     const estPopulateWeekSelect = () => {
       if (!estWeekSelect || estWeekSelect.options.length) return; // poblar una sola vez
-      const current = getCurrentWeekNumber() || 1;
-      for (let w = 1; w <= 52; w++) {
+      const year = estYear();
+      const current = getCurrentWeekNumber(year) || 1;
+      for (let w = 1; w <= weeksInYear(year); w++) {
         const opt = document.createElement('option');
         opt.value = String(w);
-        opt.textContent = `Semana ${String(w).padStart(2, '0')} (${weekRangeLabel(w)})`;
+        opt.textContent = `Semana ${String(w).padStart(2, '0')} (${weekRangeLabel(w, year)})`;
         if (w === current) opt.selected = true;
         estWeekSelect.appendChild(opt);
       }
@@ -1552,7 +1605,7 @@ btnBack?.addEventListener('click', () => {
     const estWeeksForMonth = (month) => {
       const year = estYear();
       const weeks = [];
-      for (let w = 1; w <= 52; w++) {
+      for (let w = 1; w <= weeksInYear(year); w++) {
         if (getWeekMonday(w, year).getMonth() + 1 === month) weeks.push(w);
       }
       return weeks;
@@ -1562,7 +1615,7 @@ btnBack?.addEventListener('click', () => {
       const startMonth = (quarter - 1) * 4 + 1;
       const endMonth = startMonth + 3;
       const weeks = [];
-      for (let w = 1; w <= 52; w++) {
+      for (let w = 1; w <= weeksInYear(year); w++) {
         const m = getWeekMonday(w, year).getMonth() + 1;
         if (m >= startMonth && m <= endMonth) weeks.push(w);
       }
@@ -2735,10 +2788,9 @@ btnBack?.addEventListener('click', () => {
     // en la tabla de Anuncios los registros cuya fecha caiga dentro de ella
     // (mismo criterio de "semana actual" que usa Notas — ver getCurrentWeekNumber).
     const anuncioCurrentWeekRangeISO = () => {
-      const weekNum = getCurrentWeekNumber();
-      if (!weekNum) return null;
-      const { monday, sunday } = getWeekRange(weekNum);
-      return { mondayISO: monday.toISOString().slice(0, 10), sundayISO: sunday.toISOString().slice(0, 10) };
+      const { year, week } = currentIsoWeek();
+      const { monday, sunday } = getWeekRange(week, year);
+      return { mondayISO: localISO(monday), sundayISO: localISO(sunday) };
     };
 
     const renderAnuncioTable = (rows, isAdmin) => {
@@ -3173,7 +3225,7 @@ btnBack?.addEventListener('click', () => {
       const senderName = cachedProfile?.full_name || user.email || 'Alguien';
       const { data: broadcast, error: bErr } = await supabase
         .from('dc_broadcasts')
-        .insert({ sender_id: user.id, sender_name: senderName, content, week: state.selectedWeek, year: new Date().getFullYear() })
+        .insert({ sender_id: user.id, sender_name: senderName, content, week: state.selectedWeek, year: viewYear() })
         .select('id')
         .single();
 
@@ -3227,33 +3279,34 @@ btnBack?.addEventListener('click', () => {
     // funde con el borrador local, y refresca el textarea si esa hoja
     // está abierta en pantalla en este momento.
     const appendToCurrentWeekAnuncios = async (extraText) => {
-      const week = getCurrentWeekNumber();
-      if (!week) return;
+      const { year, week } = currentIsoWeek();
 
       const { data: existing } = await supabase
         .from('notes')
         .select('data')
         .eq('user_id', user.id)
+        .eq('year', year)
         .eq('week', week)
         .eq('sheet', 'dc')
         .maybeSingle();
 
-      const prevDraft = existing?.data || getWeekDraft(week).dc || {};
+      const prevDraft = existing?.data || getWeekDraft(week, year).dc || {};
       const prevNotes = (prevDraft.notes || '').trim();
       const newNotes = prevNotes ? `${prevNotes}\n\n${extraText}` : extraText;
       const newDraft = { ...prevDraft, notes: newNotes };
 
-      setWeekDraft(week, { dc: newDraft });
+      setWeekDraft(week, { dc: newDraft }, year);
 
       await supabase.from('notes').upsert({
         user_id: user.id,
+        year,
         week,
         sheet: 'dc',
         data: newDraft,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,week,sheet' });
+      }, { onConflict: 'user_id,year,week,sheet' });
 
-      if (state.selectedWeek === week && state.notesOpenSheet === 'dc' && dcNotes) {
+      if (state.selectedWeek === week && viewYear() === year && state.notesOpenSheet === 'dc' && dcNotes) {
         dcNotes.value = newNotes;
       }
     };
@@ -3302,10 +3355,16 @@ btnBack?.addEventListener('click', () => {
     const myReviewNotesStatus = qs('#myReviewNotesStatus');
     const myReviewNotesList = qs('#myReviewNotesList');
 
-    const STORAGE_KEY = 'bitacora_week_completed_v1';
+    const STORAGE_KEY_V1 = 'bitacora_week_completed_v1';
+    const STORAGE_KEY = 'bitacora_week_completed_v2'; // clave "AAAA-S", igual que los borradores
     const completed = (() => {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); }
-      catch { return {}; }
+      try {
+        const v2 = localStorage.getItem(STORAGE_KEY);
+        if (v2 !== null) return JSON.parse(v2 || '{}');
+        const migrated = migrateWeekKeyedV1(JSON.parse(localStorage.getItem(STORAGE_KEY_V1) || '{}'));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+        return migrated;
+      } catch { return {}; }
     })();
 
     const saveCompleted = () => {
@@ -3326,20 +3385,21 @@ btnBack?.addEventListener('click', () => {
         const weekKeys = Object.keys(all || {});
         if (!weekKeys.length) return;
         for (const wk of weekKeys) {
-          const weekNum = Number(wk);
-          if (!weekNum || weekNum < 1 || weekNum > 52) continue;
+          const [yearNum, weekNum] = wk.split('-').map(Number);
+          if (!yearNum || !weekNum || weekNum < 1 || weekNum > weeksInYear(yearNum)) continue;
           const sheetsObj = all[wk] || {};
           for (const sheetKey of ['dc', 'takers', 'cultos', 'lideres']) {
             const sheetData = sheetsObj[sheetKey];
             if (!sheetData) continue;
             await supabase.from('notes').upsert({
               user_id: user.id,
+              year: yearNum,
               week: weekNum,
               sheet: sheetKey,
               data: sheetData,
               week_done: !!completed[wk],
               updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,week,sheet' });
+            }, { onConflict: 'user_id,year,week,sheet' });
           }
         }
       } catch {}
@@ -3377,13 +3437,13 @@ btnBack?.addEventListener('click', () => {
       try {
         const res = await supabase
           .from('notes')
-          .select('week, sheet, data')
+          .select('year, week, sheet, data')
           .eq('user_id', user.id)
           .in('sheet', ['dc', 'takers', 'cultos', 'lideres']);
         if (res.error) return;
         (res.data || []).forEach(row => {
-          if (!row || row.week == null || !row.sheet || !row.data) return;
-          setWeekDraft(row.week, { [row.sheet]: row.data });
+          if (!row || row.week == null || !row.year || !row.sheet || !row.data) return;
+          setWeekDraft(row.week, { [row.sheet]: row.data }, row.year);
         });
       } catch {}
     };
@@ -3396,12 +3456,12 @@ btnBack?.addEventListener('click', () => {
     const loadMyWeeksReviewedMap = async () => {
       const res = await supabase
         .from('note_reviews')
-        .select('week, review_done')
+        .select('year, week, review_done')
         .eq('user_id', user.id)
         .eq('review_done', true);
       if (res.error) return;
       (res.data || []).forEach(r => {
-        if (r && r.week != null) myWeeksReviewed[String(r.week)] = true;
+        if (r && r.week != null) myWeeksReviewed[wkKey(r.year, r.week)] = true;
       });
       qsa('.week', weeksGrid).forEach(w => markWeekTile(Number(w.dataset.week)));
     };
@@ -3415,7 +3475,8 @@ btnBack?.addEventListener('click', () => {
     const loadMyReviewNotesForWeek = async (weekNum) => {
       if (!myReviewNotesBox) return;
 
-      if (!myWeeksReviewed[String(weekNum)]) {
+      const year = viewYear();
+      if (!myWeeksReviewed[wkKey(year, weekNum)]) {
         myReviewNotesBox.classList.add('is-hidden');
         if (myReviewNotesList) myReviewNotesList.innerHTML = '';
         if (myReviewNotesStatus) myReviewNotesStatus.textContent = '';
@@ -3430,6 +3491,7 @@ btnBack?.addEventListener('click', () => {
         .from('notes')
         .select('id')
         .eq('user_id', user.id)
+        .eq('year', year)
         .eq('week', weekNum);
 
       const noteIds = (notesRes.data || []).map(r => r?.id).filter(Boolean);
@@ -3512,7 +3574,7 @@ btnBack?.addEventListener('click', () => {
       else if (sheetEl === notesSheetLideres) state.notesOpenSheet = 'lideres';
       else state.notesOpenSheet = null;
       updateNotesFullHeightMode();
-      pushScreen({ view: 'notas', week: state.selectedWeek, sheet: state.notesOpenSheet });
+      pushScreen({ view: 'notas', year: viewYear(), week: state.selectedWeek, sheet: state.notesOpenSheet });
     };
 
     const setSheetVisible = (visible) => {
@@ -3532,21 +3594,23 @@ btnBack?.addEventListener('click', () => {
     const markWeekTile = (weekNum) => {
       const tile = qs(`.week[data-week="${weekNum}"]`, weeksGrid);
       if (!tile) return;
-      tile.classList.toggle('is-done', !!completed[String(weekNum)]);
-      tile.classList.toggle('is-current', weekNum === getCurrentWeekNumber());
-      tile.classList.toggle('is-reviewed', !!myWeeksReviewed[String(weekNum)]);
+      const year = viewYear();
+      tile.classList.toggle('is-done', !!completed[wkKey(year, weekNum)]);
+      tile.classList.toggle('is-current', weekNum === getCurrentWeekNumber(year));
+      tile.classList.toggle('is-reviewed', !!myWeeksReviewed[wkKey(year, weekNum)]);
     };
 
     const updateMeta = () => {
       if (!state.selectedWeek) { notesMeta.textContent = ''; return; }
-      const done = !!completed[String(state.selectedWeek)];
+      const done = !!completed[wkKey(viewYear(), state.selectedWeek)];
       notesMeta.textContent = done ? `Semana ${state.selectedWeek} • Completada` : `Semana ${state.selectedWeek}`;
     };
 
     const populateWeeks = () => {
       if (!weeksGrid) return;
       weeksGrid.innerHTML = '';
-      for (let i=1; i<=52; i++){
+      const total = weeksInYear(viewYear());
+      for (let i=1; i<=total; i++){
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'week';
@@ -3561,13 +3625,13 @@ btnBack?.addEventListener('click', () => {
 
     const selectWeek = (weekNum) => {
       state.selectedWeek = weekNum;
-      pushScreen({ view: 'notas', week: weekNum });
+      pushScreen({ view: 'notas', year: viewYear(), week: weekNum });
 
       qsa('.week', weeksGrid).forEach(w => w.classList.toggle('is-selected', Number(w.dataset.week) === weekNum));
       weekTitle.textContent = `Semana ${weekNum} · ${weekRangeLabel(weekNum)}`;
 
       // Checkbox refleja estado de la semana
-      if (chkWeekDone) chkWeekDone.checked = !!completed[String(weekNum)];
+      if (chkWeekDone) chkWeekDone.checked = !!completed[wkKey(viewYear(), weekNum)];
 
       // Mostrar pantalla de semana
       setWeekScreenVisible(true);
@@ -3576,6 +3640,32 @@ btnBack?.addEventListener('click', () => {
       updateNotesHeaderActions();
       loadMyReviewNotesForWeek(weekNum);
     };
+
+    // ---- Selector de año (Notas / Revisión) ----
+    // Años disponibles: desde el primer año de la app hasta el año ISO
+    // actual. Con un solo año (todo 2026) el selector queda oculto.
+    const notesYearSelect = qs('#notesYearSelect');
+    const initYearSelect = (selectEl, selectedYear) => {
+      if (!selectEl) return;
+      const last = currentIsoYear();
+      selectEl.innerHTML = '';
+      for (let y = last; y >= APP_FIRST_YEAR; y--) {
+        const opt = document.createElement('option');
+        opt.value = String(y);
+        opt.textContent = String(y);
+        if (y === selectedYear) opt.selected = true;
+        selectEl.appendChild(opt);
+      }
+      selectEl.classList.toggle('is-hidden', selectEl.options.length < 2);
+    };
+    const setNotesYear = (year) => {
+      state.notesYear = year;
+      if (notesYearSelect) notesYearSelect.value = String(year);
+      populateWeeks();
+    };
+    notesYearSelect?.addEventListener('change', () => {
+      setNotesYear(Number(notesYearSelect.value) || currentIsoYear());
+    });
 
     // Volver del detalle de semana al selector (usada por el botón único Atrás)
     const backToWeekPicker = async () => {
@@ -3601,8 +3691,9 @@ btnBack?.addEventListener('click', () => {
     chkWeekDone?.addEventListener('change', async () => {
       if (!state.selectedWeek) return;
       const week = state.selectedWeek;
+      const year = viewYear();
       const val = !!chkWeekDone.checked;
-      completed[String(week)] = val;
+      completed[wkKey(year, week)] = val;
       saveCompleted();
       markWeekTile(week);
       updateMeta();
@@ -3611,26 +3702,52 @@ btnBack?.addEventListener('click', () => {
           .from('notes')
           .update({ week_done: val, updated_at: new Date().toISOString() })
           .eq('user_id', user.id)
+          .eq('year', year)
           .eq('week', week);
       } catch {}
     });
 
-  const todayISO = () => new Date().toISOString().slice(0, 10);
+    // ---- Motor de semanas: ISO 8601 (Bloque 2) ----
+    // - La semana empieza el lunes; la semana 1 es la que contiene el
+    //   primer jueves del año (equivalente: la que contiene el 4 de enero).
+    // - Un año ISO tiene 52 o 53 semanas (2026 tiene 53). Los días de fin
+    //   de diciembre / inicio de enero pertenecen al año ISO de su jueves:
+    //   28 dic 2026 – 3 ene 2027 = semana 53 de 2026.
+    // - Todo se calcula con la fecha LOCAL del dispositivo (antes se usaba
+    //   UTC vía toISOString, y en Costa Rica el domingo a partir de las
+    //   6 p.m. ya contaba como la semana siguiente).
+    // Para 2026 las semanas 1–52 coinciden 1:1 con el cálculo anterior,
+    // así que ningún dato ya guardado cambia de número.
+    const APP_FIRST_YEAR = 2026;
+    const pad2 = (n) => String(n).padStart(2, '0');
+    const localISO = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    const todayISO = () => localISO(new Date());
 
-    // ---- Fechas reales por semana (lunes-domingo), año dinámico (siempre el actual) ----
-    // Mismo algoritmo que "Control_Asistencia_Lider", pero sin año hardcodeado:
-    // usa new Date().getFullYear(), así que funciona indefinidamente sin mantenimiento.
+    // { year, week } ISO de una fecha (usa solo la parte local de la fecha).
+    const isoWeekOf = (date) => {
+      const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); // jueves de esa semana
+      const year = d.getFullYear();
+      const jan4 = new Date(year, 0, 4);
+      jan4.setDate(jan4.getDate() + 3 - ((jan4.getDay() + 6) % 7)); // jueves de la semana 1
+      const week = 1 + Math.round((d - jan4) / (7 * 86400000));
+      return { year, week };
+    };
+    const currentIsoWeek = () => isoWeekOf(new Date());
+    const currentIsoYear = () => currentIsoWeek().year;
+    // 52 o 53: el 28 de diciembre siempre cae en la última semana ISO del año.
+    const weeksInYear = (year) => isoWeekOf(new Date(year, 11, 28)).week;
+    // Año que se está viendo en Notas (y en las hojas abiertas desde ahí).
+    const viewYear = () => state.notesYear || currentIsoYear();
+
     const getWeekMonday = (weekNum, year) => {
-      const firstMonday = new Date(year, 0, 1);
-      const fdow = firstMonday.getDay(); // 0=dom, 1=lun ... 6=sab
-      const diffFM = (fdow === 0) ? -6 : 1 - fdow;
-      firstMonday.setDate(firstMonday.getDate() + diffFM);
-      const monday = new Date(firstMonday);
-      monday.setDate(firstMonday.getDate() + (weekNum - 1) * 7);
+      const jan4 = new Date(year, 0, 4);
+      const monday = new Date(year, 0, 4 - ((jan4.getDay() + 6) % 7)); // lunes de la semana 1
+      monday.setDate(monday.getDate() + (weekNum - 1) * 7);
       return monday;
     };
 
-    const getWeekRange = (weekNum, year = new Date().getFullYear()) => {
+    const getWeekRange = (weekNum, year = viewYear()) => {
       const monday = getWeekMonday(weekNum, year);
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
@@ -3640,35 +3757,31 @@ btnBack?.addEventListener('click', () => {
     const fmtWeekDay = (d) => d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
 
     // "16 mar – 22 mar" — solo para mostrar, no se guarda en Supabase.
-    const weekRangeLabel = (weekNum) => {
-      const { monday, sunday } = getWeekRange(weekNum);
+    const weekRangeLabel = (weekNum, year = viewYear()) => {
+      const { monday, sunday } = getWeekRange(weekNum, year);
       return `${fmtWeekDay(monday)} – ${fmtWeekDay(sunday)}`;
     };
 
     // ISO (YYYY-MM-DD) del lunes de esa semana, para precargar dcDate.
-    const weekMondayISO = (weekNum) => {
-      const { monday } = getWeekRange(weekNum);
-      return monday.toISOString().slice(0, 10);
+    const weekMondayISO = (weekNum, year = viewYear()) => {
+      const { monday } = getWeekRange(weekNum, year);
+      return localISO(monday);
     };
 
     // Número de semana (1–52) cuyo rango lunes–domingo contiene la fecha de
     // hoy, para resaltar la semana ACTUAL en el calendario de Notas
     // (ver .week.is-current). null si hoy cae fuera del rango de 52 semanas.
-    const getCurrentWeekNumber = (year = new Date().getFullYear()) => {
-      const todayStr = todayISO();
-      for (let i = 1; i <= 52; i++) {
-        const { monday, sunday } = getWeekRange(i, year);
-        const mondayStr = monday.toISOString().slice(0, 10);
-        const sundayStr = sunday.toISOString().slice(0, 10);
-        if (todayStr >= mondayStr && todayStr <= sundayStr) return i;
-      }
-      return null;
+    // Semana ISO actual si `year` es el año ISO actual; si no, null
+    // (ej. viendo 2026 desde 2027 no hay semana "actual" que resaltar).
+    const getCurrentWeekNumber = (year = currentIsoYear()) => {
+      const cur = currentIsoWeek();
+      return cur.year === year ? cur.week : null;
     };
 
     // Día fijo dentro de la semana: offset 0=lunes, 5=sábado, 6=domingo.
     // Usado para Takers (sábado), Cultos (domingo) y Reuniones (lunes) — a diferencia
     // de Célula, cuyo día varía y por eso no tiene fecha fija asociada.
-    const getWeekWeekday = (weekNum, dayOffset, year = new Date().getFullYear()) => {
+    const getWeekWeekday = (weekNum, dayOffset, year = viewYear()) => {
       const { monday } = getWeekRange(weekNum, year);
       const d = new Date(monday);
       d.setDate(monday.getDate() + dayOffset);
@@ -4398,7 +4511,7 @@ btnBack?.addEventListener('click', () => {
         makers: { label:'MAKERS', visitLabel:'VISITAS MAKERS', copyLabel:'MAKERS' }
       };
 
-      const attCurrentYear = () => new Date().getFullYear();
+      const attCurrentYear = () => viewYear();
       const attCurrentWeek = () => state.selectedWeek;
 
       // ---- Estado en memoria ----
@@ -4560,17 +4673,30 @@ btnBack?.addEventListener('click', () => {
 
       // ---- Carga (con herencia de nombres) de la semana actual ----
       const attFindInheritedRoster = async (celulaId, currentWeek, year) => {
-        if (currentWeek <= 1) return null;
-        const { data } = await supabase
+        // Última semana anterior con registro: primero en el mismo año y,
+        // si no hay (ej. semana 1), la última semana del año anterior.
+        if (currentWeek > 1) {
+          const { data } = await supabase
+            .from('asistencia_records')
+            .select('week, roster')
+            .eq('celula_id', celulaId)
+            .eq('year', year)
+            .lt('week', currentWeek)
+            .order('week', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (data?.roster) return data.roster;
+        }
+        if (year - 1 < APP_FIRST_YEAR) return null;
+        const { data: prev } = await supabase
           .from('asistencia_records')
           .select('week, roster')
           .eq('celula_id', celulaId)
-          .eq('year', year)
-          .lt('week', currentWeek)
+          .eq('year', year - 1)
           .order('week', { ascending: false })
           .limit(1)
           .maybeSingle();
-        return data?.roster || null;
+        return prev?.roster || null;
       };
 
       const attCloneNamesOnly = (roster) => ({
@@ -4860,7 +4986,7 @@ btnBack?.addEventListener('click', () => {
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
-      pushScreen({ view: 'notas', week: state.selectedWeek });
+      pushScreen({ view: 'notas', year: viewYear(), week: state.selectedWeek });
     };
 
     const closeWeekSheet = async () => {
@@ -4869,7 +4995,7 @@ btnBack?.addEventListener('click', () => {
       setWeekScreenVisible(true);
       updateNotesCrumb();
       updateNotesHeaderActions();
-      pushScreen({ view: 'notas', week: state.selectedWeek });
+      pushScreen({ view: 'notas', year: viewYear(), week: state.selectedWeek });
     };
 
     const markSaved = (statusEl) => {
@@ -4941,6 +5067,7 @@ btnBack?.addEventListener('click', () => {
     let cultoAudioLoadToken = 0;
     const loadCultoAudioForWeek = async (week) => {
       const myToken = ++cultoAudioLoadToken;
+      const year = viewYear();
 
       // Reset player al cambiar de semana
       if (cultoAudioEl) { cultoAudioEl.pause(); cultoAudioEl.removeAttribute('src'); cultoAudioEl.load(); }
@@ -4951,17 +5078,18 @@ btnBack?.addEventListener('click', () => {
       if (cultoAudioAdminStatus) cultoAudioAdminStatus.textContent = '';
 
       const role = await getRole();
-      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek) return; // ya no es la semana activa
+      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek || year !== viewYear()) return; // ya no es la semana activa
       const isAdminRole = (role === 'admin');
       if (cultoAudioAdminBox) cultoAudioAdminBox.style.display = isAdminRole ? '' : 'none';
 
       const res = await supabase
         .from('culto_audio')
         .select('public_url')
+        .eq('year', year)
         .eq('week', week)
         .maybeSingle();
 
-      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek) return; // idem, tras el segundo await
+      if (myToken !== cultoAudioLoadToken || week !== state.selectedWeek || year !== viewYear()) return; // idem, tras el segundo await
 
       const url = res?.data?.public_url || '';
       if (url) {
@@ -4981,11 +5109,12 @@ btnBack?.addEventListener('click', () => {
       const res = await supabase
         .from('culto_audio')
         .upsert({
+          year: viewYear(),
           week: state.selectedWeek,
           public_url: url,
           updated_by: user.id,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'week' });
+        }, { onConflict: 'year,week' });
 
       if (res.error) {
         setStatus(cultoAudioAdminStatus, 'No se pudo guardar. Intenta de nuevo.');
@@ -5110,6 +5239,7 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
 
       if (d.view === 'notas') {
         if (state.view !== 'notas') showView('notas');
+        if (d.year && d.year !== viewYear()) setNotesYear(d.year);
         if (!d.week) {
           hideAllNoteSheets();
           setWeekScreenVisible(false);
@@ -5161,6 +5291,9 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     });
 
     // ---- Init
+    state.notesYear = currentIsoYear();
+    initYearSelect(notesYearSelect, viewYear());
+    initYearSelect(reviewYearSelect, reviewYear());
     populateWeeks();
     loadMyWeeksReviewedMap();
     setWeekScreenVisible(false);

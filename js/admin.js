@@ -712,8 +712,15 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     return (v ?? "").toString();
   }
 
+  // Fecha LOCAL (AAAA-MM-DD). Antes usaba toISOString() (UTC): en Costa
+  // Rica, desde las 6 p.m. ya devolvía el día siguiente y marcaba como
+  // vencidas las actividades de hoy. Mismo criterio que app.js (localISO).
+  function localISO(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
   function todayISO() {
-    return new Date().toISOString().slice(0, 10);
+    return localISO(new Date());
   }
 
   // Ordena la tabla de Anuncios: activas primero (las más próximas primero),
@@ -744,8 +751,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
     return {
-      mondayISO: monday.toISOString().slice(0, 10),
-      sundayISO: sunday.toISOString().slice(0, 10),
+      mondayISO: localISO(monday),
+      sundayISO: localISO(sunday),
     };
   }
 

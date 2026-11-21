@@ -260,7 +260,7 @@
 <h1>Inicio</h1>
 <p class="muted">Accesos directos:</p>
 	<div class="cards">
-		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas (1–52)</div></button>
+		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas del año</div></button>
 		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title"><i class="fa-solid fa-clipboard-check"></i> Revisión de Notas</div><div class="card__body">Líderes y Admin</div></button>
 		<button class="card card--action is-hidden" data-view="estadistica" id="cardEstadistica" type="button"><div class="card__title"><i class="fa-solid fa-chart-pie"></i> Estadística</div><div class="card__body">Asistencia y ofrendas por escuadrón/red</div></button>
 		<button class="card card--action" data-view="lectura" type="button"><div class="card__title"><i class="fa-solid fa-book-open-reader"></i> Lectura Bíblica</div><div class="card__body">Plan de lectura diaria.</div></button>
@@ -307,7 +307,10 @@
   </div>
 
   <div class="panel" id="reviewWeekPicker">
-    <div class="panel__title">Semanas (1–52)</div>
+    <div class="panel__title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <span>Semanas</span>
+      <select class="input is-hidden" id="reviewYearSelect" aria-label="Año" style="width:auto;"></select>
+    </div>
     <div class="weeks weeks--wide" id="reviewWeeksGrid"></div>
   </div>
 
@@ -515,7 +518,8 @@
 </div>
 <!-- Subvista 1: Selector de semanas -->
 <div class="panel" id="notesWeekPicker">
-<div class="panel__title">Semanas (1–52)</div>
+<div class="panel__title">Semanas</div>
+<select class="input is-hidden" id="notesYearSelect" aria-label="Año" style="width:auto;margin-bottom:10px;"></select>
 <div aria-label="Selector de semanas" class="weeks weeks--wide" id="weeksGrid"></div>
 </div>
 <!-- Subvista 2: Semana seleccionada -->

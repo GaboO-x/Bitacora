@@ -371,10 +371,15 @@
     <div class="panel__title is-hidden" id="estSquadTitle">Escuadrón</div>
     <select class="input is-hidden" id="estSquadSelect"></select>
 
+    <!-- Año (solo visible cuando hay más de un año con historial) -->
+    <select class="input is-hidden" id="estYearSelect" aria-label="Año" style="width:auto;margin-top:12px;"></select>
+
     <div class="tabs" style="margin-top:12px;">
       <button class="pill est-tab is-active" data-est-tab="semanal" type="button">Semanal</button>
       <button class="pill est-tab" data-est-tab="mensual" type="button">Mensual</button>
       <button class="pill est-tab" data-est-tab="cuatrimestral" type="button">Cuatrimestral</button>
+      <button class="pill est-tab" data-est-tab="semestral" type="button">Semestral</button>
+      <button class="pill est-tab" data-est-tab="anual" type="button">Anual</button>
     </div>
 
     <div class="est-period-picker" id="estPeriodSemanal">
@@ -398,6 +403,17 @@
         <option value="3">III (Septiembre–Diciembre)</option>
       </select>
     </div>
+    <div class="est-period-picker is-hidden" id="estPeriodSemestral">
+      <div class="panel__title" style="margin-top:12px;">Semestre</div>
+      <select class="input" id="estSemesterSelect">
+        <option value="1">I (Enero–Junio)</option>
+        <option value="2">II (Julio–Diciembre)</option>
+      </select>
+    </div>
+    <div class="est-period-picker is-hidden" id="estPeriodAnual">
+      <div class="muted tiny" style="margin-top:12px;">Año completo, agrupado por mes.</div>
+    </div>
+    <div class="muted tiny" style="margin-top:8px;">Cada semana cuenta en el mes donde cae su jueves. Célula y Red/Culto se muestran como promedio semanal; Nuevos y Ofrenda, como total del período.</div>
 
     <div class="muted tiny" id="estStatus" style="margin-top:8px;"></div>
 
@@ -463,8 +479,8 @@
   <!-- ============ Sub-pestaña: Meta General (nuevo — guardado en localStorage, no en Supabase) ============ -->
   <div id="estSubviewMetaGeneral" class="is-hidden">
     <div class="panel" style="margin-top:12px;">
-      <label>Meta General del período (solo vos la ves — se guarda en este navegador)</label>
-      <input class="input" id="estMetaGeneralInput" type="number" min="0" step="1" placeholder="Ej: 70" />
+      <label>Meta General semanal (aplica igual a cualquier período — solo vos la ves, se guarda en este navegador)</label>
+      <input class="input" id="estMetaGeneralInput" type="number" min="0" step="1" placeholder="70" />
     </div>
 
     <div class="panel" style="margin-top:12px;">

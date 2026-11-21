@@ -1459,10 +1459,14 @@ btnBack?.addEventListener('click', () => {
       semanal: qs('#estPeriodSemanal'),
       mensual: qs('#estPeriodMensual'),
       cuatrimestral: qs('#estPeriodCuatrimestral'),
+      semestral: qs('#estPeriodSemestral'),
+      anual: qs('#estPeriodAnual'),
     };
+    const estYearSelect = qs('#estYearSelect');
     const estWeekSelect = qs('#estWeekSelect');
     const estMonthSelect = qs('#estMonthSelect');
     const estQuarterSelect = qs('#estQuarterSelect');
+    const estSemesterSelect = qs('#estSemesterSelect');
     const estStatusEl = qs('#estStatus');
     const estTableWrap = qs('#estTableWrap');
     const estTotalsRow = qs('#estTotalsRow');
@@ -1488,7 +1492,33 @@ btnBack?.addEventListener('click', () => {
     let estChartMetaInstance = null;
 
     const setEstStatus = (msg) => { if (estStatusEl) estStatusEl.textContent = msg || ''; };
-    const estYear = () => currentIsoYear();
+    // Año ISO elegido en el selector de Estadística (oculto si solo hay un año).
+    const estYear = () => Number(estYearSelect?.value) || currentIsoYear();
+
+    // ---- Regla de cálculo (Bloque 3) ----
+    // Célula y Red/Culto = PROMEDIO SEMANAL: se suman todas las células de
+    // cada semana y se promedia solo entre las semanas que tienen reporte.
+    // Así la meta (ej. 70) significa lo mismo en cualquier período.
+    // Nuevos, Sinpe y Efectivo = SUMA del período (sí se acumulan).
+    // Un registro "con datos" es uno con algún valor > 0; los registros que
+    // crea el Líder de Escuadrón solo para fijar la meta (todo en 0) no
+    // cuentan como semana reportada.
+    const estHasData = (r) => ['cel', 'red_culto', 'nuevos', 'sinpe', 'efectivo'].some((k) => (Number(r[k]) || 0) > 0);
+    const estAvgWeekly = (records, key) => {
+      const byWeek = {};
+      (records || []).forEach((r) => {
+        if (!estHasData(r)) return;
+        byWeek[r.week] = (byWeek[r.week] || 0) + (Number(r[key]) || 0);
+      });
+      const vals = Object.values(byWeek);
+      return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    };
+    const estSumKey = (records, key) => (records || []).reduce((s, r) => s + (Number(r[key]) || 0), 0);
+    const estWeeksWithData = (records) => new Set((records || []).filter(estHasData).map((r) => r.week)).size;
+    // Promedios con un decimal solo si hace falta (70 → "70", 68.75 → "68.8").
+    const estFmt = (v) => (Number.isInteger(v) ? String(v) : (Math.round(v * 10) / 10).toFixed(1));
+    // Pestañas que agrupan por mes (el resto agrupa por semana).
+    const estIsMonthlyTab = () => ['cuatrimestral', 'semestral', 'anual'].includes(estActiveTab);
 
     // Mostrar acceso "Estadística" a Líder de Escuadrón, Pastor y Admin del App
     (async () => {
@@ -1563,8 +1593,8 @@ btnBack?.addEventListener('click', () => {
       estTabButtons.forEach(b => b.classList.toggle('is-active', b.dataset.estTab === tab));
       Object.entries(estPeriodPanels).forEach(([k, el]) => el?.classList.toggle('is-hidden', k !== tab));
       if (estTrendTitle) {
-        estTrendTitle.textContent = tab === 'cuatrimestral'
-          ? 'Tendencia mensual — Célula / Red-Culto'
+        estTrendTitle.textContent = estIsMonthlyTab()
+          ? 'Tendencia mensual (promedio semanal) — Célula / Red-Culto'
           : 'Tendencia semanal — Célula / Red-Culto';
       }
       estLoadAndRender();
@@ -1572,27 +1602,41 @@ btnBack?.addEventListener('click', () => {
     estTabButtons.forEach(b => b.addEventListener('click', () => estSetActiveTab(b.dataset.estTab)));
 
     // ---- Selectores de período ----
+    // Se reconstruye al cambiar de año (2026 tiene 53 semanas, 2027 tiene 52).
+    // Conserva la semana elegida si existe en el año nuevo; si no, usa la
+    // semana actual (si es el año actual) o la 1.
     const estPopulateWeekSelect = () => {
-      if (!estWeekSelect || estWeekSelect.options.length) return; // poblar una sola vez
+      if (!estWeekSelect) return;
       const year = estYear();
-      const current = getCurrentWeekNumber(year) || 1;
-      for (let w = 1; w <= weeksInYear(year); w++) {
+      if (estWeekSelect.dataset.year === String(year) && estWeekSelect.options.length) return;
+      const prev = Number(estWeekSelect.value) || 0;
+      const total = weeksInYear(year);
+      const target = (prev >= 1 && prev <= total) ? prev : (getCurrentWeekNumber(year) || 1);
+      estWeekSelect.innerHTML = '';
+      for (let w = 1; w <= total; w++) {
         const opt = document.createElement('option');
         opt.value = String(w);
         opt.textContent = `Semana ${String(w).padStart(2, '0')} (${weekRangeLabel(w, year)})`;
-        if (w === current) opt.selected = true;
+        if (w === target) opt.selected = true;
         estWeekSelect.appendChild(opt);
       }
+      estWeekSelect.dataset.year = String(year);
     };
     const estInitDefaultPeriods = () => {
-      const now = new Date();
+      // Mes de la semana actual según la regla del jueves.
+      const cur = currentIsoWeek();
+      const curMonth = estWeekMonth(cur.week, cur.year);
       if (estMonthSelect && !estMonthSelect.dataset.initDone) {
-        estMonthSelect.value = String(now.getMonth() + 1);
+        estMonthSelect.value = String(curMonth);
         estMonthSelect.dataset.initDone = '1';
       }
       if (estQuarterSelect && !estQuarterSelect.dataset.initDone) {
-        estQuarterSelect.value = String(Math.floor(now.getMonth() / 4) + 1);
+        estQuarterSelect.value = String(Math.floor((curMonth - 1) / 4) + 1);
         estQuarterSelect.dataset.initDone = '1';
+      }
+      if (estSemesterSelect && !estSemesterSelect.dataset.initDone) {
+        estSemesterSelect.value = curMonth <= 6 ? '1' : '2';
+        estSemesterSelect.dataset.initDone = '1';
       }
     };
 
@@ -1600,55 +1644,68 @@ btnBack?.addEventListener('click', () => {
     estWeekSelect?.addEventListener('change', () => estLoadAndRender());
     estMonthSelect?.addEventListener('change', () => estLoadAndRender());
     estQuarterSelect?.addEventListener('change', () => estLoadAndRender());
+    estSemesterSelect?.addEventListener('change', () => estLoadAndRender());
+    estYearSelect?.addEventListener('change', () => {
+      estPopulateWeekSelect();
+      estLoadAndRender();
+    });
 
-    // ---- Semanas incluidas en un Mes / Cuatrimestre (por el lunes de cada semana) ----
-    const estWeeksForMonth = (month) => {
-      const year = estYear();
-      const weeks = [];
-      for (let w = 1; w <= weeksInYear(year); w++) {
-        if (getWeekMonday(w, year).getMonth() + 1 === month) weeks.push(w);
-      }
-      return weeks;
+    // ---- Semanas de cada período (Bloque 3: regla del JUEVES) ----
+    // Una semana pertenece al mes donde cae su jueves (= el mes que tiene
+    // 4 o más de sus 7 días). Es la misma regla que define el año ISO, así
+    // que la semana 1 siempre cae en enero y la última en diciembre.
+    const estWeekMonth = (week, year) => {
+      const thursday = getWeekMonday(week, year);
+      thursday.setDate(thursday.getDate() + 3);
+      return thursday.getMonth() + 1;
     };
-    const estWeeksForQuarter = (quarter) => {
+    const estWeeksForMonths = (startMonth, endMonth) => {
       const year = estYear();
-      const startMonth = (quarter - 1) * 4 + 1;
-      const endMonth = startMonth + 3;
       const weeks = [];
       for (let w = 1; w <= weeksInYear(year); w++) {
-        const m = getWeekMonday(w, year).getMonth() + 1;
+        const m = estWeekMonth(w, year);
         if (m >= startMonth && m <= endMonth) weeks.push(w);
       }
       return weeks;
     };
+    const estWeeksForMonth = (month) => estWeeksForMonths(month, month);
+    const estWeeksForQuarter = (quarter) => estWeeksForMonths((quarter - 1) * 4 + 1, (quarter - 1) * 4 + 4);
+    const estWeeksForSemester = (semester) => estWeeksForMonths(semester === 1 ? 1 : 7, semester === 1 ? 6 : 12);
+    const estWeeksForYear = () => estWeeksForMonths(1, 12);
 
+    // Bucket semanal: total de todas las células en esa semana (null = nadie reportó).
     const estBucketByWeek = (records, weeks) => weeks.map(w => {
-      const recs = records.filter(r => r.week === w);
+      const recs = records.filter(r => r.week === w && estHasData(r));
       return {
         label: `S${String(w).padStart(2, '0')}`,
-        cel: recs.reduce((s, r) => s + (Number(r.cel) || 0), 0),
-        red_culto: recs.reduce((s, r) => s + (Number(r.red_culto) || 0), 0),
+        cel: recs.length ? estSumKey(recs, 'cel') : null,
+        red_culto: recs.length ? estSumKey(recs, 'red_culto') : null,
       };
     });
 
+    // Bucket mensual: PROMEDIO SEMANAL del mes (solo semanas con reporte).
     const EST_MONTH_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
     const estBucketByMonth = (records, weeks, year) => {
       const byMonth = {};
       weeks.forEach(w => {
-        const m = getWeekMonday(w, year).getMonth() + 1;
+        const m = estWeekMonth(w, year);
         byMonth[m] = byMonth[m] || [];
         byMonth[m].push(w);
       });
       return Object.keys(byMonth).sort((a, b) => a - b).map(m => {
         const weeksInMonth = byMonth[m];
         const recs = records.filter(r => weeksInMonth.includes(r.week));
+        const hasAny = recs.some(estHasData);
         return {
           label: EST_MONTH_SHORT[Number(m) - 1],
-          cel: recs.reduce((s, r) => s + (Number(r.cel) || 0), 0),
-          red_culto: recs.reduce((s, r) => s + (Number(r.red_culto) || 0), 0),
+          cel: hasAny ? estAvgWeekly(recs, 'cel') : null,
+          red_culto: hasAny ? estAvgWeekly(recs, 'red_culto') : null,
         };
       });
     };
+    const estBucket = (records, weeks, year) => (estIsMonthlyTab()
+      ? estBucketByMonth(records, weeks, year)
+      : estBucketByWeek(records, weeks));
 
     // ---- Tabla de detalle por célula ----
     const estRenderTable = (perCelula, role) => {
@@ -1662,11 +1719,17 @@ btnBack?.addEventListener('click', () => {
       const canEditMeta = estActiveTab === 'semanal' && (role === 'leader' || role === 'admin' || role === 'pastor');
       const sectionLabelShort = (sec) => sec === 'rj' ? 'RJ' : sec === 'takers' ? 'Takers' : 'Makers';
 
-      let totCel = 0, totRed = 0, totNuevos = 0, totOfrenda = 0, totMeta = 0;
-      let html = '<table><thead><tr><th>Célula</th><th>Secc.</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Ofrenda ₡</th><th>Meta</th></tr></thead><tbody>';
+      // TOTAL de Célula/Red-Culto = promedio semanal de la suma de todas las
+      // células (no la suma de promedios), igual que Meta General.
+      const allRecs = perCelula.flatMap(row => row.recs || []);
+      const totCel = estAvgWeekly(allRecs, 'cel'), totRed = estAvgWeekly(allRecs, 'red_culto');
+      let totNuevos = 0, totOfrenda = 0, totMeta = 0;
+      const multiWeek = estLastWeeks.length > 1;
+      const avgMark = multiWeek ? ' <span class="muted tiny">(prom.)</span>' : '';
+      let html = `<table><thead><tr><th>Célula</th><th>Secc.</th><th>Célula${avgMark}</th><th>Red/Culto${avgMark}</th><th>Nuevos</th><th>Ofrenda ₡</th><th>Meta</th></tr></thead><tbody>`;
 
       perCelula.forEach(row => {
-        totCel += row.cel; totRed += row.red_culto; totNuevos += row.nuevos;
+        totNuevos += row.nuevos;
         totOfrenda += (row.sinpe + row.efectivo); totMeta += (row.meta || 0);
         const metaCell = canEditMeta
           ? `<input type="number" min="1" max="30" class="est-meta-input" data-celula-id="${row.celula.id}" value="${row.weekMeta ?? ''}" placeholder="—">`
@@ -1674,19 +1737,24 @@ btnBack?.addEventListener('click', () => {
         html += `<tr>
           <td>${escapeHtml(row.celula.name)}</td>
           <td>${sectionLabelShort(row.celula.section)}</td>
-          <td>${row.cel}</td>
-          <td>${row.red_culto}</td>
+          <td>${row.weeksReported ? estFmt(row.cel) : '—'}</td>
+          <td>${row.weeksReported ? estFmt(row.red_culto) : '—'}</td>
           <td>${row.nuevos || ''}</td>
           <td>₡${(row.sinpe + row.efectivo).toLocaleString('es-CR')}</td>
           <td>${metaCell}</td>
         </tr>`;
       });
 
-      html += `<tr class="est-row--total"><td colspan="2">TOTAL</td><td>${totCel}</td><td>${totRed}</td><td>${totNuevos}</td><td>₡${totOfrenda.toLocaleString('es-CR')}</td><td>${totMeta || '—'}</td></tr>`;
+      html += `<tr class="est-row--total"><td colspan="2">TOTAL</td><td>${estFmt(totCel)}</td><td>${estFmt(totRed)}</td><td>${totNuevos}</td><td>₡${totOfrenda.toLocaleString('es-CR')}</td><td>${totMeta || '—'}</td></tr>`;
       html += '</tbody></table>';
       estTableWrap.innerHTML = html;
 
-      if (estTotalsRow) estTotalsRow.textContent = `${perCelula.length} célula(s) — Ofrenda total ₡${totOfrenda.toLocaleString('es-CR')}`;
+      if (estTotalsRow) {
+        const nota = multiWeek
+          ? ` · Célula y Red/Culto: promedio semanal (${estWeeksWithData(allRecs)} semana(s) con reporte). Nuevos y Ofrenda: total del período.`
+          : '';
+        estTotalsRow.textContent = `${perCelula.length} célula(s) — Ofrenda total ₡${totOfrenda.toLocaleString('es-CR')}${nota}`;
+      }
 
       if (canEditMeta) {
         qsa('.est-meta-input', estTableWrap).forEach(input => {
@@ -1722,16 +1790,17 @@ btnBack?.addEventListener('click', () => {
 
     // ---- Tendencia: tabla numérica (antes era un bar chart de Chart.js;
     //      se cambió a tabla a pedido del usuario para ocupar menos espacio) ----
-    const estRenderTrendTable = (bucketed) => {
+    // Fila final = PROMEDIO SEMANAL del período completo (antes era la
+    // suma de todas las semanas/meses, que no se puede comparar con la meta).
+    const estRenderTrendTable = (bucketed, records = []) => {
       if (!estTrendTableWrap) return;
       if (!bucketed.length) { estTrendTableWrap.innerHTML = 'Sin datos.'; return; }
-      let totCel = 0, totRed = 0;
+      const cell = (v) => (v === null || v === undefined ? '—' : estFmt(v));
       let html = '<table><thead><tr><th>Período</th><th>Célula</th><th>Red/Culto</th></tr></thead><tbody>';
       bucketed.forEach(b => {
-        totCel += (b.cel || 0); totRed += (b.red_culto || 0);
-        html += `<tr><td>${escapeHtml(b.label)}</td><td>${b.cel}</td><td>${b.red_culto}</td></tr>`;
+        html += `<tr><td>${escapeHtml(b.label)}</td><td>${cell(b.cel)}</td><td>${cell(b.red_culto)}</td></tr>`;
       });
-      html += `<tr class="est-row--total"><td>TOTAL</td><td>${totCel}</td><td>${totRed}</td></tr>`;
+      html += `<tr class="est-row--total"><td>PROMEDIO SEMANAL</td><td>${estFmt(estAvgWeekly(records, 'cel'))}</td><td>${estFmt(estAvgWeekly(records, 'red_culto'))}</td></tr>`;
       html += '</tbody></table>';
       estTrendTableWrap.innerHTML = html;
     };
@@ -1807,10 +1876,10 @@ btnBack?.addEventListener('click', () => {
       const dbKey = metricKey === 'cel' ? 'cel' : 'red_culto';
       let labels, bucketWeeksList;
 
-      if (estActiveTab === 'cuatrimestral') {
+      if (estIsMonthlyTab()) {
         const byMonth = {};
         estLastWeeks.forEach((w) => {
-          const m = getWeekMonday(w, year).getMonth() + 1;
+          const m = estWeekMonth(w, year);
           (byMonth[m] = byMonth[m] || []).push(w);
         });
         const monthKeys = Object.keys(byMonth).sort((a, b) => a - b);
@@ -1823,10 +1892,11 @@ btnBack?.addEventListener('click', () => {
 
       const series = estLastCelulas.map((c) => {
         const celRecs = estLastRecords.filter((r) => r.celula_id === c.id);
+        // Semana: el valor de esa semana. Mes: promedio semanal de la célula.
         const data = bucketWeeksList.map((wlist) => {
-          const recs = celRecs.filter((r) => wlist.includes(r.week));
+          const recs = celRecs.filter((r) => wlist.includes(r.week) && estHasData(r));
           if (!recs.length) return null;
-          return recs.reduce((s, r) => s + (Number(r[dbKey]) || 0), 0);
+          return Math.round(estAvgWeekly(recs, dbKey) * 10) / 10;
         });
         const metaRecs = celRecs.filter((r) => r.meta !== null && r.meta !== undefined).sort((a, b) => b.week - a.week);
         const meta = metaRecs.length ? metaRecs[0].meta : null;
@@ -1932,31 +2002,34 @@ btnBack?.addEventListener('click', () => {
 
     const estMetaGeneralChartInstances = {};
 
+    // Meta General por defecto (Bloque 3): 70, la misma para cualquier
+    // período, porque siempre se compara contra el PROMEDIO SEMANAL.
+    const EST_META_GENERAL_DEFAULT = 70;
+
     const estRenderMetaGeneralSubview = () => {
       const input = qs('#estMetaGeneralInput');
       const stored = estLoadMetaGeneral();
-      if (input && document.activeElement !== input) input.value = stored !== null ? stored : '';
-      const metaObjetivo = stored !== null ? stored : 0;
+      const metaObjetivo = stored !== null ? stored : EST_META_GENERAL_DEFAULT;
+      if (input && document.activeElement !== input) input.value = metaObjetivo;
 
-      const bucketed = estActiveTab === 'cuatrimestral'
-        ? estBucketByMonth(estLastRecords, estLastWeeks, estYear())
-        : estBucketByWeek(estLastRecords, estLastWeeks);
+      const bucketed = estBucket(estLastRecords, estLastWeeks, estYear());
 
       const celTotals = bucketed.map((b) => b.cel);
       const redTotals = bucketed.map((b) => b.red_culto);
-      const avg = (arr) => (arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0);
-      const celAvg = avg(celTotals), redAvg = avg(redTotals);
+      // Promedio solo de las semanas con reporte (antes dividía también
+      // entre semanas futuras/sin reporte y quedaba más bajo de lo real).
+      const celAvg = estAvgWeekly(estLastRecords, 'cel'), redAvg = estAvgWeekly(estLastRecords, 'red_culto');
       const celPct = metaObjetivo ? (celAvg / metaObjetivo) * 100 : 0;
       const redPct = metaObjetivo ? (redAvg / metaObjetivo) * 100 : 0;
 
       const gCel = qs('#estGaugeCelula'); if (gCel) gCel.innerHTML = estBuildGaugeSVG(celPct, '#3498db');
-      const gCelCap = qs('#estGaugeCelulaCaption'); if (gCelCap) gCelCap.textContent = `${celAvg.toFixed(1)} / ${metaObjetivo}`;
+      const gCelCap = qs('#estGaugeCelulaCaption'); if (gCelCap) gCelCap.textContent = `${celAvg.toFixed(1)} / ${metaObjetivo} promedio semanal`;
       const gRed = qs('#estGaugeRed'); if (gRed) gRed.innerHTML = estBuildGaugeSVG(redPct, '#e67e22');
-      const gRedCap = qs('#estGaugeRedCaption'); if (gRedCap) gRedCap.textContent = `${redAvg.toFixed(1)} / ${metaObjetivo}`;
+      const gRedCap = qs('#estGaugeRedCaption'); if (gRedCap) gRedCap.textContent = `${redAvg.toFixed(1)} / ${metaObjetivo} promedio semanal`;
 
       const cardsEl = qs('#estMetaGeneralCards');
       if (cardsEl) {
-        cardsEl.innerHTML = `Meta objetivo: <b>${metaObjetivo}</b> &nbsp;·&nbsp; Promedio Célula: <b>${celAvg.toFixed(1)}</b> &nbsp;·&nbsp; Promedio Red/Culto: <b>${redAvg.toFixed(1)}</b>`;
+        cardsEl.innerHTML = `Meta objetivo: <b>${metaObjetivo}</b> &nbsp;·&nbsp; Promedio semanal Célula: <b>${celAvg.toFixed(1)}</b> &nbsp;·&nbsp; Promedio semanal Red/Culto: <b>${redAvg.toFixed(1)}</b> &nbsp;·&nbsp; Semanas con reporte: <b>${estWeeksWithData(estLastRecords)}</b>`;
       }
 
       const buildCombo = (canvasId, totals, label, color) => {
@@ -1980,7 +2053,7 @@ btnBack?.addEventListener('click', () => {
 
     qs('#estMetaGeneralInput')?.addEventListener('input', (ev) => {
       const v = parseFloat(ev.target.value);
-      estSaveMetaGeneral(isNaN(v) ? 0 : v);
+      estSaveMetaGeneral(isNaN(v) ? EST_META_GENERAL_DEFAULT : v);
       estRenderMetaGeneralSubview();
     });
 
@@ -1989,8 +2062,7 @@ btnBack?.addEventListener('click', () => {
       const dbKey = metricKey === 'cel' ? 'cel' : 'red_culto';
       return estLastCelulas.map((c) => {
         const celRecs = estLastRecords.filter((r) => r.celula_id === c.id);
-        const vals = celRecs.map((r) => Number(r[dbKey]) || 0);
-        const promedio = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+        const promedio = estAvgWeekly(celRecs, dbKey);
         const metaRecs = celRecs.filter((r) => r.meta !== null && r.meta !== undefined).sort((a, b) => b.week - a.week);
         const meta = metaRecs.length ? metaRecs[0].meta : 12;
         const pct = meta ? (promedio / meta) * 100 : 0;
@@ -2052,25 +2124,31 @@ btnBack?.addEventListener('click', () => {
       return 'otro';
     };
 
+    // Cada grupo guarda los registros crudos de sus células para poder
+    // calcular el promedio semanal de la Unidad (suma de sus células por
+    // semana, promediada entre las semanas con reporte).
+    const estUnitFromRecs = (recs, count) => ({
+      recs, count,
+      cel: estAvgWeekly(recs, 'cel'), red_culto: estAvgWeekly(recs, 'red_culto'),
+      nuevos: estSumKey(recs, 'nuevos'), sinpe: estSumKey(recs, 'sinpe'), efectivo: estSumKey(recs, 'efectivo'),
+    });
+
     const estGroupByUnit = (perCelula) => {
-      const groups = {};
+      const acc = {};
       perCelula.forEach(row => {
         const key = estColorUnitForSquad(row.celula.squad_code);
-        groups[key] = groups[key] || { cel: 0, red_culto: 0, nuevos: 0, sinpe: 0, efectivo: 0, count: 0 };
-        groups[key].cel += row.cel; groups[key].red_culto += row.red_culto; groups[key].nuevos += row.nuevos;
-        groups[key].sinpe += row.sinpe; groups[key].efectivo += row.efectivo; groups[key].count += 1;
+        acc[key] = acc[key] || { recs: [], count: 0 };
+        acc[key].recs.push(...(row.recs || []));
+        acc[key].count += 1;
       });
+      const groups = {};
+      Object.entries(acc).forEach(([k, v]) => { groups[k] = estUnitFromRecs(v.recs, v.count); });
       return groups;
     };
 
     const estMergeUnitGroups = (a, b) => {
-      const base = { cel: 0, red_culto: 0, nuevos: 0, sinpe: 0, efectivo: 0, count: 0 };
-      [a, b].forEach(g => {
-        if (!g) return;
-        base.cel += g.cel; base.red_culto += g.red_culto; base.nuevos += g.nuevos;
-        base.sinpe += g.sinpe; base.efectivo += g.efectivo; base.count += g.count;
-      });
-      return base;
+      const recs = [...(a?.recs || []), ...(b?.recs || [])];
+      return estUnitFromRecs(recs, (a?.count || 0) + (b?.count || 0));
     };
 
     // Filas a mostrar según el modo elegido en el dropdown. 'equipos' y
@@ -2129,28 +2207,30 @@ btnBack?.addEventListener('click', () => {
       const groups = estGroupByUnit(estLastUnitPerCelula);
       const rows = estBuildUnitRows(groups, estUnitViewMode);
 
-      let html = '<table><thead><tr><th>Unidad</th><th>Células</th><th>Célula</th><th>Red/Culto</th><th>Nuevos</th><th>Meta</th><th>Diferencia</th><th>Ofrenda ₡</th></tr></thead><tbody>';
-      let gCel = 0, gRed = 0, gNuevos = 0, gOfrenda = 0;
+      const avgMark = estLastWeeks.length > 1 ? ' <span class="muted tiny">(prom.)</span>' : '';
+      let html = `<table><thead><tr><th>Unidad</th><th>Células</th><th>Célula${avgMark}</th><th>Red/Culto${avgMark}</th><th>Nuevos</th><th>Meta</th><th>Diferencia</th><th>Ofrenda ₡</th></tr></thead><tbody>`;
+      let gNuevos = 0, gOfrenda = 0;
       rows.forEach(({ unitKey, label, g }) => {
         const ofrenda = g.sinpe + g.efectivo;
-        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gOfrenda += ofrenda;
+        gNuevos += g.nuevos; gOfrenda += ofrenda;
         const metaVal = estUnitMetasCache[unitKey];
         const hasMeta = metaVal !== null && metaVal !== undefined && metaVal !== '';
-        const diff = hasMeta ? (g.red_culto - Number(metaVal)) : null;
-        const diffText = diff === null ? '—' : (diff > 0 ? `+${diff}` : String(diff));
+        const diff = hasMeta ? Math.round((g.red_culto - Number(metaVal)) * 10) / 10 : null;
+        const diffText = diff === null ? '—' : (diff > 0 ? `+${estFmt(diff)}` : estFmt(diff));
         const diffClass = diff === null ? '' : (diff < 0 ? 'est-diff--neg' : diff > 0 ? 'est-diff--pos' : '');
         html += `<tr>
           <td>${label}</td>
           <td>${g.count}</td>
-          <td>${g.cel}</td>
-          <td>${g.red_culto}</td>
+          <td>${estFmt(g.cel)}</td>
+          <td>${estFmt(g.red_culto)}</td>
           <td>${g.nuevos}</td>
           <td><input type="number" class="est-unit-meta-input" data-unit-key="${unitKey}" value="${hasMeta ? metaVal : ''}" placeholder="—" style="width:70px;"></td>
           <td class="${diffClass}">${diffText}</td>
           <td>₡${ofrenda.toLocaleString('es-CR')}</td>
         </tr>`;
       });
-      html += `<tr class="est-row--total"><td colspan="2">RED COMPLETA</td><td>${gCel}</td><td>${gRed}</td><td>${gNuevos}</td><td colspan="2"></td><td>₡${gOfrenda.toLocaleString('es-CR')}</td></tr>`;
+      const redRecs = estLastUnitPerCelula.flatMap(row => row.recs || []);
+      html += `<tr class="est-row--total"><td colspan="2">RED COMPLETA</td><td>${estFmt(estAvgWeekly(redRecs, 'cel'))}</td><td>${estFmt(estAvgWeekly(redRecs, 'red_culto'))}</td><td>${gNuevos}</td><td colspan="2"></td><td>₡${gOfrenda.toLocaleString('es-CR')}</td></tr>`;
       html += '</tbody></table>';
       estUnitTableWrap.innerHTML = html;
 
@@ -2187,6 +2267,8 @@ btnBack?.addEventListener('click', () => {
     const estPeriodLabel = () => {
       if (estActiveTab === 'semanal') return `Semana${(estWeekSelect?.value || '').padStart(2, '0')}`;
       if (estActiveTab === 'mensual') return `Mes${estMonthSelect?.value || ''}`;
+      if (estActiveTab === 'semestral') return `Semestre${estSemesterSelect?.value || ''}`;
+      if (estActiveTab === 'anual') return 'Anual';
       return `Cuatrimestre${estQuarterSelect?.value || ''}`;
     };
 
@@ -2201,30 +2283,34 @@ btnBack?.addEventListener('click', () => {
       // pantalla, incluyendo Meta y Diferencia por unidad.
       const groups = estGroupByUnit(estLastPerCelula);
       const unitRows = estBuildUnitRows(groups, estUnitViewMode);
-      const resumenAoa = [['Unidad', 'Células', 'Célula', 'Red/Culto', 'Nuevos', 'Meta', 'Diferencia', 'Sinpe', 'Efectivo', 'Total Ofrenda']];
-      let gCel = 0, gRed = 0, gNuevos = 0, gSinpe = 0, gEfectivo = 0;
+      // Célula y Red/Culto = promedio semanal (1 decimal); el resto, total del período.
+      const r1 = (v) => Math.round(v * 10) / 10;
+      const avgLbl = estLastWeeks.length > 1 ? ' (prom. semanal)' : '';
+      const resumenAoa = [['Unidad', 'Células', `Célula${avgLbl}`, `Red/Culto${avgLbl}`, 'Nuevos', 'Meta', 'Diferencia', 'Sinpe', 'Efectivo', 'Total Ofrenda']];
+      let gNuevos = 0, gSinpe = 0, gEfectivo = 0;
       unitRows.forEach(({ unitKey, label, g }) => {
-        gCel += g.cel; gRed += g.red_culto; gNuevos += g.nuevos; gSinpe += g.sinpe; gEfectivo += g.efectivo;
+        gNuevos += g.nuevos; gSinpe += g.sinpe; gEfectivo += g.efectivo;
         const metaVal = estUnitMetasCache[unitKey];
         const hasMeta = metaVal !== null && metaVal !== undefined && metaVal !== '';
-        const diff = hasMeta ? (g.red_culto - Number(metaVal)) : '';
-        resumenAoa.push([label, g.count, g.cel, g.red_culto, g.nuevos, hasMeta ? metaVal : '', diff, g.sinpe, g.efectivo, g.sinpe + g.efectivo]);
+        const diff = hasMeta ? r1(g.red_culto - Number(metaVal)) : '';
+        resumenAoa.push([label, g.count, r1(g.cel), r1(g.red_culto), g.nuevos, hasMeta ? metaVal : '', diff, g.sinpe, g.efectivo, g.sinpe + g.efectivo]);
       });
-      resumenAoa.push(['TOTAL RED', estLastPerCelula.length, gCel, gRed, gNuevos, '', '', gSinpe, gEfectivo, gSinpe + gEfectivo]);
+      const allRecs = estLastPerCelula.flatMap(row => row.recs || []);
+      resumenAoa.push(['TOTAL RED', estLastPerCelula.length, r1(estAvgWeekly(allRecs, 'cel')), r1(estAvgWeekly(allRecs, 'red_culto')), gNuevos, '', '', gSinpe, gEfectivo, gSinpe + gEfectivo]);
       const wsResumen = XLSX.utils.aoa_to_sheet(resumenAoa);
       wsResumen['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 12 }, { wch: 12 }, { wch: 14 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen por Unidad');
 
       // Hoja 2: Detalle por Célula
-      const detalleAoa = [['Célula', 'Escuadrón', 'Sección', 'Célula', 'Red/Culto', 'Nuevos', 'Sinpe', 'Efectivo', 'Total Ofrenda', 'Meta']];
+      const detalleAoa = [['Célula', 'Escuadrón', 'Sección', `Célula${avgLbl}`, `Red/Culto${avgLbl}`, 'Semanas con reporte', 'Nuevos', 'Sinpe', 'Efectivo', 'Total Ofrenda', 'Meta']];
       estLastPerCelula.forEach(row => {
         detalleAoa.push([
           row.celula.name, row.celula.squad_code, row.celula.section,
-          row.cel, row.red_culto, row.nuevos, row.sinpe, row.efectivo, row.sinpe + row.efectivo, row.meta || '',
+          r1(row.cel), r1(row.red_culto), row.weeksReported, row.nuevos, row.sinpe, row.efectivo, row.sinpe + row.efectivo, row.meta || '',
         ]);
       });
       const wsDetalle = XLSX.utils.aoa_to_sheet(detalleAoa);
-      wsDetalle['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
+      wsDetalle['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 10 }, { wch: 9 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 8 }];
       XLSX.utils.book_append_sheet(wb, wsDetalle, 'Detalle por Célula');
 
       XLSX.writeFile(wb, `Estadistica_${estPeriodLabel()}_${estYear()}.xlsx`);
@@ -2264,6 +2350,8 @@ btnBack?.addEventListener('click', () => {
       let weeks;
       if (estActiveTab === 'semanal') weeks = [parseInt(estWeekSelect?.value || '1', 10)];
       else if (estActiveTab === 'mensual') weeks = estWeeksForMonth(parseInt(estMonthSelect?.value || '1', 10));
+      else if (estActiveTab === 'semestral') weeks = estWeeksForSemester(parseInt(estSemesterSelect?.value || '1', 10));
+      else if (estActiveTab === 'anual') weeks = estWeeksForYear();
       else weeks = estWeeksForQuarter(parseInt(estQuarterSelect?.value || '1', 10));
       estLastWeeks = weeks;
 
@@ -2322,15 +2410,21 @@ btnBack?.addEventListener('click', () => {
 
       estLastRecords = records;
 
+      // Por célula: Célula/Red-Culto = promedio semanal de SUS semanas con
+      // reporte; Nuevos/Sinpe/Efectivo = total. Meta = la más reciente del
+      // período (antes se sumaban las metas de cada semana).
       const perCelula = celulas.map(c => {
-        const recs = (records || []).filter(r => r.celula_id === c.id);
-        const sum = (key) => recs.reduce((s, r) => s + (Number(r[key]) || 0), 0);
-        const weekRec = estActiveTab === 'semanal' ? recs[0] : null;
+        const allCelRecs = (records || []).filter(r => r.celula_id === c.id);
+        const recs = allCelRecs.filter(estHasData);
+        const weekRec = estActiveTab === 'semanal' ? allCelRecs[0] : null;
+        const metaRecs = allCelRecs.filter(r => r.meta !== null && r.meta !== undefined).sort((a, b) => b.week - a.week);
         return {
           celula: c,
-          cel: sum('cel'), red_culto: sum('red_culto'), nuevos: sum('nuevos'),
-          sinpe: sum('sinpe'), efectivo: sum('efectivo'),
-          meta: sum('meta'),
+          recs,
+          weeksReported: estWeeksWithData(recs),
+          cel: estAvgWeekly(recs, 'cel'), red_culto: estAvgWeekly(recs, 'red_culto'),
+          nuevos: estSumKey(recs, 'nuevos'), sinpe: estSumKey(recs, 'sinpe'), efectivo: estSumKey(recs, 'efectivo'),
+          meta: metaRecs.length ? Number(metaRecs[0].meta) : 0,
           weekMeta: weekRec ? weekRec.meta : null,
         };
       });
@@ -2344,10 +2438,8 @@ btnBack?.addEventListener('click', () => {
       await estRenderUnitSummary(perCelula, role);
       estLastPerCelula = perCelula;
 
-      const bucketed = estActiveTab === 'cuatrimestral'
-        ? estBucketByMonth(records || [], weeks, year)
-        : estBucketByWeek(records || [], weeks);
-      estRenderTrendTable(bucketed);
+      const bucketed = estBucket(records || [], weeks, year);
+      estRenderTrendTable(bucketed, records || []);
       if (!isAllSquadsView) estRenderMetaChart(perCelula);
 
       // Sub-pestañas nuevas (Tendencia/Meta General/Meta por Célula): se
@@ -2363,6 +2455,7 @@ btnBack?.addEventListener('click', () => {
       const role = await getRole();
       if (role !== 'leader' && role !== 'admin' && role !== 'pastor') return;
       await configureEstSquadFilter(role);
+      if (estYearSelect && !estYearSelect.options.length) initYearSelect(estYearSelect, currentIsoYear());
       estPopulateWeekSelect();
       estInitDefaultPeriods();
       await estLoadAndRender();

@@ -267,7 +267,41 @@ btnBack?.addEventListener('click', () => {
 
       tailFull.textContent = ' | ' + fullParts.join(' | ');
       tailCompact.textContent = ' | ' + compactParts.join(' | ');
+      syncTopbarTitle();
     };
+
+    // ---- Barra superior = ubicación actual
+    // Copia el <h1> de la sección visible (con su tail en Notas) a la barra
+    // superior, y muestra ahí solo los botones (.view__nav) de esa sección.
+    const topbarTitle = qs('#topbarTitle');
+    const topbarViewActions = qs('#topbarViewActions');
+    // Mueve una sola vez los .view__nav de cada sección a la barra. Se mueve el
+    // nodo (no se clona), así que ids y listeners siguen funcionando igual.
+    if (topbarViewActions) {
+      qsa('.view').forEach(section => {
+        const nav = section.querySelector('.view__header > .view__nav');
+        const viewName = section.dataset.viewSection;
+        if (!nav || !viewName) return;
+        nav.dataset.forView = viewName;
+        topbarViewActions.appendChild(nav);
+      });
+    }
+    function syncTopbarTitle() {
+      const view = state.view || 'home';
+      if (topbarViewActions) {
+        topbarViewActions.querySelectorAll('.view__nav').forEach(nav => {
+          nav.classList.toggle('is-other-view', nav.dataset.forView !== view);
+        });
+      }
+      if (!topbarTitle) return;
+      const h1 = qs(`#view-${view} h1`);
+      if (!h1) { topbarTitle.textContent = 'Bitácora'; return; }
+      const clone = h1.cloneNode(true);
+      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      topbarTitle.replaceChildren(...clone.childNodes);
+      topbarTitle.title = h1.textContent.trim();
+      document.title = `Bitácora - ${h1.textContent.trim()}`;
+    }
 
     // Muestra/oculta el trío de botones Atrás/Guardar/Compartir (junto al tail del <h1>Notas</h1>)
     // según el estado actual: ocultos en el selector de semanas, solo Atrás en pantalla de semana,
@@ -360,6 +394,7 @@ btnBack?.addEventListener('click', () => {
 
       setActiveNav(view);
       if (view === 'notas') { updateNotesCrumb(); updateNotesHeaderActions(); }
+      syncTopbarTitle();
       closeSidebarOnMobile();
 
       if (view === 'anuncios') {

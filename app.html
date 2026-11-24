@@ -72,6 +72,29 @@
 /* Botones únicos Atrás/Guardar/Compartir de Notas: a la altura del tail, alineados a la derecha */
 #notesHeaderActions{ align-self:center; }
 
+/* ===== Barra superior = ubicación actual =====
+   El título de la sección (y en Notas "| Sem X | Hoja") se muestra en la barra
+   superior en vez de "Bitácora". El <h1> de cada sección queda solo para
+   lectores de pantalla y sus botones (.view__nav) se mueven a la barra (app.js). */
+.sr-only{
+  position:absolute !important; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+.view > .view__header{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+.topbar__title{ flex:1 1 auto; min-width:0; }
+#topbarTitle{ display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#topbarTitle .view-header__tail{ font-size:0.7em; margin-left:6px; }
+.topbar__actions{ flex:0 0 auto; }
+.topbar__view-actions{ display:flex; gap:8px; align-items:center; }
+.topbar__view-actions:empty{ display:none; }
+.topbar .view__nav{ position:static; transform:none; }
+.topbar .view__nav.is-other-view{ display:none; }
+/* Misma forma que ☰ y casa (.icon-btn) para que la barra se vea uniforme */
+.topbar .view__nav .pill--icon{ border-radius:10px; }
+
 /* Ocultar filas de título redundantes en Notas: la info de semana/hoja ahora vive junto al <h1>Notas</h1>,
    y los botones Atrás/Guardar/Compartir se movieron al header (ver #notesHeaderActions) */
 #notesWeekPicker > .panel__title,
@@ -185,9 +208,10 @@
 <header class="topbar">
 <button aria-label="Abrir/cerrar menú" class="icon-btn" id="btnToggleSidebar" title="Menú">☰</button>
 <div class="topbar__title">
-<span class="brand">Bitácora</span>
+<span class="brand" id="topbarTitle">Inicio</span>
 </div>
 <div class="topbar__actions">
+<div class="topbar__view-actions" id="topbarViewActions"></div>
 <button aria-label="Inicio" class="icon-btn" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
 </div>
 </header>
@@ -257,8 +281,7 @@
 <main class="main" id="main">
 <!-- Vistas -->
 <section class="view is-visible" data-view-section="home" id="view-home">
-<h1>Inicio</h1>
-<p class="muted">Accesos directos:</p>
+<h1 class="sr-only">Inicio</h1>
 	<div class="cards">
 		<button class="card card--action" data-view="notas" type="button"><div class="card__title"><i class="fa-solid fa-book-bookmark"></i> Notas</div><div class="card__body">Semanas del año</div></button>
 		<button class="card card--action is-hidden" data-view="revision" id="cardReviewNotes" type="button"><div class="card__title"><i class="fa-solid fa-clipboard-check"></i> Revisión de Notas</div><div class="card__body">Líderes y Admin</div></button>
@@ -279,7 +302,6 @@
     <h1>Revisión de Notas</h1>
     <div class="view__nav">
       <button class="pill pill--icon" data-go="back" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
-      <button class="pill" aria-label="Inicio" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
     </div>
   </div>
 
@@ -363,7 +385,6 @@
     <h1>Estadística</h1>
     <div class="view__nav">
       <button class="pill pill--icon" data-go="back" type="button" title="Volver" aria-label="Volver"><i class="fa-solid fa-circle-left"></i></button>
-      <button class="pill" aria-label="Inicio" data-go="home" title="Inicio" type="button"><i class="fa-solid fa-house"></i></button>
     </div>
   </div>
 

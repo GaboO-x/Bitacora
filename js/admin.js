@@ -1,4 +1,4 @@
-import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEdge } from "./shared.js";
+import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEdge, compareSquadSectionName, squadRank, sectionRank } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
@@ -331,15 +331,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       });
       actions.appendChild(btnToggleActive);
 
-      // Retirar a ESTA persona de esta célula (no toca la célula en sí)
+      // Quitar célula: retira a ESTA persona de esta célula (no toca la
+      // célula ni la cuenta). Queda fechado (celula_members.deactivated_at) y
+      // Estadística deja de contarla desde esa semana si no le quedan líderes.
       const btnRetirar = document.createElement("button");
       btnRetirar.type = "button";
       btnRetirar.className = "mat-icon-btn";
-      btnRetirar.title = "Retirar de esta Célula";
-      btnRetirar.setAttribute("aria-label", "Retirar de esta Célula");
-      btnRetirar.innerHTML = '<i class="fa-solid fa-eye-slash"></i>';
+      btnRetirar.title = "Quitar célula";
+      btnRetirar.setAttribute("aria-label", "Quitar célula");
+      btnRetirar.innerHTML = '<i class="fa-solid fa-link-slash"></i>';
       btnRetirar.addEventListener("click", async () => {
-        const ok = window.confirm(`¿Retirar a ${celulaManageTargetUser.full_name || celulaManageTargetUser.email} de "${m.celulas?.name}"? Conserva su acceso a la Bitácora, pero deja de ver "Notas/Célula" si esta era su única célula.`);
+        const ok = window.confirm(`¿Quitar la célula "${m.celulas?.name}" a ${celulaManageTargetUser.full_name || celulaManageTargetUser.email}? Conserva su acceso a la Bitácora (deja de ver "Notas/Célula" si era su única célula). Si la célula se queda sin líderes, deja de contar en Estadística desde esta semana; lo ya reportado se conserva.`);
         if (!ok) return;
         btnRetirar.disabled = true;
         const { error } = await supabase.from("celula_members").update({ is_active: false }).eq("id", m.id);
@@ -348,7 +350,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           btnRetirar.disabled = false;
           return;
         }
-        setMsg("celulaManageMsg", "Retirado de la Célula.", false);
+        setMsg("celulaManageMsg", "Célula quitada.", false);
         await refreshCelulaManageModal();
       });
       actions.appendChild(btnRetirar);
@@ -2555,14 +2557,25 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     // Lider_de_Célula, pero se resuelve para todos de una sola consulta).
     const { data: memberships } = await supabase
       .from("celula_members")
-      .select("user_id, celulas(name)")
+      .select("user_id, celulas(name, section, squad_code)")
       .eq("is_active", true);
     const celulaMap = {};
+    const celulaInfoMap = {};
     (memberships || []).forEach((m) => {
       if (!m.celulas) return;
       (celulaMap[m.user_id] = celulaMap[m.user_id] || []).push(m.celulas.name);
+      (celulaInfoMap[m.user_id] = celulaInfoMap[m.user_id] || []).push(m.celulas);
     });
-    usersCache.forEach((u) => { u.celulas = celulaMap[u.id] || []; });
+    usersCache.forEach((u) => {
+      u.celulas = celulaMap[u.id] || [];
+      // Claves de orden: escuadrón = el primero (según SQUAD_ORDER) entre sus
+      // escuadrones asignados o, si no tiene, el de su célula; sección = la
+      // de su célula (la primera según orden Takers → RJ → Makers).
+      const infos = celulaInfoMap[u.id] || [];
+      const squads = (u.squads && u.squads.length) ? u.squads : infos.map((c) => c.squad_code);
+      u._sortSquad = squads.slice().sort((a, b) => squadRank(a) - squadRank(b))[0] || null;
+      u._sortSection = infos.map((c) => c.section).sort((a, b) => sectionRank(a) - sectionRank(b))[0] || null;
+    });
 
     populateSquadFilterOptions(usersDivisionFilter);
     renderUsersTable(usersActiveRole);
@@ -2573,7 +2586,17 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     const tbody = document.getElementById("usersTbody");
     if (!tbody) return;
 
-    const rows = usersCache.filter((u) => u.role === role && userPassesFilters(u));
+    // Pestaña virtual "archived": solo archivados (cualquier rol). En las
+    // pestañas por rol los archivados NO aparecen.
+    const isArchivedView = role === "archived";
+    // Orden estándar: Escuadrón (color, T antes que M) → Sección (Takers,
+    // RJ, Makers) → Nombre. Sin escuadrón/sección van al final de ese nivel.
+    const rows = usersCache
+      .filter((u) => (isArchivedView ? !!u.archived_at : (u.role === role && !u.archived_at)) && userPassesFilters(u))
+      .sort((a, b) => compareSquadSectionName(
+        { squad: a._sortSquad, section: a._sortSection, name: a.full_name || a.email },
+        { squad: b._sortSquad, section: b._sortSection, name: b.full_name || b.email }
+      ));
     if (rows.length === 0) {
       tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">Sin usuarios que coincidan con el filtro.</td></tr>';
       return;
@@ -2612,8 +2635,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
 
       const tdRole = document.createElement("td");
       tdRole.style.padding = "8px";
-      if (isSelf) {
-        tdRole.textContent = ROLE_LABELS[u.role] + " (vos)";
+      if (isSelf || isArchivedView) {
+        tdRole.textContent = ROLE_LABELS[u.role] + (isSelf ? " (vos)" : "");
       } else {
         const select = document.createElement("select");
         select.className = "users-role-select";
@@ -2823,39 +2846,53 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       });
       tdActions.appendChild(btnResetLink);
 
+      // Archivar (reemplaza a "Eliminar", nov 2026): bloquea el acceso y lo saca
+      // de las listas SIN borrar historial (notas, revisiones, asistencia).
+      // En la pestaña "Archivados" la única acción es Desarchivar.
       if (!isSelf) {
-        const btnDelete = document.createElement("button");
-        btnDelete.type = "button";
-        btnDelete.className = "mat-icon-btn users-action-btn--danger";
-        btnDelete.title = "Eliminar";
-        btnDelete.setAttribute("aria-label", "Eliminar");
-        btnDelete.innerHTML = '<i class="fa-solid fa-trash"></i>';
-        btnDelete.addEventListener("click", async () => {
+        const archiving = !isArchivedView;
+        const btnArchive = document.createElement("button");
+        btnArchive.type = "button";
+        btnArchive.className = "mat-icon-btn" + (archiving ? " users-action-btn--danger" : "");
+        btnArchive.title = archiving ? "Archivar" : "Desarchivar";
+        btnArchive.setAttribute("aria-label", btnArchive.title);
+        btnArchive.innerHTML = archiving
+          ? '<i class="fa-solid fa-box-archive"></i>'
+          : '<i class="fa-solid fa-box-open"></i>';
+        btnArchive.addEventListener("click", async () => {
           if (usersBusy) return;
-          const ok = await showMatConfirm({
-            title: "Eliminar usuario definitivamente",
-            body: `¿Eliminar a "${u.full_name || u.email}" (${ROLE_LABELS[u.role] || u.role}) para siempre? Esto borra su cuenta, sus notas propias y su historial de revisión. Esta acción NO se puede deshacer. Si solo querés desactivarlo temporalmente, usá "Block" en vez de esto.`,
-            confirmLabel: "Eliminar definitivamente",
-          });
+          const who = u.full_name || u.email;
+          const ok = await showMatConfirm(archiving
+            ? {
+                title: "Archivar usuario",
+                body: `¿Archivar a "${who}" (${ROLE_LABELS[u.role] || u.role})? No podrá entrar a la Bitácora y sus células dejan de contar en Estadística desde esta semana. Su historial (notas, revisiones, asistencia) se conserva completo. Podés desarchivarlo cuando quieras desde "Archivados".`,
+                confirmLabel: "Archivar",
+              }
+            : {
+                title: "Desarchivar usuario",
+                body: `¿Desarchivar a "${who}"? Vuelve a poder entrar (cuenta activa) y, si mantiene sus células, vuelven a contar en Estadística desde esta semana.`,
+                confirmLabel: "Desarchivar",
+              });
           if (!ok) return;
 
           usersBusy = true;
-          btnDelete.disabled = true;
+          btnArchive.disabled = true;
           const { data, error } = await callManageUsersEdge(supabase, {
-            action: "delete",
+            action: archiving ? "archive" : "unarchive",
             user_id: u.id,
           });
           usersBusy = false;
-          btnDelete.disabled = false;
+          btnArchive.disabled = false;
 
           if (error || !data?.ok) {
-            setMsg("usersMsg", (data && data.error) || "No se pudo eliminar el usuario.", true);
+            setMsg("usersMsg", (data && data.error) || (archiving ? "No se pudo archivar." : "No se pudo desarchivar."), true);
             return;
           }
-          setMsg("usersMsg", "Usuario eliminado.", false);
-          await loadAllUsers();
+          await loadAllUsers(); // limpia usersMsg: el aviso va después
+          setMsg("usersMsg", archiving ? "Usuario archivado." : "Usuario desarchivado.", false);
         });
-        tdActions.appendChild(btnDelete);
+        if (isArchivedView) tdActions.replaceChildren();
+        tdActions.appendChild(btnArchive);
       }
 
       tr.appendChild(tdActions);
@@ -2865,7 +2902,8 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
       tdStatus.style.padding = "8px";
       tdStatus.style.textAlign = "center";
       let statusIconClass, statusTitle;
-      if (u.active === true) { statusIconClass = "fa-solid fa-toggle-on users-status-icon users-status-icon--active"; statusTitle = "Activo"; }
+      if (u.archived_at) { statusIconClass = "fa-solid fa-box-archive users-status-icon users-status-icon--unknown"; statusTitle = "Archivado"; }
+      else if (u.active === true) { statusIconClass = "fa-solid fa-toggle-on users-status-icon users-status-icon--active"; statusTitle = "Activo"; }
       else if (u.active === false) { statusIconClass = "fa-solid fa-toggle-off users-status-icon users-status-icon--inactive"; statusTitle = "Suspendido"; }
       else { statusIconClass = "fa-solid fa-triangle-exclamation users-status-icon users-status-icon--unknown"; statusTitle = "Sin estado"; }
       tdStatus.innerHTML = `<i class="${statusIconClass}" title="${statusTitle}" aria-label="${statusTitle}"></i>`;
@@ -2938,7 +2976,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   initUsersColumnResize();
 
   function setUsersTabActive(id) {
-    ["usersTabAdmin", "usersTabPastor", "usersTabLeader", "usersTabUser"].forEach((tid) => {
+    ["usersTabAdmin", "usersTabPastor", "usersTabLeader", "usersTabUser", "usersTabArchived"].forEach((tid) => {
       document.getElementById(tid)?.classList.toggle("active", tid === id);
     });
   }
@@ -2958,6 +2996,10 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   document.getElementById("usersTabUser")?.addEventListener("click", () => {
     setUsersTabActive("usersTabUser");
     renderUsersTable("user");
+  });
+  document.getElementById("usersTabArchived")?.addEventListener("click", () => {
+    setUsersTabActive("usersTabArchived");
+    renderUsersTable("archived");
   });
 
   document.getElementById("usersSearch")?.addEventListener("input", (ev) => {

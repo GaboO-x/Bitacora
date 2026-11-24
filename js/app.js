@@ -1,4 +1,4 @@
-import { requireSession, getMyProfile } from "./shared.js";
+import { requireSession, getMyProfile, compareSquadSectionName } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
@@ -2195,7 +2195,6 @@ btnBack?.addEventListener('click', () => {
     // para no mezclar metas de vistas distintas.
     const estBuildUnitRows = (groups, mode) => {
       const rows = [];
-      if (groups.equipos) rows.push({ unitKey: 'equipos', label: EST_UNIT_LABELS.equipos, g: groups.equipos });
       EST_UNIT_COLOR_ORDER.forEach(color => {
         if (mode === 'completo') {
           const t = groups[color + '_t']; const m = groups[color + '_m'];
@@ -2208,6 +2207,8 @@ btnBack?.addEventListener('click', () => {
           rows.push({ unitKey: color + suffix, label: EST_UNIT_LABELS[color + suffix], g });
         }
       });
+      // EQUIPOS al final, mismo criterio que el orden estándar (SQUAD_ORDER).
+      if (groups.equipos) rows.push({ unitKey: 'equipos', label: EST_UNIT_LABELS.equipos, g: groups.equipos });
       if (groups.otro) rows.push({ unitKey: 'otro', label: EST_UNIT_LABELS.otro, g: groups.otro });
       return rows;
     };
@@ -2421,20 +2422,56 @@ btnBack?.addEventListener('click', () => {
         .eq('year', year);
       if (recErr) { setEstStatus('Error al cargar asistencia.'); return; }
 
-      // Una célula desactivada NO se pierde de Estadística para los
-      // períodos donde sí tuvo datos (Opción B, a pedido explícito del
-      // usuario) — solo se excluye si está inactiva Y no reportó nada en
-      // este período específico. Sigue sin poder elegirse para NUEVOS
-      // reportes (eso lo controla "Unir a Célula existente" en admin.html,
-      // que sí filtra is_active=true).
-      const celulas = allCelulas.filter(c =>
-        c.is_active === true || (allRecords || []).some(r => r.celula_id === c.id)
-      );
+      // Vigencia (nov 2026): una célula entra al período si
+      //  a) tiene algún reporte dentro del período (nunca se pierde historial), o
+      //  b) estuvo VIGENTE durante al menos una semana COMPLETA del período:
+      //     célula activa y con ≥1 líder vigente (asignado, no retirado, no
+      //     suspendido, no archivado). La semana de la baja ya NO cuenta.
+      // Fechas vía RPC est_celula_vigencia (SECURITY DEFINER, solo IDs+fechas).
+      const { data: vigRows, error: vigErr } = await supabase
+        .rpc('est_celula_vigencia', { p_celula_ids: allCelulaIds });
+      if (vigErr) { setEstStatus('Error al cargar vigencia de células.'); return; }
+
+      const toTime = (v) => (v ? new Date(v).getTime() : null);
+      const vigByCelula = new Map();
+      (vigRows || []).forEach(v => {
+        if (!vigByCelula.has(v.celula_id)) {
+          vigByCelula.set(v.celula_id, { from: toTime(v.celula_from), until: toTime(v.celula_until), members: [] });
+        }
+        if (v.member_from) {
+          vigByCelula.get(v.celula_id).members.push({ from: toTime(v.member_from), until: toTime(v.member_until) });
+        }
+      });
+      // Semana ISO local: [lunes 00:00, lunes siguiente 00:00)
+      const weekSpans = weeks.map(w => {
+        const start = getWeekMonday(w, year);
+        const end = new Date(start); end.setDate(end.getDate() + 7);
+        return { start: start.getTime(), end: end.getTime() };
+      });
+      // Vigente en la semana = existía antes de que terminara y su baja (si hay) es posterior al fin.
+      const spanCovers = (from, until, s) => from !== null && from < s.end && (until === null || until >= s.end);
+      const isVigenteEnPeriodo = (celulaId) => {
+        const vg = vigByCelula.get(celulaId);
+        if (!vg) return false;
+        return weekSpans.some(s =>
+          spanCovers(vg.from, vg.until, s) && vg.members.some(m => spanCovers(m.from, m.until, s))
+        );
+      };
+
+      // Orden estándar: Escuadrón (color, T antes que M) → Sección (Takers,
+      // RJ, Makers) → Nombre. Todo lo que se arma a partir de `celulas`
+      // (detalle, unidades, tendencias, metas, Excel) hereda este orden.
+      const celulas = allCelulas
+        .filter(c => (allRecords || []).some(r => r.celula_id === c.id) || isVigenteEnPeriodo(c.id))
+        .sort((a, b) => compareSquadSectionName(
+          { squad: a.squad_code, section: a.section, name: a.name },
+          { squad: b.squad_code, section: b.section, name: b.name }
+        ));
       const records = (allRecords || []).filter(r => celulas.some(c => c.id === r.celula_id));
       estLastCelulas = celulas;
 
       if (!celulas.length) {
-        setEstStatus('No hay células activas (ni con datos) en este período.');
+        setEstStatus('No hay células vigentes (ni con datos) en este período.');
         estRenderTable([], role);
         estRenderTrendTable([]);
         estRenderMetaChart([]);

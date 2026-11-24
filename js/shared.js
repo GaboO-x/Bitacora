@@ -117,3 +117,32 @@ export async function callManageUsersEdge(supabase, body) {
   const { data, error } = await supabase.functions.invoke("manage-users", { body });
   return { data, error };
 }
+
+// ---------------------------------------------------------------------------
+// Orden estándar (nov 2026) para Estadística y Administrar Usuarios:
+//   1) Escuadrón por color, Takers antes que Makers (EQUIPOS al final)
+//   2) Sección: Takers → RJ → Makers
+//   3) Nombre alfabético (sin distinguir mayúsculas ni tildes)
+// Lo que no tiene escuadrón/sección va al final de ese nivel.
+// ---------------------------------------------------------------------------
+export const SQUAD_ORDER = ["URT", "URM", "UAZT", "UAZM", "UAT", "UAM", "UNT", "UNM", "UVT", "UVM", "EQUIPOS"];
+const SECTION_ORDER = ["takers", "rj", "makers"];
+
+export function squadRank(code) {
+  const i = SQUAD_ORDER.indexOf(String(code || "").trim().toUpperCase());
+  return i === -1 ? SQUAD_ORDER.length : i;
+}
+
+export function sectionRank(section) {
+  const i = SECTION_ORDER.indexOf(String(section || "").trim().toLowerCase());
+  return i === -1 ? SECTION_ORDER.length : i;
+}
+
+const nameCollator = new Intl.Collator("es", { sensitivity: "base", numeric: true });
+
+// a/b: { squad, section, name }
+export function compareSquadSectionName(a, b) {
+  return (squadRank(a.squad) - squadRank(b.squad))
+    || (sectionRank(a.section) - sectionRank(b.section))
+    || nameCollator.compare(a.name || "", b.name || "");
+}

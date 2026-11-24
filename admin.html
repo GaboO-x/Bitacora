@@ -78,6 +78,8 @@
 
     .users-action-btn{width:auto;margin-top:0;padding:6px 12px;white-space:nowrap}
     .users-action-btn--danger{border-color:var(--red);color:var(--red);}
+    .ann-time{display:flex;gap:4px;align-items:center;}
+    .ann-time select{margin:0;padding:8px 2px 8px 6px;width:auto;min-width:0;}
     .users-action-btn--danger:hover{background:rgba(198,91,74,.1);}
 
     table th{border-bottom:1px solid var(--line) !important; color: var(--muted); text-transform:uppercase; font-size:11px; letter-spacing:.04em}
@@ -446,11 +448,12 @@
       <div style="margin-top:16px;padding:14px;border:1px solid var(--line);border-radius:12px;">
         <div style="font-weight:700;margin-bottom:10px;">Nueva actividad</div>
         <div style="overflow:auto;">
-        <table style="width:100%;border-collapse:collapse;min-width:720px;">
+        <table style="width:100%;border-collapse:collapse;min-width:860px;">
           <thead>
             <tr>
               <th style="text-align:left;padding:8px;">Actividad</th>
               <th style="text-align:left;padding:8px;">Fecha</th>
+              <th style="text-align:left;padding:8px;">Hora</th>
               <th style="text-align:left;padding:8px;">Encargado</th>
               <th style="text-align:left;padding:8px;">Contacto</th>
               <th style="text-align:left;padding:8px;">Inversión</th>
@@ -459,11 +462,19 @@
           </thead>
           <tbody>
             <tr>
-              <td style="padding:8px;"><input id="annActivity" type="text" placeholder="Ej: Reunión, Visita, Evento..." style="margin:0;" /></td>
+              <td style="padding:8px;min-width:150px;"><input id="annActivity" type="text" placeholder="Ej: Reunión, Visita, Evento..." style="margin:0;" /></td>
               <td style="padding:8px;"><input id="annEventDate" type="date" style="margin:0;" /></td>
-              <td style="padding:8px;"><input id="annOwnerName" type="text" placeholder="Nombre del encargado" style="margin:0;" /></td>
-              <td style="padding:8px;"><input id="annContactPhone" type="text" placeholder="Teléfono" style="margin:0;" /></td>
-              <td style="padding:8px;"><input id="annInvestment" type="number" step="0.01" placeholder="0" style="margin:0;" /></td>
+              <td style="padding:8px;">
+                <!-- Hora siempre en AM/PM (no se usa input type=time: según el dispositivo muestra 24 h) -->
+                <div class="ann-time">
+                  <select id="annTimeHour" aria-label="Hora"><option value="">Hr</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option></select>
+                  <select id="annTimeMin" aria-label="Minutos"><option value="">Min</option><option value="00">00</option><option value="05">05</option><option value="10">10</option><option value="15">15</option><option value="20">20</option><option value="25">25</option><option value="30">30</option><option value="35">35</option><option value="40">40</option><option value="45">45</option><option value="50">50</option><option value="55">55</option></select>
+                  <select id="annTimeAmPm" aria-label="AM o PM"><option value="">—</option><option value="AM">AM</option><option value="PM">PM</option></select>
+                </div>
+              </td>
+              <td style="padding:8px;min-width:110px;"><input id="annOwnerName" type="text" placeholder="Opcional" style="margin:0;" /></td>
+              <td style="padding:8px;min-width:100px;"><input id="annContactPhone" type="text" placeholder="Opcional" style="margin:0;" /></td>
+              <td style="padding:8px;min-width:80px;"><input id="annInvestment" type="number" step="0.01" min="0" placeholder="Opcional" style="margin:0;" /></td>
               <td style="padding:8px;">
                 <div style="display:flex;gap:10px;align-items:center;">
                   <button id="annBtnSave" class="admin-icon-btn" type="button" title="Crear actividad" aria-label="Crear actividad"><i class="fa-solid fa-cloud-arrow-up"></i></button>
@@ -479,11 +490,12 @@
       <div style="margin-top:20px;padding:14px;border:1px solid var(--line);border-radius:12px;">
         <div style="font-weight:700;margin-bottom:10px;">Actividades registradas</div>
         <div style="overflow:auto;">
-        <table style="width:100%;border-collapse:collapse;min-width:720px;">
+        <table style="width:100%;border-collapse:collapse;min-width:860px;">
           <thead>
             <tr>
               <th style="text-align:left;padding:8px;">Actividad</th>
               <th style="text-align:left;padding:8px;">Fecha</th>
+              <th style="text-align:left;padding:8px;">Hora</th>
               <th style="text-align:left;padding:8px;">Encargado</th>
               <th style="text-align:left;padding:8px;">Contacto</th>
               <th style="text-align:left;padding:8px;">Inversión</th>
@@ -491,7 +503,7 @@
             </tr>
           </thead>
           <tbody id="annTbody">
-            <tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>
+            <tr><td colspan="7" style="padding:10px;" class="muted">Cargando…</td></tr>
           </tbody>
         </table>
         </div>

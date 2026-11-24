@@ -1,4 +1,4 @@
-import { requireSession, getMyProfile, compareSquadSectionName } from "./shared.js";
+import { requireSession, getMyProfile, compareSquadSectionName, formatTime12, compareDateTime, isActivityExpired } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
@@ -736,20 +736,28 @@ btnBack?.addEventListener('click', () => {
     const anuncioStatus = qs('#anuncioStatus');
     let anuncioRowsCache = [];
 
-    // Ordena la tabla de Anuncios: activos primero (los más próximos primero),
-    // vencidos (fecha < hoy) al final (el más recientemente vencido arriba
-    // dentro de ese grupo). Ver .ann-row--expired para el tachado visual.
+    // Ordena la tabla de Anuncios: vigentes primero (las más próximas
+    // primero, por fecha y hora), vencidas al final (la más recientemente
+    // vencida arriba). "Vencida" = isActivityExpired (shared.js): con hora,
+    // cuando ya pasó fecha+hora; sin hora, cuando la fecha es anterior a hoy.
+    // Ver .ann-row--expired para el tachado visual.
     const sortAnuncioActivities = (rows) => {
-      const todayStr = todayISO();
+      const now = new Date();
       const active = [];
       const expired = [];
       (rows || []).forEach(r => {
-        if (r.event_date && r.event_date < todayStr) expired.push(r);
+        if (isActivityExpired(r, now)) expired.push(r);
         else active.push(r);
       });
-      active.sort((a, b) => (a.event_date || '').localeCompare(b.event_date || ''));
-      expired.sort((a, b) => (b.event_date || '').localeCompare(a.event_date || ''));
+      active.sort(compareDateTime);
+      expired.sort((a, b) => compareDateTime(b, a));
       return [...active, ...expired];
+    };
+
+    // Vacío / null -> "-" (sin información)
+    const annOrDash = (v) => {
+      const t = (v ?? '').toString().trim();
+      return t === '' ? '-' : t;
     };
 
     const normalizeProfile = (p) => {
@@ -2964,6 +2972,7 @@ btnBack?.addEventListener('click', () => {
       const headCells = [
         '<th>Actividad</th>',
         '<th>Fecha</th>',
+        '<th>Hora</th>',
         '<th>Encargado</th>',
         '<th>#Contacto</th>',
         '<th>Inversión</th>',
@@ -2971,17 +2980,18 @@ btnBack?.addEventListener('click', () => {
       ];
 
       const curRange = anuncioCurrentWeekRangeISO();
-      const todayStr = todayISO();
+      const now = new Date();
 
       const body = (rows || []).map(r => {
         const inCurrentWeek = !!(curRange && r.event_date && r.event_date >= curRange.mondayISO && r.event_date <= curRange.sundayISO);
-        const isExpired = !!(r.event_date && r.event_date < todayStr);
+        const isExpired = isActivityExpired(r, now);
         const cells = [
-          `<td>${escapeHtml(r.activity)}</td>`,
-          `<td>${escapeHtml(r.event_date)}</td>`,
-          `<td>${escapeHtml(r.owner_name)}</td>`,
-          `<td>${escapeHtml(r.contact_phone)}</td>`,
-          `<td>${escapeHtml(fmtInvestment(r.investment))}</td>`,
+          `<td>${escapeHtml(annOrDash(r.activity))}</td>`,
+          `<td>${escapeHtml(annOrDash(r.event_date))}</td>`,
+          `<td style="white-space:nowrap;">${escapeHtml(annOrDash(formatTime12(r.event_time)))}</td>`,
+          `<td>${escapeHtml(annOrDash(r.owner_name))}</td>`,
+          `<td>${escapeHtml(annOrDash(r.contact_phone))}</td>`,
+          `<td>${escapeHtml(annOrDash(fmtInvestment(r.investment)))}</td>`,
           `<td class="ann-actions">` +
             `<button type="button" class="pill pill--icon" data-ann-share="${escapeHtml(r.id)}" title="Compartir" aria-label="Compartir">` +
               `<i class="fa-solid fa-share-from-square"></i></button>` +
@@ -3053,6 +3063,7 @@ btnBack?.addEventListener('click', () => {
       const lines = [
         r.activity ? `Actividad: ${r.activity}` : '',
         r.event_date ? `Fecha: ${r.event_date}` : '',
+        r.event_time ? `Hora: ${formatTime12(r.event_time)}` : '',
         r.owner_name ? `Encargado: ${r.owner_name}` : '',
         r.contact_phone ? `Contacto: ${r.contact_phone}` : '',
         (r.investment !== null && r.investment !== undefined && r.investment !== '')
@@ -3424,7 +3435,8 @@ btnBack?.addEventListener('click', () => {
     let currentBroadcastRow = null;
 
     const showNextPendingBroadcast = async () => {
-      if (isOffline) return; // requiere red; se revisa de nuevo la próxima vez que abra con conexión
+      // Sin conexión o sin pendientes → sigue la cola con el popup semanal de Anuncios.
+      if (isOffline) { showWeeklyAnunciosPopup(); return; }
       const { data, error } = await supabase
         .from('dc_broadcast_recipients')
         .select('id, dc_broadcasts(sender_name, content)')
@@ -3432,7 +3444,7 @@ btnBack?.addEventListener('click', () => {
         .eq('status', 'pending')
         .order('created_at', { ascending: true })
         .limit(1);
-      if (error || !data || !data.length) return;
+      if (error || !data || !data.length) { showWeeklyAnunciosPopup(); return; }
       currentBroadcastRow = data[0];
       if (broadcastPopupSender) broadcastPopupSender.textContent = data[0].dc_broadcasts?.sender_name || 'Alguien';
       if (broadcastPopupContent) broadcastPopupContent.textContent = data[0].dc_broadcasts?.content || '';
@@ -3494,7 +3506,110 @@ btnBack?.addEventListener('click', () => {
       await resolveBroadcastPopup('noted');
     });
 
-    showNextPendingBroadcast();
+    // ---- Popup semanal de Anuncios (nov 2026) ----
+    // Al abrir la app (todos los roles), después de los anuncios de Publicar
+    // pendientes: actividades de la semana ISO actual NO vencidas
+    // (isActivityExpired). Opciones: "No volver a mostrar esta semana" y
+    // "Agregar a mis anuncios de célula" (solo las vigentes en ese momento;
+    // después tampoco se vuelve a mostrar esa semana, para no duplicar).
+    // Cerrar (X) = vuelve a salir la próxima vez que se abra la app.
+    const annWeekModal = qs('#annWeekModal');
+    const annWeekList = qs('#annWeekList');
+    const annWeekNote = qs('#annWeekNote');
+    const annWeekHide = qs('#annWeekHide');
+    const annWeekAdd = qs('#annWeekAdd');
+    const annWeekClose = qs('#annWeekClose');
+    const ANN_WEEK_DAYS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const ANN_WEEK_MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    let annWeekShownThisSession = false;
+    let annWeekRowsShown = [];
+
+    const annWeekKey = () => {
+      const { year, week } = currentIsoWeek();
+      return `bitacora_ann_week_popup_v1::${user.id}::${wkKey(year, week)}`;
+    };
+    const annWeekIsDismissed = () => { try { return !!localStorage.getItem(annWeekKey()); } catch { return false; } };
+    const annWeekDismiss = (why) => { try { localStorage.setItem(annWeekKey(), why); } catch {} };
+
+    const annWeekWhen = (r) => {
+      const [y, mo, d] = String(r.event_date || '').split('-').map(Number);
+      const dt = new Date(y, (mo || 1) - 1, d || 1);
+      const day = `${ANN_WEEK_DAYS[dt.getDay()]} ${dt.getDate()} ${ANN_WEEK_MONTHS[dt.getMonth()]}`;
+      const t = formatTime12(r.event_time);
+      return t ? `${day}, ${t}` : day;
+    };
+    const annWeekWho = (r) => [r.owner_name, r.contact_phone]
+      .map(v => (v ?? '').toString().trim()).filter(Boolean).join(' · ');
+
+    // Actividades vigentes de la semana actual (red o caché offline).
+    const annWeekFetchRows = async () => {
+      let rows = null;
+      if (!isOffline) {
+        const { data, error } = await supabase.from('calendar_activities').select('*');
+        if (!error && Array.isArray(data)) { rows = data; offlineCacheSet('anuncios_activities', data); }
+      }
+      if (!rows) rows = offlineCacheGet('anuncios_activities')?.data || [];
+      const { mondayISO, sundayISO } = anuncioCurrentWeekRangeISO();
+      const now = new Date();
+      return rows
+        .filter(r => r.event_date && r.event_date >= mondayISO && r.event_date <= sundayISO && !isActivityExpired(r, now))
+        .sort(compareDateTime);
+    };
+
+    const closeAnnWeekModal = () => annWeekModal?.classList.add('is-hidden');
+
+    async function showWeeklyAnunciosPopup() {
+      if (annWeekShownThisSession || !annWeekModal || !annWeekList) return;
+      annWeekShownThisSession = true; // una vez por apertura de la app
+      if (annWeekIsDismissed()) return;
+      let rows = [];
+      try { rows = await annWeekFetchRows(); } catch { rows = []; }
+      if (!rows.length) return;
+      annWeekRowsShown = rows;
+      annWeekList.innerHTML = rows.map(r => {
+        const who = annWeekWho(r);
+        return `<li><div class="ann-week-item__when">${escapeHtml(annWeekWhen(r))}</div>` +
+          `<div class="ann-week-item__what">${escapeHtml(r.activity || '-')}</div>` +
+          (who ? `<div class="ann-week-item__who">${escapeHtml(who)}</div>` : '') + `</li>`;
+      }).join('');
+      if (annWeekAdd) annWeekAdd.disabled = isOffline;
+      if (annWeekNote) annWeekNote.textContent = isOffline ? 'Agregar a tus anuncios de célula requiere conexión.' : '';
+      annWeekModal.classList.remove('is-hidden');
+    }
+
+    annWeekClose?.addEventListener('click', closeAnnWeekModal);
+    annWeekModal?.addEventListener('click', (e) => { if (e.target === annWeekModal) closeAnnWeekModal(); });
+    annWeekHide?.addEventListener('click', () => { annWeekDismiss('hidden'); closeAnnWeekModal(); });
+
+    annWeekAdd?.addEventListener('click', async () => {
+      if (isOffline) return;
+      // Se re-filtra al momento de tocar: nunca se agregan vencidas.
+      const now = new Date();
+      const vigentes = annWeekRowsShown.filter(r => !isActivityExpired(r, now));
+      if (!vigentes.length) {
+        if (annWeekNote) annWeekNote.textContent = 'Estas actividades ya vencieron; no hay nada para agregar.';
+        return;
+      }
+      const text = vigentes.map(r => {
+        const who = annWeekWho(r);
+        return `• ${annWeekWhen(r)} — ${r.activity || '-'}${who ? ` (${who})` : ''}`;
+      }).join('\n');
+      annWeekAdd.disabled = true;
+      if (annWeekNote) annWeekNote.textContent = 'Agregando…';
+      try {
+        await appendToCurrentWeekAnuncios(text);
+        annWeekDismiss('added');
+        if (annWeekNote) annWeekNote.textContent = 'Agregado a tus anuncios de célula.';
+        setTimeout(closeAnnWeekModal, 1200);
+      } catch {
+        annWeekAdd.disabled = false;
+        if (annWeekNote) annWeekNote.textContent = 'No se pudo agregar. Intentá de nuevo.';
+      }
+    });
+
+    // La llamada inicial a showNextPendingBroadcast() está después de
+    // showView('home') (más abajo): el popup semanal usa currentIsoWeek(),
+    // que se declara más adelante en este archivo.
 
     // Botones únicos Atrás/Guardar/Compartir, ubicados junto al tail del <h1>Notas</h1>
     const notesHeaderActions = qs('#notesHeaderActions');
@@ -5464,6 +5579,8 @@ btnNoteDinamica?.addEventListener('click', openDinamicaCelular);
     setWeekScreenVisible(false);
     showView('home');
     try { history.replaceState({ view: 'home' }, ''); } catch (e) {}
+    // Cola de popups al abrir: anuncios de Publicar pendientes → popup semanal de Anuncios.
+    showNextPendingBroadcast();
     // En segundo plano, sin bloquear el render: primero sube (Supabase)
     // cualquier borrador local que haya quedado atrapado, y luego baja el
     // historial completo de "dc" (incluye Asistencia/ofrenda) para que la

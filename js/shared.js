@@ -146,3 +146,51 @@ export function compareSquadSectionName(a, b) {
     || (sectionRank(a.section) - sectionRank(b.section))
     || nameCollator.compare(a.name || "", b.name || "");
 }
+
+// ---------------------------------------------------------------------------
+// Hora de actividades (Anuncios, nov 2026). En pantalla SIEMPRE AM/PM; la
+// base de datos guarda tipo `time` (HH:MM:SS) solo para poder ordenar.
+// ---------------------------------------------------------------------------
+// "19:30:00" -> { h12: 7, min: 30, ampm: "PM" } | null
+export function parseTime12(t) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ""));
+  if (!m) return null;
+  const h24 = Number(m[1]);
+  const min = Number(m[2]);
+  return { h12: (h24 % 12) || 12, min, ampm: h24 >= 12 ? "PM" : "AM" };
+}
+
+// "19:30:00" -> "7:30 PM" ; vacío -> ""
+export function formatTime12(t) {
+  const p = parseTime12(t);
+  if (!p) return "";
+  return `${p.h12}:${String(p.min).padStart(2, "0")} ${p.ampm}`;
+}
+
+// (7, 30, "PM") -> "19:30" (formato que acepta Postgres `time`) | null
+export function time12ToDb(h12, min, ampm) {
+  const h = Number(h12), mi = Number(min);
+  if (!h || h < 1 || h > 12 || Number.isNaN(mi) || (ampm !== "AM" && ampm !== "PM")) return null;
+  const h24 = (h % 12) + (ampm === "PM" ? 12 : 0);
+  return `${String(h24).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
+}
+
+// Orden de actividades: por fecha y, dentro del mismo día, por hora
+// (sin hora va al final del día).
+export function compareDateTime(a, b) {
+  return (a.event_date || "").localeCompare(b.event_date || "")
+    || (a.event_time || "99").localeCompare(b.event_time || "99");
+}
+
+// ¿Actividad vencida? (Opción A, nov 2026): con hora → vencida cuando ya
+// pasó su fecha+hora (hora local); sin hora (filas viejas) → cuando su
+// fecha es anterior a hoy. Única regla para tabla de la app, tabla de
+// Admin, popup semanal y "Agregar a mis anuncios de célula".
+export function isActivityExpired(r, now = new Date()) {
+  if (!r || !r.event_date) return false;
+  const [y, mo, d] = String(r.event_date).split("-").map(Number);
+  if (!y || !mo || !d) return false;
+  const tm = /^(\d{1,2}):(\d{2})/.exec(String(r.event_time || ""));
+  if (tm) return new Date(y, mo - 1, d, Number(tm[1]), Number(tm[2])) <= now;
+  return new Date(y, mo - 1, d) < new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}

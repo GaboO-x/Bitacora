@@ -1,4 +1,4 @@
-import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEdge, compareSquadSectionName, squadRank, sectionRank } from "./shared.js";
+import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEdge, compareSquadSectionName, squadRank, sectionRank, parseTime12, formatTime12, time12ToDb, compareDateTime, isActivityExpired } from "./shared.js";
 
 (async () => {
   const { supabase, session } = await requireSession();
@@ -701,6 +701,9 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     ownerName: document.getElementById("annOwnerName"),
     contactPhone: document.getElementById("annContactPhone"),
     investment: document.getElementById("annInvestment"),
+    timeHour: document.getElementById("annTimeHour"),
+    timeMin: document.getElementById("annTimeMin"),
+    timeAmPm: document.getElementById("annTimeAmPm"),
     btnSave: document.getElementById("annBtnSave"),
     btnCancel: document.getElementById("annBtnCancel"),
     tbody: document.getElementById("annTbody"),
@@ -729,15 +732,15 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
   // vencidas (fecha < hoy) al final (la más recientemente vencida arriba
   // dentro de ese grupo). Mismo criterio que usa app.js (vista de usuario).
   function sortAnuncioActivities(rows) {
-    const todayStr = todayISO();
+    const now = new Date();
     const active = [];
     const expired = [];
     (rows || []).forEach(r => {
-      if (r.event_date && r.event_date < todayStr) expired.push(r);
+      if (isActivityExpired(r, now)) expired.push(r);
       else active.push(r);
     });
-    active.sort((a, b) => (a.event_date || "").localeCompare(b.event_date || ""));
-    expired.sort((a, b) => (b.event_date || "").localeCompare(a.event_date || ""));
+    active.sort(compareDateTime);
+    expired.sort((a, b) => compareDateTime(b, a));
     return [...active, ...expired];
   }
 
@@ -803,6 +806,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     if (anuncioEls.ownerName) anuncioEls.ownerName.value = "";
     if (anuncioEls.contactPhone) anuncioEls.contactPhone.value = "";
     if (anuncioEls.investment) anuncioEls.investment.value = "";
+    setAnuncioTimeFields(null);
     setAnuncioSaveLabel("Crear actividad");
     if (anuncioEls.btnSave) anuncioEls.btnSave.dataset.originalText = "Crear actividad";
     setAnuncioCancelVisible(false);
@@ -815,38 +819,72 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     const contact_phone = (anuncioEls.contactPhone?.value || "").trim();
     const invRaw = (anuncioEls.investment?.value || "").toString().trim();
     const investment = invRaw === "" ? null : Number(invRaw);
+    const tH = anuncioEls.timeHour?.value || "";
+    const tM = anuncioEls.timeMin?.value || "";
+    const tAP = anuncioEls.timeAmPm?.value || "";
 
-    return { activity, event_date, owner_name, contact_phone, investment };
+    // Opcionales vacíos = NULL (en pantalla se ven como "-").
+    return {
+      activity,
+      event_date,
+      event_time: time12ToDb(tH, tM, tAP),
+      _timePartial: !!(tH || tM || tAP),
+      owner_name: owner_name || null,
+      contact_phone: contact_phone || null,
+      investment,
+    };
   }
 
+  // Obligatorios: Actividad, Fecha y Hora. El resto es opcional.
   function validateAnuncioPayload(p) {
     if (!p.activity) return "Falta Actividad.";
     if (!p.event_date) return "Falta Fecha.";
-    if (p.investment !== null && Number.isNaN(p.investment)) return "Inversión inválida.";
+    if (!p.event_time) return p._timePartial ? "Completá la Hora (hora, minutos y AM/PM)." : "Falta Hora.";
+    if (p.investment !== null && (Number.isNaN(p.investment) || p.investment < 0)) return "Inversión inválida.";
     return null;
+  }
+
+  function setAnuncioTimeFields(dbTime) {
+    const t = parseTime12(dbTime);
+    if (anuncioEls.timeHour) anuncioEls.timeHour.value = t ? String(t.h12) : "";
+    // Si la hora guardada no cae en múltiplo de 5, se agrega esa opción para no perderla.
+    if (anuncioEls.timeMin) {
+      const mm = t ? String(t.min).padStart(2, "0") : "";
+      if (mm && ![...anuncioEls.timeMin.options].some(o => o.value === mm)) {
+        anuncioEls.timeMin.add(new Option(mm, mm));
+      }
+      anuncioEls.timeMin.value = mm;
+    }
+    if (anuncioEls.timeAmPm) anuncioEls.timeAmPm.value = t ? t.ampm : "";
+  }
+
+  // Vacío / null -> "-" (sin información)
+  function orDash(v) {
+    const s = (v ?? "").toString().trim();
+    return s === "" ? "-" : s;
   }
 
   function renderAnuncioTable() {
     if (!anuncioEls.tbody) return;
 
     if (!Array.isArray(anuncioRows) || anuncioRows.length === 0) {
-      anuncioEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">No hay actividades.</td></tr>';
+      anuncioEls.tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">No hay actividades.</td></tr>';
       return;
     }
 
     const curRange = anuncioCurrentWeekRangeISO();
-    const todayStr = todayISO();
 
     anuncioEls.tbody.innerHTML = anuncioRows.map(r => {
       const id = safeText(r.id);
-      const activity = safeText(r.activity);
-      const date = safeText(r.event_date);
-      const owner = safeText(r.owner_name);
-      const phone = safeText(r.contact_phone);
-      const inv = fmtMoney(r.investment);
+      const activity = escapeHtml(orDash(r.activity));
+      const date = escapeHtml(orDash(r.event_date));
+      const time = escapeHtml(orDash(formatTime12(r.event_time)));
+      const owner = escapeHtml(orDash(r.owner_name));
+      const phone = escapeHtml(orDash(r.contact_phone));
+      const inv = escapeHtml(orDash(fmtMoney(r.investment)));
 
       const inCurrentWeek = !!(r.event_date && r.event_date >= curRange.mondayISO && r.event_date <= curRange.sundayISO);
-      const isExpired = !!(r.event_date && r.event_date < todayStr);
+      const isExpired = isActivityExpired(r);
       const rowClasses = [
         inCurrentWeek ? "ann-row--current" : "",
         isExpired ? "ann-row--expired" : "",
@@ -857,6 +895,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         <tr data-row-id="${id}"${rowClassAttr}>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${activity}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${date}</td>
+          <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);white-space:nowrap;">${time}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${owner}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${phone}</td>
           <td style="padding:8px;border-bottom:1px solid rgba(255,255,255,0.08);">${inv}</td>
@@ -874,7 +913,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     anuncioBusy = true;
     try {
       if (anuncioEls.tbody) {
-        anuncioEls.tbody.innerHTML = '<tr><td colspan="6" style="padding:10px;" class="muted">Cargando…</td></tr>';
+        anuncioEls.tbody.innerHTML = '<tr><td colspan="7" style="padding:10px;" class="muted">Cargando…</td></tr>';
       }
 
       const { data, error } = await supabase
@@ -904,6 +943,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
     if (anuncioEls.ownerName) anuncioEls.ownerName.value = row.owner_name ?? "";
     if (anuncioEls.contactPhone) anuncioEls.contactPhone.value = row.contact_phone ?? "";
     if (anuncioEls.investment) anuncioEls.investment.value = row.investment ?? "";
+    setAnuncioTimeFields(row.event_time);
 
     setAnuncioSaveLabel("Guardar cambios");
     setAnuncioCancelVisible(true);
@@ -937,6 +977,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
           .insert({
             activity: payload.activity,
             event_date: payload.event_date,
+            event_time: payload.event_time,
             owner_name: payload.owner_name,
             contact_phone: payload.contact_phone,
             investment: payload.investment,
@@ -959,6 +1000,7 @@ import { requireSession, setMsg, getMyProfile, callInviteEdge, callManageUsersEd
         .update({
           activity: payload.activity,
           event_date: payload.event_date,
+          event_time: payload.event_time,
           owner_name: payload.owner_name,
           contact_phone: payload.contact_phone,
           investment: payload.investment,

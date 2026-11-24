@@ -162,6 +162,23 @@
   display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;
 }
 
+/* Popup semanal de Anuncios */
+.ann-week-box{ position:relative; max-width:440px; }
+.ann-week-close{
+  position:absolute; top:10px; right:10px;
+  width:32px; height:32px; border-radius:10px;
+  border:1px solid var(--line); background: var(--panel2); color: var(--text);
+  cursor:pointer; display:inline-flex; align-items:center; justify-content:center;
+}
+.ann-week-close:hover{ border-color: var(--accent-border); color: var(--accent); }
+#annWeekModalTitle{ padding-right:40px; }
+.ann-week-list{ list-style:none; margin:0 0 10px; padding:0; max-height:50vh; overflow:auto; }
+.ann-week-list li{ padding:8px 0; border-bottom:1px solid var(--line); }
+.ann-week-list li:last-child{ border-bottom:none; }
+.ann-week-item__when{ font-size:12px; color: var(--accent2); font-weight:600; }
+.ann-week-item__what{ color: var(--text-primary); font-weight:500; }
+.ann-week-item__who{ font-size:12px; color: var(--muted); }
+
 /* Fase 1 — infraestructura offline: secciones no disponibles sin conexión */
 .is-offline-disabled{
   opacity:.4;
@@ -1559,6 +1576,23 @@
 <div class="modal-box__actions">
 <button class="pill" id="broadcastPopupClose" type="button">Cerrar</button>
 <button class="pill pill--primary" id="broadcastPopupNote" type="button">Anotarlo</button>
+</div>
+</div>
+</div>
+
+<!-- Modal: Anuncios de la semana (popup semanal al abrir la app — nov 2026).
+     Solo actividades de la semana ISO actual NO vencidas. -->
+<div class="modal-overlay is-hidden" id="annWeekModal">
+<div aria-labelledby="annWeekModalTitle" aria-modal="true" class="modal-box ann-week-box" role="dialog">
+<button aria-label="Cerrar" class="ann-week-close" id="annWeekClose" title="Cerrar" type="button"><i class="fa-solid fa-xmark"></i></button>
+<div class="modal-box__title" id="annWeekModalTitle"><i class="fa-solid fa-bell"></i> Anuncios de la semana</div>
+<div class="modal-box__body">
+<ul class="ann-week-list" id="annWeekList"></ul>
+<div class="muted tiny" id="annWeekNote"></div>
+</div>
+<div class="modal-box__actions">
+<button class="pill" id="annWeekHide" type="button">No volver a mostrar esta semana</button>
+<button class="pill pill--primary" id="annWeekAdd" type="button"><i class="fa-solid fa-plus"></i> Agregar a mis anuncios de célula</button>
 </div>
 </div>
 </div>
